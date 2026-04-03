@@ -16,7 +16,8 @@ struct DashboardView: View {
     // MARK: - State
 
     @State private var chartStyle: ChartStyle = .bar
-    @State private var hoveredWeek: String?
+    @State private var hoveredDay: Int?
+    @State private var hoverLocation: CGPoint = .zero
     @State private var hoveredDonutAngle: Double?
     @State private var hoveredTxID: UUID?
     @State private var hoveredAccountID: UUID?
@@ -255,41 +256,19 @@ struct DashboardView: View {
                     cashFlowChart
                         .frame(minHeight: 200)
                         .animation(CentmondTheme.Motion.layout, value: chartStyle)
-                        .overlay(alignment: .topLeading) {
-                            if let week = hoveredWeek,
-                               let data = computeWeeklyData().first(where: { $0.label == week }) {
-                                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-                                    Text(week)
-                                        .font(CentmondTheme.Typography.captionMedium)
-                                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                    HStack(spacing: CentmondTheme.Spacing.md) {
-                                        HStack(spacing: CentmondTheme.Spacing.xs) {
-                                            Circle().fill(CentmondTheme.Colors.positive).frame(width: 5, height: 5)
-                                            Text(CurrencyFormat.standard(Decimal(data.income)))
-                                                .font(CentmondTheme.Typography.caption)
-                                                .foregroundStyle(CentmondTheme.Colors.positive)
-                                                .monospacedDigit()
-                                        }
-                                        HStack(spacing: CentmondTheme.Spacing.xs) {
-                                            Circle().fill(CentmondTheme.Colors.accent).frame(width: 5, height: 5)
-                                            Text(CurrencyFormat.standard(Decimal(data.expenses)))
-                                                .font(CentmondTheme.Typography.caption)
-                                                .foregroundStyle(CentmondTheme.Colors.accent)
-                                                .monospacedDigit()
-                                        }
-                                    }
+                        .overlay {
+                            GeometryReader { geo in
+                                if let day = hoveredDay,
+                                   let data = computeDailyData().first(where: { $0.id == day }) {
+                                    let tooltipW: CGFloat = 160
+                                    let clampedX = min(max(hoverLocation.x, tooltipW / 2 + 8), geo.size.width - tooltipW / 2 - 8)
+
+                                    chartTooltip(data: data)
+                                        .frame(width: tooltipW)
+                                        .position(x: clampedX, y: max(hoverLocation.y - 46, 24))
+                                        .allowsHitTesting(false)
+                                        .transition(.opacity)
                                 }
-                                .padding(.horizontal, CentmondTheme.Spacing.md)
-                                .padding(.vertical, CentmondTheme.Spacing.sm)
-                                .background(CentmondTheme.Colors.bgTertiary)
-                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
-                                        .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
-                                )
-                                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-                                .transition(.opacity)
-                                .offset(x: 32, y: 6)
                             }
                         }
                 }
@@ -948,50 +927,40 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var modernBarChart: some View {
-        let weeklyData = computeWeeklyData()
+        let dailyData = computeDailyData()
+        let dayCount = dailyData.count
         Chart {
-            ForEach(weeklyData, id: \.label) { dp in
-                // Expenses bar
+            ForEach(dailyData) { dp in
                 BarMark(
-                    x: .value("Week", dp.label),
-                    y: .value("Expenses", dp.expenses),
-                    width: .ratio(0.35)
+                    x: .value("Day", dp.id),
+                    y: .value("Expenses", dp.expenses)
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [
-                            CentmondTheme.Colors.accent,
-                            CentmondTheme.Colors.accent.opacity(0.5)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        colors: [CentmondTheme.Colors.accent, CentmondTheme.Colors.accent.opacity(0.5)],
+                        startPoint: .top, endPoint: .bottom
                     )
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .opacity(hoveredWeek == nil || hoveredWeek == dp.label ? 1.0 : 0.4)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
                 .position(by: .value("Type", "Expenses"))
 
-                // Income bar
                 BarMark(
-                    x: .value("Week", dp.label),
-                    y: .value("Income", dp.income),
-                    width: .ratio(0.35)
+                    x: .value("Day", dp.id),
+                    y: .value("Income", dp.income)
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [
-                            CentmondTheme.Colors.positive,
-                            CentmondTheme.Colors.positive.opacity(0.4)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        colors: [CentmondTheme.Colors.positive, CentmondTheme.Colors.positive.opacity(0.4)],
+                        startPoint: .top, endPoint: .bottom
                     )
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .opacity(hoveredWeek == nil || hoveredWeek == dp.label ? 1.0 : 0.4)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
                 .position(by: .value("Type", "Income"))
             }
         }
+        .chartXScale(domain: 1 ... (dailyData.count > 0 ? dailyData.count : 30))
         .chartYScale(domain: .automatic(includesZero: true))
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
@@ -1007,26 +976,42 @@ struct DashboardView: View {
             }
         }
         .chartXAxis {
-            AxisMarks { _ in
-                AxisValueLabel()
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            AxisMarks(values: [1, 5, 10, 15, 20, 25, 30]) { value in
+                AxisValueLabel {
+                    if let day = value.as(Int.self) {
+                        Text("\(day)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    }
+                }
             }
         }
         .chartLegend(.hidden)
         .chartOverlay { proxy in
-            GeometryReader { _ in
+            GeometryReader { geo in
                 Rectangle()
                     .fill(.clear)
                     .contentShape(Rectangle())
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            if let weekValue: String = proxy.value(atX: location.x) {
-                                withAnimation(CentmondTheme.Motion.micro) { hoveredWeek = weekValue }
+                            hoverLocation = location
+                            var closestDay: Int?
+                            var closestDist = CGFloat.greatestFiniteMagnitude
+                            for dp in dailyData {
+                                if let xPos = proxy.position(forX: dp.id) {
+                                    let dist = abs(location.x - xPos)
+                                    if dist < closestDist {
+                                        closestDist = dist
+                                        closestDay = dp.id
+                                    }
+                                }
+                            }
+                            if let day = closestDay {
+                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = day }
                             }
                         case .ended:
-                            withAnimation(CentmondTheme.Motion.micro) { hoveredWeek = nil }
+                            withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
                         }
                     }
             }
@@ -1037,19 +1022,20 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var modernLineChart: some View {
-        let weeklyData = computeWeeklyData()
+        let dailyData = computeDailyData()
 
         Chart {
             // Expenses — gradient area + line
-            ForEach(weeklyData, id: \.label) { dp in
+            ForEach(dailyData) { dp in
                 AreaMark(
-                    x: .value("Week", dp.label),
-                    y: .value("Amount", dp.expenses)
+                    x: .value("Day", dp.id),
+                    yStart: .value("Start", 0),
+                    yEnd: .value("Amount", dp.expenses)
                 )
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            CentmondTheme.Colors.accent.opacity(0.3),
+                            CentmondTheme.Colors.accent.opacity(0.25),
                             CentmondTheme.Colors.accent.opacity(0.05),
                             .clear
                         ],
@@ -1057,28 +1043,28 @@ struct DashboardView: View {
                         endPoint: .bottom
                     )
                 )
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
 
                 LineMark(
-                    x: .value("Week", dp.label),
+                    x: .value("Day", dp.id),
                     y: .value("Amount", dp.expenses)
                 )
                 .foregroundStyle(CentmondTheme.Colors.accent)
-                .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .interpolationMethod(.monotone)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
 
             // Income — gradient area + line
-            ForEach(weeklyData, id: \.label) { dp in
+            ForEach(dailyData) { dp in
                 AreaMark(
-                    x: .value("Week", dp.label),
+                    x: .value("Day", dp.id),
                     yStart: .value("Start", 0),
                     yEnd: .value("Amount", dp.income)
                 )
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            CentmondTheme.Colors.positive.opacity(0.2),
+                            CentmondTheme.Colors.positive.opacity(0.18),
                             CentmondTheme.Colors.positive.opacity(0.03),
                             .clear
                         ],
@@ -1086,33 +1072,36 @@ struct DashboardView: View {
                         endPoint: .bottom
                     )
                 )
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
 
                 LineMark(
-                    x: .value("Week", dp.label),
+                    x: .value("Day", dp.id),
                     y: .value("Amount", dp.income)
                 )
                 .foregroundStyle(CentmondTheme.Colors.positive)
-                .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                .interpolationMethod(.monotone)
+                .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
             }
 
             // Hover indicators
-            if let week = hoveredWeek,
-               let dp = weeklyData.first(where: { $0.label == week }) {
-                RuleMark(x: .value("Week", week))
+            if let day = hoveredDay,
+               let dp = dailyData.first(where: { $0.id == day }) {
+                RuleMark(x: .value("Day", day))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
 
-                PointMark(x: .value("Week", week), y: .value("Exp", dp.expenses))
+                PointMark(x: .value("Day", day), y: .value("Exp", dp.expenses))
                     .foregroundStyle(CentmondTheme.Colors.accent)
-                    .symbolSize(36)
+                    .symbolSize(30)
 
-                PointMark(x: .value("Week", week), y: .value("Inc", dp.income))
-                    .foregroundStyle(CentmondTheme.Colors.positive)
-                    .symbolSize(36)
+                if dp.income > 0 {
+                    PointMark(x: .value("Day", day), y: .value("Inc", dp.income))
+                        .foregroundStyle(CentmondTheme.Colors.positive)
+                        .symbolSize(30)
+                }
             }
         }
+        .chartXScale(domain: 1 ... (dailyData.count > 0 ? dailyData.count : 30))
         .chartYScale(domain: .automatic(includesZero: true))
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
@@ -1128,30 +1117,79 @@ struct DashboardView: View {
             }
         }
         .chartXAxis {
-            AxisMarks { _ in
-                AxisValueLabel()
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            AxisMarks(values: [1, 5, 10, 15, 20, 25, 30]) { value in
+                AxisValueLabel {
+                    if let day = value.as(Int.self) {
+                        Text("\(day)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    }
+                }
             }
         }
         .chartLegend(.hidden)
         .chartOverlay { proxy in
-            GeometryReader { _ in
+            GeometryReader { geo in
                 Rectangle()
                     .fill(.clear)
                     .contentShape(Rectangle())
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            if let weekValue: String = proxy.value(atX: location.x) {
-                                withAnimation(CentmondTheme.Motion.micro) { hoveredWeek = weekValue }
+                            hoverLocation = location
+                            var closestDay: Int?
+                            var closestDist = CGFloat.greatestFiniteMagnitude
+                            for dp in dailyData {
+                                if let xPos = proxy.position(forX: dp.id) {
+                                    let dist = abs(location.x - xPos)
+                                    if dist < closestDist {
+                                        closestDist = dist
+                                        closestDay = dp.id
+                                    }
+                                }
+                            }
+                            if let day = closestDay {
+                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = day }
                             }
                         case .ended:
-                            withAnimation(CentmondTheme.Motion.micro) { hoveredWeek = nil }
+                            withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
                         }
                     }
             }
         }
+    }
+
+    private func chartTooltip(data: DailyDataPoint) -> some View {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
+            Text(data.date.formatted(.dateTime.month(.abbreviated).day()))
+                .font(CentmondTheme.Typography.captionMedium)
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+            HStack(spacing: CentmondTheme.Spacing.md) {
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Circle().fill(CentmondTheme.Colors.positive).frame(width: 5, height: 5)
+                    Text(CurrencyFormat.standard(Decimal(data.income)))
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.positive)
+                        .monospacedDigit()
+                }
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Circle().fill(CentmondTheme.Colors.accent).frame(width: 5, height: 5)
+                    Text(CurrencyFormat.standard(Decimal(data.expenses)))
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+        .padding(.vertical, CentmondTheme.Spacing.sm)
+        .background(CentmondTheme.Colors.bgTertiary)
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
     }
 
     @ViewBuilder
@@ -1199,33 +1237,43 @@ struct DashboardView: View {
 
     // MARK: - Data Computation
 
-    private struct WeeklyDataPoint {
-        let label: String
+    private struct DailyDataPoint: Identifiable {
+        let id: Int // day of month (1-31)
+        let label: String // "1", "2", ... "31"
+        let date: Date
         let income: Double
         let expenses: Double
     }
 
-    private struct LineChartEntry: Identifiable {
-        let id = UUID()
-        let week: String
-        let amount: Double
-        let series: String
-    }
-
-    private func computeWeeklyData() -> [WeeklyDataPoint] {
+    private func computeDailyData() -> [DailyDataPoint] {
         let calendar = Calendar.current
         let start = router.selectedMonthStart
-        var result: [WeeklyDataPoint] = []
+        let end = router.selectedMonthEnd
+        let daysInMonth = calendar.dateComponents([.day], from: start, to: end).day ?? 30
 
-        for weekIndex in 0..<4 {
-            let weekStart = calendar.date(byAdding: .weekOfMonth, value: weekIndex, to: start)!
-            let weekEnd = calendar.date(byAdding: .weekOfMonth, value: weekIndex + 1, to: start)!
+        // Group transactions by day-of-month for O(n) lookup
+        var incomeByDay: [Int: Double] = [:]
+        var expenseByDay: [Int: Double] = [:]
+        for tx in safeTransactions where tx.date >= start && tx.date < end {
+            let day = calendar.component(.day, from: tx.date)
+            if tx.isIncome {
+                incomeByDay[day, default: 0] += doubleValue(tx.amount)
+            } else {
+                expenseByDay[day, default: 0] += doubleValue(tx.amount)
+            }
+        }
 
-            let weekTransactions = safeTransactions.filter { $0.date >= weekStart && $0.date < weekEnd }
-            let income = weekTransactions.filter(\.isIncome).reduce(0.0) { $0 + doubleValue($1.amount) }
-            let expenses = weekTransactions.filter { !$0.isIncome }.reduce(0.0) { $0 + doubleValue($1.amount) }
-
-            result.append(WeeklyDataPoint(label: "W\(weekIndex + 1)", income: income, expenses: expenses))
+        var result: [DailyDataPoint] = []
+        for dayIndex in 0..<daysInMonth {
+            let dayDate = calendar.date(byAdding: .day, value: dayIndex, to: start)!
+            let day = calendar.component(.day, from: dayDate)
+            result.append(DailyDataPoint(
+                id: day,
+                label: "\(day)",
+                date: dayDate,
+                income: incomeByDay[day] ?? 0,
+                expenses: expenseByDay[day] ?? 0
+            ))
         }
         return result
     }
