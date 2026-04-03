@@ -45,7 +45,7 @@ struct TransactionsView: View {
     }
 
     private var filteredTransactions: [Transaction] {
-        var result = transactions
+        var result = transactions.filter { !$0.isDeleted && $0.modelContext != nil }
 
         // Search filter
         if !searchText.isEmpty {
@@ -212,6 +212,23 @@ struct TransactionsView: View {
                 }
 
                 Spacer()
+
+                Button {
+                    router.showSheet(.importCSV)
+                } label: {
+                    HStack(spacing: CentmondTheme.Spacing.xs) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Import CSV")
+                            .font(CentmondTheme.Typography.captionMedium)
+                    }
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    .padding(.horizontal, CentmondTheme.Spacing.md)
+                    .padding(.vertical, CentmondTheme.Spacing.sm)
+                    .background(CentmondTheme.Colors.bgTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                }
+                .buttonStyle(.plain)
 
                 Button {
                     router.showSheet(.newTransaction)
@@ -544,6 +561,14 @@ struct TransactionRowView: View {
     @State private var isHovered = false
 
     var body: some View {
+        if transaction.isDeleted || transaction.modelContext == nil {
+            EmptyView()
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             // Type indicator
             typeIndicator

@@ -37,8 +37,13 @@ struct DashboardView: View {
         accounts.reduce(0) { $0 + $1.currentBalance }
     }
 
+    /// Safe accessor that filters out detached/deleted objects
+    private var safeTransactions: [Transaction] {
+        transactions.filter { !$0.isDeleted && $0.modelContext != nil }
+    }
+
     private var monthlyExpenses: [Transaction] {
-        transactions.filter { !$0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
+        safeTransactions.filter { !$0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
     }
 
     private var monthlySpending: Decimal {
@@ -46,7 +51,7 @@ struct DashboardView: View {
     }
 
     private var monthlyIncomeTransactions: [Transaction] {
-        transactions.filter { $0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
+        safeTransactions.filter { $0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
     }
 
     private var monthlyIncome: Decimal {
@@ -58,7 +63,7 @@ struct DashboardView: View {
     }
 
     private var recentTransactions: [Transaction] {
-        Array(transactions.filter {
+        Array(safeTransactions.filter {
             $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd
         }.prefix(6))
     }
@@ -230,22 +235,20 @@ struct DashboardView: View {
                     HStack(spacing: CentmondTheme.Spacing.md) {
                         HStack(spacing: CentmondTheme.Spacing.xs) {
                             Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
-                            Text(CurrencyFormat.compact(monthlyIncome))
-                                .font(CentmondTheme.Typography.captionMedium)
-                                .foregroundStyle(CentmondTheme.Colors.positive)
-                                .monospacedDigit()
+                            Text("Income")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         }
                         HStack(spacing: CentmondTheme.Spacing.xs) {
-                            Circle().fill(CentmondTheme.Colors.negative).frame(width: 6, height: 6)
-                            Text(CurrencyFormat.compact(monthlySpending))
-                                .font(CentmondTheme.Typography.captionMedium)
-                                .foregroundStyle(CentmondTheme.Colors.negative)
-                                .monospacedDigit()
+                            Circle().fill(CentmondTheme.Colors.accent).frame(width: 6, height: 6)
+                            Text("Expenses")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         }
                     }
                 }
 
-                if transactions.isEmpty {
+                if safeTransactions.isEmpty {
                     emptyChartPlaceholder("Add transactions to see cash flow")
                         .frame(minHeight: 200)
                 } else {
@@ -255,29 +258,36 @@ struct DashboardView: View {
                         .overlay(alignment: .topLeading) {
                             if let week = hoveredWeek,
                                let data = computeWeeklyData().first(where: { $0.label == week }) {
-                                HStack(spacing: CentmondTheme.Spacing.md) {
-                                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                                        Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
-                                        Text(CurrencyFormat.standard(Decimal(data.income)))
-                                            .font(CentmondTheme.Typography.captionMedium)
-                                            .foregroundStyle(CentmondTheme.Colors.positive)
-                                            .monospacedDigit()
-                                    }
-                                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                                        Circle().fill(CentmondTheme.Colors.negative).frame(width: 6, height: 6)
-                                        Text(CurrencyFormat.standard(Decimal(data.expenses)))
-                                            .font(CentmondTheme.Typography.captionMedium)
-                                            .foregroundStyle(CentmondTheme.Colors.negative)
-                                            .monospacedDigit()
-                                    }
+                                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                                     Text(week)
-                                        .font(CentmondTheme.Typography.caption)
-                                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                        .font(CentmondTheme.Typography.captionMedium)
+                                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                                    HStack(spacing: CentmondTheme.Spacing.md) {
+                                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                                            Circle().fill(CentmondTheme.Colors.positive).frame(width: 5, height: 5)
+                                            Text(CurrencyFormat.standard(Decimal(data.income)))
+                                                .font(CentmondTheme.Typography.caption)
+                                                .foregroundStyle(CentmondTheme.Colors.positive)
+                                                .monospacedDigit()
+                                        }
+                                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                                            Circle().fill(CentmondTheme.Colors.accent).frame(width: 5, height: 5)
+                                            Text(CurrencyFormat.standard(Decimal(data.expenses)))
+                                                .font(CentmondTheme.Typography.caption)
+                                                .foregroundStyle(CentmondTheme.Colors.accent)
+                                                .monospacedDigit()
+                                        }
+                                    }
                                 }
-                                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                                .padding(.vertical, 4)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                                .padding(.horizontal, CentmondTheme.Spacing.md)
+                                .padding(.vertical, CentmondTheme.Spacing.sm)
+                                .background(CentmondTheme.Colors.bgTertiary)
+                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                                        .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                                 .transition(.opacity)
                                 .offset(x: 32, y: 6)
                             }
@@ -650,7 +660,7 @@ struct DashboardView: View {
     }
 
     private func spentInCategory(_ category: BudgetCategory) -> Decimal {
-        transactions
+        safeTransactions
             .filter { !$0.isIncome && $0.category?.id == category.id && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
             .reduce(0) { $0 + $1.amount }
     }
@@ -928,53 +938,78 @@ struct DashboardView: View {
     @ViewBuilder
     private var cashFlowChart: some View {
         if chartStyle == .bar {
-            barChart
+            modernBarChart
         } else {
-            lineChart
+            modernLineChart
         }
     }
 
+    // MARK: Modern Bar Chart — gradient bars with glow
+
     @ViewBuilder
-    private var barChart: some View {
+    private var modernBarChart: some View {
         let weeklyData = computeWeeklyData()
         Chart {
             ForEach(weeklyData, id: \.label) { dp in
+                // Expenses bar
                 BarMark(
                     x: .value("Week", dp.label),
-                    y: .value("Income", dp.income)
+                    y: .value("Expenses", dp.expenses),
+                    width: .ratio(0.35)
                 )
-                .foregroundStyle(CentmondTheme.Colors.positive.gradient)
-                .cornerRadius(4)
-                .position(by: .value("Type", "Income"))
-
-                BarMark(
-                    x: .value("Week", dp.label),
-                    y: .value("Expenses", dp.expenses)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            CentmondTheme.Colors.accent,
+                            CentmondTheme.Colors.accent.opacity(0.5)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-                .foregroundStyle(CentmondTheme.Colors.negative.gradient)
-                .cornerRadius(4)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .opacity(hoveredWeek == nil || hoveredWeek == dp.label ? 1.0 : 0.4)
                 .position(by: .value("Type", "Expenses"))
 
-                if hoveredWeek == dp.label {
-                    RuleMark(x: .value("Week", dp.label))
-                        .foregroundStyle(CentmondTheme.Colors.strokeStrong)
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                }
+                // Income bar
+                BarMark(
+                    x: .value("Week", dp.label),
+                    y: .value("Income", dp.income),
+                    width: .ratio(0.35)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            CentmondTheme.Colors.positive,
+                            CentmondTheme.Colors.positive.opacity(0.4)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .opacity(hoveredWeek == nil || hoveredWeek == dp.label ? 1.0 : 0.4)
+                .position(by: .value("Type", "Income"))
             }
         }
+        .chartYScale(domain: .automatic(includesZero: true))
         .chartYAxis {
-            AxisMarks(position: .leading) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle)
-                AxisValueLabel()
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.5))
+                AxisValueLabel {
+                    if let val = value.as(Double.self) {
+                        Text(CurrencyFormat.abbreviated(val))
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    }
+                }
             }
         }
         .chartXAxis {
             AxisMarks { _ in
                 AxisValueLabel()
-                    .font(CentmondTheme.Typography.caption)
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
         }
@@ -998,53 +1033,104 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: Modern Line Chart — smooth gradient area with glow line
+
     @ViewBuilder
-    private var lineChart: some View {
+    private var modernLineChart: some View {
         let weeklyData = computeWeeklyData()
-        let entries: [LineChartEntry] = weeklyData.flatMap { dp in [
-            LineChartEntry(week: dp.label, amount: dp.income, series: "Income"),
-            LineChartEntry(week: dp.label, amount: dp.expenses, series: "Expenses")
-        ]}
-        Chart(entries) { entry in
-            LineMark(
-                x: .value("Week", entry.week),
-                y: .value("Amount", entry.amount)
-            )
-            .foregroundStyle(by: .value("Series", entry.series))
-            .interpolationMethod(.catmullRom)
-            .lineStyle(StrokeStyle(lineWidth: 2))
 
-            AreaMark(
-                x: .value("Week", entry.week),
-                y: .value("Amount", entry.amount)
-            )
-            .foregroundStyle(by: .value("Series", entry.series))
-            .interpolationMethod(.catmullRom)
-            .opacity(0.12)
+        Chart {
+            // Expenses — gradient area + line
+            ForEach(weeklyData, id: \.label) { dp in
+                AreaMark(
+                    x: .value("Week", dp.label),
+                    y: .value("Amount", dp.expenses)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            CentmondTheme.Colors.accent.opacity(0.3),
+                            CentmondTheme.Colors.accent.opacity(0.05),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
 
-            if hoveredWeek == entry.week && entry.series == "Income" {
-                RuleMark(x: .value("Week", entry.week))
-                    .foregroundStyle(CentmondTheme.Colors.strokeStrong)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                LineMark(
+                    x: .value("Week", dp.label),
+                    y: .value("Amount", dp.expenses)
+                )
+                .foregroundStyle(CentmondTheme.Colors.accent)
+                .interpolationMethod(.catmullRom)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            }
+
+            // Income — gradient area + line
+            ForEach(weeklyData, id: \.label) { dp in
+                AreaMark(
+                    x: .value("Week", dp.label),
+                    yStart: .value("Start", 0),
+                    yEnd: .value("Amount", dp.income)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            CentmondTheme.Colors.positive.opacity(0.2),
+                            CentmondTheme.Colors.positive.opacity(0.03),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Week", dp.label),
+                    y: .value("Amount", dp.income)
+                )
+                .foregroundStyle(CentmondTheme.Colors.positive)
+                .interpolationMethod(.catmullRom)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+            }
+
+            // Hover indicators
+            if let week = hoveredWeek,
+               let dp = weeklyData.first(where: { $0.label == week }) {
+                RuleMark(x: .value("Week", week))
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+
+                PointMark(x: .value("Week", week), y: .value("Exp", dp.expenses))
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+                    .symbolSize(36)
+
+                PointMark(x: .value("Week", week), y: .value("Inc", dp.income))
+                    .foregroundStyle(CentmondTheme.Colors.positive)
+                    .symbolSize(36)
             }
         }
-        .chartForegroundStyleScale([
-            "Income": CentmondTheme.Colors.positive,
-            "Expenses": CentmondTheme.Colors.negative
-        ])
+        .chartYScale(domain: .automatic(includesZero: true))
         .chartYAxis {
-            AxisMarks(position: .leading) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle)
-                AxisValueLabel()
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.5))
+                AxisValueLabel {
+                    if let val = value.as(Double.self) {
+                        Text(CurrencyFormat.abbreviated(val))
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    }
+                }
             }
         }
         .chartXAxis {
             AxisMarks { _ in
                 AxisValueLabel()
-                    .font(CentmondTheme.Typography.caption)
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
         }
@@ -1135,7 +1221,7 @@ struct DashboardView: View {
             let weekStart = calendar.date(byAdding: .weekOfMonth, value: weekIndex, to: start)!
             let weekEnd = calendar.date(byAdding: .weekOfMonth, value: weekIndex + 1, to: start)!
 
-            let weekTransactions = transactions.filter { $0.date >= weekStart && $0.date < weekEnd }
+            let weekTransactions = safeTransactions.filter { $0.date >= weekStart && $0.date < weekEnd }
             let income = weekTransactions.filter(\.isIncome).reduce(0.0) { $0 + doubleValue($1.amount) }
             let expenses = weekTransactions.filter { !$0.isIncome }.reduce(0.0) { $0 + doubleValue($1.amount) }
 
