@@ -1,0 +1,422 @@
+import SwiftUI
+import SwiftData
+
+struct RecurringView: View {
+    @Environment(AppRouter.self) private var router
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \RecurringTransaction.nextOccurrence) private var items: [RecurringTransaction]
+
+    @State private var filterType: FilterType = .all
+    @State private var showDeleteConfirmation = false
+    @State private var itemToDelete: RecurringTransaction?
+    @State private var showPaused = true
+
+    enum FilterType: String, CaseIterable {
+        case all = "All"
+        case income = "Income"
+        case expense = "Expenses"
+    }
+
+    private var activeItems: [RecurringTransaction] { items.filter { $0.isActive } }
+    private var pausedItems: [RecurringTransaction] { items.filter { !$0.isActive } }
+
+    // MARK: - Month-aware filtering
+
+    /// Active items that have an occurrence in the globally selected month.
+    private var activeInSelectedMonth: [RecurringTransaction] {
+        activeItems.filter {
+            $0.frequency.occursInMonth(
+                anchorDate: $0.nextOccurrence,
+                monthStart: router.selectedMonthStart,
+                monthEnd: router.selectedMonthEnd
+            )
+        }
+    }
+
+    private var filteredItems: [RecurringTransaction] {
+        let s = router.selectedMonthStart, e = router.selectedMonthEnd
+        var base: [RecurringTransaction]
+        switch filterType {
+        case .all:     base = showPaused ? items : activeItems
+        case .income:  base = (showPaused ? items : activeItems).filter(\.isIncome)
+        case .expense: base = (showPaused ? items : activeItems).filter { !$0.isIncome }
+        }
+        // Active items must occur in the selected month; paused always shown if enabled
+        return base.filter { item in
+            if !item.isActive { return showPaused }
+            return item.frequency.occursInMonth(anchorDate: item.nextOccurrence, monthStart: s, monthEnd: e)
+        }
+    }
+
+    /// Actual income cash-in for the selected month.
+    private var incomeForSelectedMonth: Decimal {
+        activeInSelectedMonth.filter(\.isIncome).reduce(Decimal.zero) { $0 + $1.amount }
+    }
+
+    /// Actual expense cash-out for the selected month.
+    private var expensesForSelectedMonth: Decimal {
+        activeInSelectedMonth.filter { !$0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
+    }
+
+    /// Normalised monthly equivalent — used in the table "Monthly" column for reference.
+    private func monthlyAmount(_ item: RecurringTransaction) -> Decimal {
+        switch item.frequency {
+        case .weekly:    item.amount * 52 / 12
+        case .biweekly:  item.amount * 26 / 12
+        case .monthly:   item.amount
+        case .quarterly: item.amount / 3
+        case .annual:    item.amount / 12
+        }
+    }
+
+    private func projectedOccurrence(for item: RecurringTransaction) -> Date? {
+        guard item.isActive else { return nil }
+        return item.frequency.projectedDate(
+            anchorDate: item.nextOccurrence,
+            monthStart: router.selectedMonthStart,
+            monthEnd: router.selectedMonthEnd
+        )
+    }
+
+    var body: some View {
+        Group {
+            if items.isEmpty {
+                EmptyStateView(
+                    icon: "repeat",
+                    heading: "No recurring transactions",
+                    description: "Add recurring income and expenses to track regular cash flow like rent, salary, and utilities.",
+                    primaryAction: "Add Recurring",
+                    onPrimaryAction: { router.showSheet(.newRecurring) }
+                )
+            } else {
+                VStack(spacing: 0) {
+                    summaryBar
+
+                    Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+                    if filteredItems.isEmpty {
+                        VStack(spacing: CentmondTheme.Spacing.md) {
+                            Text("No matching recurring transactions")
+                                .font(CentmondTheme.Typography.body)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            if !showPaused {
+                                Button("Show Paused") { showPaused = true }
+                                    .buttonStyle(SecondaryButtonStyle())
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        recurringTable
+                    }
+                }
+            }
+        }
+        .alert("Delete Recurring Item", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    modelContext.delete(item)
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text("Delete \"\(itemToDelete?.name ?? "")\"? This cannot be undone.")
+        }
+    }
+
+    // MARK: - Summary
+
+    private var summaryBar: some View {
+        HStack(spacing: CentmondTheme.Spacing.xxxl) {
+            summaryMetric(
+                label: "Income",
+                value: CurrencyFormat.compact(incomeForSelectedMonth),
+                color: CentmondTheme.Colors.positive
+            )
+            summaryMetric(
+                label: "Expenses",
+                value: CurrencyFormat.compact(expensesForSelectedMonth),
+                color: CentmondTheme.Colors.negative
+            )
+
+            let net = incomeForSelectedMonth - expensesForSelectedMonth
+            summaryMetric(
+                label: "Net",
+                value: CurrencyFormat.compact(net),
+                color: net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative
+            )
+
+            summaryMetric(
+                label: "Due",
+                value: "\(activeInSelectedMonth.count)",
+                color: CentmondTheme.Colors.textSecondary
+            )
+
+            Spacer()
+
+            Picker("", selection: $filterType) {
+                ForEach(FilterType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+
+            if !pausedItems.isEmpty {
+                Toggle("Show paused", isOn: $showPaused)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+
+            if router.isCurrentMonth {
+                let upcomingWeek = activeInSelectedMonth.filter {
+                    $0.nextOccurrence <= Calendar.current.date(byAdding: .day, value: 7, to: .now)!
+                    && $0.nextOccurrence >= Calendar.current.startOfDay(for: .now)
+                }
+                if !upcomingWeek.isEmpty {
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CentmondTheme.Colors.warning)
+                        Text("\(upcomingWeek.count) due this week")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.warning)
+                    }
+                }
+            }
+
+            Button {
+                router.showSheet(.newRecurring)
+            } label: {
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Add")
+                        .font(CentmondTheme.Typography.captionMedium)
+                }
+                .foregroundStyle(CentmondTheme.Colors.accent)
+                .padding(.horizontal, CentmondTheme.Spacing.md)
+                .padding(.vertical, CentmondTheme.Spacing.sm)
+                .background(CentmondTheme.Colors.accentSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.xxl)
+        .padding(.vertical, CentmondTheme.Spacing.lg)
+        .background(CentmondTheme.Colors.bgSecondary)
+    }
+
+    private func summaryMetric(label: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label.uppercased())
+                .font(CentmondTheme.Typography.overline)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .tracking(0.5)
+            Text(value)
+                .font(CentmondTheme.Typography.monoLarge)
+                .foregroundStyle(color)
+                .monospacedDigit()
+        }
+    }
+
+    // MARK: - Table
+
+    private var recurringTable: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                tableHeader("Name", width: nil, alignment: .leading)
+                tableHeader("Type", width: 80, alignment: .center)
+                tableHeader("Frequency", width: 100, alignment: .leading)
+                tableHeader("Next Due", width: 120, alignment: .leading)
+                tableHeader("Amount", width: 100, alignment: .trailing)
+                tableHeader("Monthly", width: 90, alignment: .trailing)
+                tableHeader("Auto", width: 50, alignment: .center)
+                tableHeader("Status", width: 80, alignment: .center)
+            }
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .frame(height: 32)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
+            }
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredItems) { item in
+                        RecurringRow(
+                            item: item,
+                            monthlyAmount: monthlyAmount(item),
+                            projectedOccurrence: projectedOccurrence(for: item),
+                            onToggleActive: { item.isActive.toggle() },
+                            onToggleAuto: { item.autoCreate.toggle() },
+                            onEdit: { router.showSheet(.editRecurring(item)) },
+                            onDelete: {
+                                itemToDelete = item
+                                showDeleteConfirmation = true
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func tableHeader(_ title: String, width: CGFloat?, alignment: Alignment) -> some View {
+        Group {
+            if let width {
+                Text(title.uppercased())
+                    .frame(width: width, alignment: alignment)
+            } else {
+                Text(title.uppercased())
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            }
+        }
+        .font(CentmondTheme.Typography.captionMedium)
+        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+        .tracking(0.3)
+    }
+}
+
+// MARK: - Row
+
+struct RecurringRow: View {
+    let item: RecurringTransaction
+    let monthlyAmount: Decimal
+    var projectedOccurrence: Date? = nil
+    var onToggleActive: () -> Void
+    var onToggleAuto: () -> Void
+    var onEdit: () -> Void
+    var onDelete: () -> Void
+    @State private var isHovered = false
+
+    private var displayDate: Date { projectedOccurrence ?? item.nextOccurrence }
+
+    private var isOverdue: Bool {
+        item.isActive && displayDate < Calendar.current.startOfDay(for: .now)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Name
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                Image(systemName: item.isIncome ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(item.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(item.name)
+                        .font(CentmondTheme.Typography.bodyMedium)
+                        .foregroundStyle(item.isActive ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textTertiary)
+                        .lineLimit(1)
+
+                    if let cat = item.category {
+                        Text(cat.name)
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Type
+            Text(item.isIncome ? "Income" : "Expense")
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(item.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background((item.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
+                .frame(width: 80)
+
+            // Frequency
+            Text(item.frequency.displayName)
+                .font(CentmondTheme.Typography.body)
+                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                .frame(width: 100, alignment: .leading)
+
+            // Next due
+            VStack(alignment: .leading, spacing: 0) {
+                if !item.isActive {
+                    Text("Paused")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                } else {
+                    Text(displayDate.formatted(.dateTime.month(.abbreviated).day()))
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(isOverdue ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textSecondary)
+                    if isOverdue {
+                        Text("overdue")
+                            .font(.system(size: 9))
+                            .foregroundStyle(CentmondTheme.Colors.negative)
+                    }
+                }
+            }
+            .frame(width: 120, alignment: .leading)
+
+            // Amount
+            Text(CurrencyFormat.compact(item.amount))
+                .font(CentmondTheme.Typography.mono)
+                .foregroundStyle(item.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textPrimary)
+                .monospacedDigit()
+                .frame(width: 100, alignment: .trailing)
+
+            // Monthly equivalent
+            Text(CurrencyFormat.compact(monthlyAmount))
+                .font(CentmondTheme.Typography.mono)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .monospacedDigit()
+                .frame(width: 90, alignment: .trailing)
+
+            // Auto-create
+            Button {
+                onToggleAuto()
+            } label: {
+                Image(systemName: item.autoCreate ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(item.autoCreate ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textTertiary)
+            }
+            .buttonStyle(.plain)
+            .help(item.autoCreate ? "Auto-create enabled" : "Auto-create disabled")
+            .frame(width: 50)
+
+            // Status
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Circle()
+                    .fill(item.isActive ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textTertiary)
+                    .frame(width: 6, height: 6)
+                Text(item.isActive ? "Active" : "Paused")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+            .frame(width: 80)
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.lg)
+        .frame(height: 48)
+        .background(isHovered ? CentmondTheme.Colors.bgQuaternary : .clear)
+        .onHover { hovering in
+            withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
+        }
+        .contextMenu {
+            Button { onEdit() } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Divider()
+            Button { onToggleActive() } label: {
+                Label(item.isActive ? "Pause" : "Resume", systemImage: item.isActive ? "pause.circle" : "play.circle")
+            }
+            Button { onToggleAuto() } label: {
+                Label(item.autoCreate ? "Disable Auto-Create" : "Enable Auto-Create", systemImage: item.autoCreate ? "xmark.circle" : "checkmark.circle")
+            }
+            Divider()
+            Button(role: .destructive) { onDelete() } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
