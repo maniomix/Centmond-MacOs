@@ -15,7 +15,7 @@ struct Sparkline: View {
                 )
                 .foregroundStyle(color)
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
 
                 AreaMark(
                     x: .value("Index", index),
@@ -28,7 +28,7 @@ struct Sparkline: View {
                         endPoint: .bottom
                     )
                 )
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
             }
         }
         .chartXAxis(.hidden)

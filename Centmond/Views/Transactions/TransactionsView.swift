@@ -146,9 +146,11 @@ struct TransactionsView: View {
 
     // MARK: - Filter Bar
 
+    @Namespace private var filterBarNamespace
+
     private var filterBar: some View {
         VStack(spacing: 0) {
-            // Row 1: Search + filter pills
+            // Row 1: Search + filter pills + actions
             HStack(spacing: CentmondTheme.Spacing.md) {
                 // Search field
                 HStack(spacing: CentmondTheme.Spacing.sm) {
@@ -213,39 +215,44 @@ struct TransactionsView: View {
 
                 Spacer()
 
-                Button {
-                    router.showSheet(.importCSV)
-                } label: {
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Import CSV")
-                            .font(CentmondTheme.Typography.captionMedium)
-                    }
-                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                    .padding(.horizontal, CentmondTheme.Spacing.md)
-                    .padding(.vertical, CentmondTheme.Spacing.sm)
-                    .background(CentmondTheme.Colors.bgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                // Action buttons — glass union
+                GlassEffectContainer(spacing: 0) {
+                    HStack(spacing: 0) {
+                        Button {
+                            router.showSheet(.importCSV)
+                        } label: {
+                            HStack(spacing: CentmondTheme.Spacing.xs) {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Import CSV")
+                                    .font(CentmondTheme.Typography.captionMedium)
+                            }
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .padding(.horizontal, CentmondTheme.Spacing.md)
+                            .frame(height: 30)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
+                        .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
 
-                Button {
-                    router.showSheet(.newTransaction)
-                } label: {
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Add Transaction")
-                            .font(CentmondTheme.Typography.captionMedium)
+                        Button {
+                            router.showSheet(.newTransaction)
+                        } label: {
+                            HStack(spacing: CentmondTheme.Spacing.xs) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Add Transaction")
+                                    .font(CentmondTheme.Typography.captionMedium)
+                            }
+                            .foregroundStyle(CentmondTheme.Colors.accent)
+                            .padding(.horizontal, CentmondTheme.Spacing.md)
+                            .frame(height: 30)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
+                        .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
                     }
-                    .foregroundStyle(CentmondTheme.Colors.accent)
-                    .padding(.horizontal, CentmondTheme.Spacing.md)
-                    .padding(.vertical, CentmondTheme.Spacing.sm)
-                    .background(CentmondTheme.Colors.accentSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.top, CentmondTheme.Spacing.md)
@@ -359,7 +366,6 @@ struct TransactionsView: View {
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.sm)
-        .background(CentmondTheme.Colors.bgSecondary)
     }
 
     private func typeTab(_ title: String, count: Int, filter: TypeFilter) -> some View {

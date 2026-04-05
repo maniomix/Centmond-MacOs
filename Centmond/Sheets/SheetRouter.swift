@@ -38,7 +38,7 @@ struct SheetRouter: View {
                 BudgetPlannerSheet()
             }
         }
-        .frame(width: CentmondTheme.Sizing.sheetWidth)
+        .frame(width: sheet.isCompact ? 360 : CentmondTheme.Sizing.sheetWidth)
         .background(CentmondTheme.Colors.bgTertiary)
         .preferredColorScheme(.dark)
     }

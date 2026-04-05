@@ -146,6 +146,8 @@ struct BudgetView: View {
 
     // MARK: - Header Bar
 
+    @Namespace private var budgetHeaderNamespace
+
     private var headerBar: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
@@ -162,44 +164,42 @@ struct BudgetView: View {
 
             Spacer()
 
-            HStack(spacing: CentmondTheme.Spacing.sm) {
-                Button {
-                    router.showSheet(.newBudgetCategory)
-                } label: {
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Category")
-                            .font(CentmondTheme.Typography.captionMedium)
+            GlassEffectContainer(spacing: 0) {
+                HStack(spacing: 0) {
+                    Button {
+                        router.showSheet(.newBudgetCategory)
+                    } label: {
+                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("Category")
+                                .font(CentmondTheme.Typography.captionMedium)
+                        }
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        .padding(.horizontal, CentmondTheme.Spacing.md)
+                        .frame(height: 30)
                     }
-                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                    .padding(.horizontal, CentmondTheme.Spacing.md)
-                    .padding(.vertical, CentmondTheme.Spacing.sm)
-                    .background(CentmondTheme.Colors.bgQuaternary)
-                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                            .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
+                    .glassEffectUnion(id: "budgetActions", namespace: budgetHeaderNamespace)
 
-                Button {
-                    router.showSheet(.budgetPlanner)
-                } label: {
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Plan Budget")
-                            .font(CentmondTheme.Typography.captionMedium)
+                    Button {
+                        router.showSheet(.budgetPlanner)
+                    } label: {
+                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("Plan Budget")
+                                .font(CentmondTheme.Typography.captionMedium)
+                        }
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                        .padding(.horizontal, CentmondTheme.Spacing.md)
+                        .frame(height: 30)
                     }
-                    .foregroundStyle(CentmondTheme.Colors.accent)
-                    .padding(.horizontal, CentmondTheme.Spacing.md)
-                    .padding(.vertical, CentmondTheme.Spacing.sm)
-                    .background(CentmondTheme.Colors.accentSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
+                    .glassEffectUnion(id: "budgetActions", namespace: budgetHeaderNamespace)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)

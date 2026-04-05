@@ -210,18 +210,20 @@ struct ForecastingView: View {
                             )
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [CentmondTheme.Colors.accent.opacity(0.3), CentmondTheme.Colors.accent.opacity(0.02)],
+                                    colors: [CentmondTheme.Colors.accent.opacity(0.2), CentmondTheme.Colors.accent.opacity(0.02)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
                             )
+                            .interpolationMethod(.stepEnd)
 
                             LineMark(
                                 x: .value("Day", point.dayOffset),
                                 y: .value("Balance", point.balance)
                             )
                             .foregroundStyle(CentmondTheme.Colors.accent)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                            .interpolationMethod(.stepEnd)
                         }
 
                         // Mark obligation days
@@ -238,19 +240,19 @@ struct ForecastingView: View {
                         // Zero line
                         RuleMark(y: .value("Zero", 0))
                             .foregroundStyle(CentmondTheme.Colors.negative.opacity(0.3))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                            .lineStyle(StrokeStyle(lineWidth: 0.5))
                     }
                     .chartYAxis {
-                        AxisMarks(position: .leading) { value in
+                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                             AxisValueLabel {
                                 if let val = value.as(Double.self) {
                                     Text(CurrencyFormat.abbreviated(val))
                                         .font(CentmondTheme.Typography.caption)
-                                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                                 }
                             }
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                                .foregroundStyle(CentmondTheme.Colors.strokeSubtle)
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
                         }
                     }
                     .chartXAxis {
@@ -263,6 +265,9 @@ struct ForecastingView: View {
                                 }
                             }
                         }
+                    }
+                    .chartPlotStyle { plot in
+                        plot.clipped()
                     }
                     .frame(height: 280)
 

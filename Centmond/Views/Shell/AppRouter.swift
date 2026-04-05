@@ -141,6 +141,13 @@ enum SheetType: Identifiable {
         case .budgetPlanner: "budgetPlanner"
         }
     }
+
+    var isCompact: Bool {
+        switch self {
+        case .newTransaction: true
+        default: false
+        }
+    }
 }
 
 enum InspectorContext: Equatable {

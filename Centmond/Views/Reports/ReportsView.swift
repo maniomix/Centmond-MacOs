@@ -309,8 +309,8 @@ struct ReportsView: View {
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
                 }
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle)
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
             }
         }
         .chartXAxis {
@@ -369,42 +369,46 @@ struct ReportsView: View {
 
     private var monthlyTrendChart: some View {
         let grouped = groupTransactionsByPeriod()
-        return Chart(grouped, id: \.period) { item in
-            LineMark(
-                x: .value("Period", item.period),
-                y: .value("Net", item.income - item.expenses)
-            )
-            .foregroundStyle(CentmondTheme.Colors.accent)
-            .lineStyle(StrokeStyle(lineWidth: 2))
-
-            AreaMark(
-                x: .value("Period", item.period),
-                y: .value("Net", item.income - item.expenses)
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [CentmondTheme.Colors.accent.opacity(0.3), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
+        return Chart {
+            ForEach(grouped, id: \.period) { item in
+                LineMark(
+                    x: .value("Period", item.period),
+                    y: .value("Net", item.income - item.expenses)
                 )
-            )
+                .foregroundStyle(CentmondTheme.Colors.accent)
+                .interpolationMethod(.monotone)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
-            // Zero line
+                AreaMark(
+                    x: .value("Period", item.period),
+                    y: .value("Net", item.income - item.expenses)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [CentmondTheme.Colors.accent.opacity(0.2), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.monotone)
+            }
+
+            // Zero line — outside ForEach so it renders once
             RuleMark(y: .value("Zero", 0))
                 .foregroundStyle(CentmondTheme.Colors.strokeDefault)
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                .lineStyle(StrokeStyle(lineWidth: 0.5))
         }
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                 AxisValueLabel {
                     if let val = value.as(Double.self) {
                         Text(CurrencyFormat.abbreviated(val))
                             .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     }
                 }
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle)
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
             }
         }
         .chartXAxis {

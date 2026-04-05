@@ -24,8 +24,22 @@ struct DashboardView: View {
     @State private var hoveredGoalID: UUID?
 
     enum ChartStyle: String, CaseIterable {
-        case bar, line
-        var icon: String { self == .bar ? "chart.bar.fill" : "chart.xyaxis.line" }
+        case bar          // Grouped bar
+        case net          // Net cash flow bars
+
+        var icon: String {
+            switch self {
+            case .bar:        return "chart.bar.fill"
+            case .net:        return "plusminus"
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .bar:        return "Bar"
+            case .net:        return "Net"
+            }
+        }
     }
 
     // MARK: - Computed Data
@@ -126,11 +140,12 @@ struct DashboardView: View {
     private var metricsRow: some View {
         HStack(spacing: CentmondTheme.Spacing.lg) {
             MetricCard(
-                title: "Net Worth",
-                value: CurrencyFormat.standard(totalBalance),
-                icon: "chart.line.uptrend.xyaxis",
-                iconColor: CentmondTheme.Colors.accent,
-                subtitle: accounts.isEmpty ? nil : monthString
+                title: "Remaining",
+                value: CurrencyFormat.standard(totalBudgeted - monthlySpending),
+                icon: "minus.forwardslash.plus",
+                iconColor: (totalBudgeted - monthlySpending) >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative,
+                valueColor: (totalBudgeted - monthlySpending) < 0 ? CentmondTheme.Colors.negative : nil,
+                subtitle: monthString
             )
 
             MetricCard(
@@ -216,37 +231,27 @@ struct DashboardView: View {
                         ForEach(ChartStyle.allCases, id: \.self) { style in
                             Button {
                                 withAnimation(CentmondTheme.Motion.layout) {
+                                    hoveredDay = nil
                                     chartStyle = style
                                 }
                             } label: {
                                 Image(systemName: style.icon)
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 10, weight: .medium))
                                     .foregroundStyle(chartStyle == style ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
-                                    .frame(width: 28, height: 22)
+                                    .frame(width: 26, height: 22)
                                     .background(chartStyle == style ? CentmondTheme.Colors.accentSubtle : .clear)
                                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                             }
                             .buttonStyle(.plain)
+                            .help(style.label)
                         }
                     }
                     .padding(2)
                     .background(CentmondTheme.Colors.bgTertiary)
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
 
-                    HStack(spacing: CentmondTheme.Spacing.md) {
-                        HStack(spacing: CentmondTheme.Spacing.xs) {
-                            Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
-                            Text("Income")
-                                .font(CentmondTheme.Typography.caption)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        }
-                        HStack(spacing: CentmondTheme.Spacing.xs) {
-                            Circle().fill(CentmondTheme.Colors.accent).frame(width: 6, height: 6)
-                            Text("Expenses")
-                                .font(CentmondTheme.Typography.caption)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        }
-                    }
+                    // Legend (adapts to chart type)
+                    chartLegend
                 }
 
                 if safeTransactions.isEmpty {
@@ -260,7 +265,7 @@ struct DashboardView: View {
                             GeometryReader { geo in
                                 if let day = hoveredDay,
                                    let data = computeDailyData().first(where: { $0.id == day }) {
-                                    let tooltipW: CGFloat = 160
+                                    let tooltipW: CGFloat = 190
                                     let clampedX = min(max(hoverLocation.x, tooltipW / 2 + 8), geo.size.width - tooltipW / 2 - 8)
 
                                     chartTooltip(data: data)
@@ -916,280 +921,226 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var cashFlowChart: some View {
-        if chartStyle == .bar {
-            modernBarChart
-        } else {
-            modernLineChart
+        switch chartStyle {
+        case .bar:        groupedBarChart
+        case .net:        netCashFlowChart
         }
     }
 
-    // MARK: Modern Bar Chart — gradient bars with glow
-
     @ViewBuilder
-    private var modernBarChart: some View {
-        let dailyData = computeDailyData()
-        let dayCount = dailyData.count
-        Chart {
-            ForEach(dailyData) { dp in
-                BarMark(
-                    x: .value("Day", dp.id),
-                    y: .value("Expenses", dp.expenses)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [CentmondTheme.Colors.accent, CentmondTheme.Colors.accent.opacity(0.5)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
-                .position(by: .value("Type", "Expenses"))
-
-                BarMark(
-                    x: .value("Day", dp.id),
-                    y: .value("Income", dp.income)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [CentmondTheme.Colors.positive, CentmondTheme.Colors.positive.opacity(0.4)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
-                .position(by: .value("Type", "Income"))
+    private var chartLegend: some View {
+        switch chartStyle {
+        case .net:
+            HStack(spacing: CentmondTheme.Spacing.md) {
+                legendDot(color: CentmondTheme.Colors.positive, label: "Surplus")
+                legendDot(color: CentmondTheme.Colors.negative, label: "Deficit")
             }
-        }
-        .chartXScale(domain: 1 ... (dailyData.count > 0 ? dailyData.count : 30))
-        .chartYScale(domain: .automatic(includesZero: true))
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.5))
-                AxisValueLabel {
-                    if let val = value.as(Double.self) {
-                        Text(CurrencyFormat.abbreviated(val))
-                            .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                    }
-                }
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: [1, 5, 10, 15, 20, 25, 30]) { value in
-                AxisValueLabel {
-                    if let day = value.as(Int.self) {
-                        Text("\(day)")
-                            .font(.system(size: 9))
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    }
-                }
-            }
-        }
-        .chartLegend(.hidden)
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            hoverLocation = location
-                            var closestDay: Int?
-                            var closestDist = CGFloat.greatestFiniteMagnitude
-                            for dp in dailyData {
-                                if let xPos = proxy.position(forX: dp.id) {
-                                    let dist = abs(location.x - xPos)
-                                    if dist < closestDist {
-                                        closestDist = dist
-                                        closestDay = dp.id
-                                    }
-                                }
-                            }
-                            if let day = closestDay {
-                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = day }
-                            }
-                        case .ended:
-                            withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
-                        }
-                    }
+        default:
+            HStack(spacing: CentmondTheme.Spacing.md) {
+                legendDot(color: CentmondTheme.Colors.positive, label: "Income")
+                legendDot(color: CentmondTheme.Colors.accent, label: "Expenses")
             }
         }
     }
 
-    // MARK: Modern Line Chart — smooth gradient area with glow line
+    private struct BarEntry: Identifiable {
+        let id: String
+        let day: Int
+        let amount: Double
+        let type: String // "Income" or "Expenses"
+    }
 
-    @ViewBuilder
-    private var modernLineChart: some View {
+    // MARK: Grouped Bar Chart
+
+    private var groupedBarChart: some View {
         let dailyData = computeDailyData()
+        let dayCount = max(dailyData.count, 1)
 
-        Chart {
-            // Expenses — gradient area + line
-            ForEach(dailyData) { dp in
-                AreaMark(
-                    x: .value("Day", dp.id),
-                    yStart: .value("Start", 0),
-                    yEnd: .value("Amount", dp.expenses)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            CentmondTheme.Colors.accent.opacity(0.25),
-                            CentmondTheme.Colors.accent.opacity(0.05),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.monotone)
+        // Flat array: one entry per (day, type) — required for correct grouped bars in Swift Charts
+        let entries: [BarEntry] = dailyData.flatMap { dp in [
+            BarEntry(id: "\(dp.id)-E", day: dp.id, amount: dp.expenses, type: "Expenses"),
+            BarEntry(id: "\(dp.id)-I", day: dp.id, amount: dp.income,   type: "Income")
+        ]}
 
-                LineMark(
-                    x: .value("Day", dp.id),
-                    y: .value("Amount", dp.expenses)
-                )
-                .foregroundStyle(CentmondTheme.Colors.accent)
-                .interpolationMethod(.monotone)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-            }
-
-            // Income — gradient area + line
-            ForEach(dailyData) { dp in
-                AreaMark(
-                    x: .value("Day", dp.id),
-                    yStart: .value("Start", 0),
-                    yEnd: .value("Amount", dp.income)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            CentmondTheme.Colors.positive.opacity(0.18),
-                            CentmondTheme.Colors.positive.opacity(0.03),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.monotone)
-
-                LineMark(
-                    x: .value("Day", dp.id),
-                    y: .value("Amount", dp.income)
-                )
-                .foregroundStyle(CentmondTheme.Colors.positive)
-                .interpolationMethod(.monotone)
-                .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-            }
-
-            // Hover indicators
-            if let day = hoveredDay,
-               let dp = dailyData.first(where: { $0.id == day }) {
-                RuleMark(x: .value("Day", day))
-                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                    .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-
-                PointMark(x: .value("Day", day), y: .value("Exp", dp.expenses))
-                    .foregroundStyle(CentmondTheme.Colors.accent)
-                    .symbolSize(30)
-
-                if dp.income > 0 {
-                    PointMark(x: .value("Day", day), y: .value("Inc", dp.income))
-                        .foregroundStyle(CentmondTheme.Colors.positive)
-                        .symbolSize(30)
-                }
-            }
+        return Chart(entries) { entry in
+            BarMark(
+                x: .value("Day", entry.day),
+                y: .value("Amount", entry.amount)
+            )
+            .foregroundStyle(by: .value("Type", entry.type))
+            .position(by: .value("Type", entry.type), axis: .horizontal, span: .ratio(0.8))
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .opacity(hoveredDay == nil || hoveredDay == entry.day ? 1.0 : 0.35)
         }
-        .chartXScale(domain: 1 ... (dailyData.count > 0 ? dailyData.count : 30))
+        .chartForegroundStyleScale([
+            "Income":   CentmondTheme.Colors.positive,
+            "Expenses": CentmondTheme.Colors.accent
+        ])
         .chartYScale(domain: .automatic(includesZero: true))
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.5))
-                AxisValueLabel {
-                    if let val = value.as(Double.self) {
-                        Text(CurrencyFormat.abbreviated(val))
-                            .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                    }
-                }
+        .modifier(CashFlowChartStyle())
+        .modifier(CashFlowHoverModifier(dailyData: dailyData, dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
+    }
+
+    // MARK: Net Cash Flow Chart
+
+    private var netCashFlowChart: some View {
+        let dailyData = computeDailyData()
+        let dayCount = max(dailyData.count, 1)
+
+        return Chart {
+            ForEach(dailyData) { dp in
+                let net = dp.income - dp.expenses
+                BarMark(
+                    x: .value("Day", dp.id),
+                    y: .value("Net", net)
+                )
+                .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive.gradient : CentmondTheme.Colors.negative.gradient)
+                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
             }
+
+            RuleMark(y: .value("Zero", 0))
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.5))
+                .lineStyle(StrokeStyle(lineWidth: 0.5))
         }
-        .chartXAxis {
-            AxisMarks(values: [1, 5, 10, 15, 20, 25, 30]) { value in
-                AxisValueLabel {
-                    if let day = value.as(Int.self) {
-                        Text("\(day)")
-                            .font(.system(size: 9))
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    }
+        .chartYScale(domain: .automatic(includesZero: true))
+        .modifier(CashFlowChartStyle())
+        .modifier(CashFlowHoverModifier(dailyData: dailyData, dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
+    }
+
+    // MARK: Shared Chart Modifiers
+
+    private struct CashFlowChartStyle: ViewModifier {
+        func body(content: Content) -> some View {
+            content
+                .chartPlotStyle { plot in
+                    plot.frame(minHeight: 160).padding(.horizontal, 4).clipped()
                 }
-            }
-        }
-        .chartLegend(.hidden)
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            hoverLocation = location
-                            var closestDay: Int?
-                            var closestDist = CGFloat.greatestFiniteMagnitude
-                            for dp in dailyData {
-                                if let xPos = proxy.position(forX: dp.id) {
-                                    let dist = abs(location.x - xPos)
-                                    if dist < closestDist {
-                                        closestDist = dist
-                                        closestDay = dp.id
-                                    }
-                                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
+                        AxisValueLabel {
+                            if let val = value.as(Double.self) {
+                                Text(CurrencyFormat.abbreviated(val))
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                             }
-                            if let day = closestDay {
-                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = day }
-                            }
-                        case .ended:
-                            withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
                         }
                     }
-            }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: 5)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
+                            .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.15))
+                        AxisValueLabel {
+                            if let day = value.as(Int.self) {
+                                Text("\(day)")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            }
+                        }
+                    }
+                }
+                .chartLegend(.hidden)
+        }
+    }
+
+    private struct CashFlowHoverModifier: ViewModifier {
+        let dailyData: [DailyDataPoint]
+        let dayCount: Int
+        @Binding var hoveredDay: Int?
+        @Binding var hoverLocation: CGPoint
+
+        func body(content: Content) -> some View {
+            content
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case .active(let location):
+                                    hoverLocation = location
+                                    let plotFrame = geometry[proxy.plotFrame!]
+                                    let xInPlot = location.x - plotFrame.origin.x
+                                    guard xInPlot >= 0, xInPlot <= plotFrame.width else {
+                                        withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+                                        return
+                                    }
+                                    if let day: Int = proxy.value(atX: xInPlot) {
+                                        let clamped = max(1, min(day, dayCount))
+                                        withAnimation(CentmondTheme.Motion.micro) { hoveredDay = clamped }
+                                    }
+                                case .ended:
+                                    withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+                                }
+                            }
+                    }
+                }
         }
     }
 
     private func chartTooltip(data: DailyDataPoint) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
+        let net = data.income - data.expenses
+        return VStack(alignment: .leading, spacing: 6) {
+            // Date header
             Text(data.date.formatted(.dateTime.month(.abbreviated).day()))
                 .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-            HStack(spacing: CentmondTheme.Spacing.md) {
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Circle().fill(CentmondTheme.Colors.positive).frame(width: 5, height: 5)
-                    Text(CurrencyFormat.standard(Decimal(data.income)))
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.positive)
-                        .monospacedDigit()
-                }
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Circle().fill(CentmondTheme.Colors.accent).frame(width: 5, height: 5)
-                    Text(CurrencyFormat.standard(Decimal(data.expenses)))
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.accent)
-                        .monospacedDigit()
-                }
+                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+
+            Divider().opacity(0.25)
+
+            // Income row
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
+                Text("Income")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                Spacer()
+                Text(CurrencyFormat.standard(Decimal(data.income)))
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.positive)
+                    .monospacedDigit()
+            }
+
+            // Expenses row
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Circle().fill(CentmondTheme.Colors.accent).frame(width: 6, height: 6)
+                Text("Expenses")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                Spacer()
+                Text(CurrencyFormat.standard(Decimal(data.expenses)))
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+                    .monospacedDigit()
+            }
+
+            Divider().opacity(0.25)
+
+            // Net row
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Text("Net")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                Spacer()
+                Text(CurrencyFormat.standard(Decimal(net)))
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+                    .monospacedDigit()
             }
         }
         .padding(.horizontal, CentmondTheme.Spacing.md)
         .padding(.vertical, CentmondTheme.Spacing.sm)
-        .background(CentmondTheme.Colors.bgTertiary)
+        .background(CentmondTheme.Colors.bgSecondary)
         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+        .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
     }
 
     @ViewBuilder
