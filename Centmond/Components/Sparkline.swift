@@ -35,5 +35,6 @@ struct Sparkline: View {
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
         .frame(height: height)
+        .animation(CentmondTheme.Motion.numeric, value: data)
     }
 }

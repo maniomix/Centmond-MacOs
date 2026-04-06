@@ -353,6 +353,6 @@ struct NetWorthView: View {
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 }

@@ -127,14 +127,17 @@ struct TransactionsView: View {
                     onPrimaryAction: { router.showSheet(.newTransaction) },
                     onSecondaryAction: { router.showSheet(.importCSV) }
                 )
+                .transition(.opacity)
             } else {
                 // Date-grouped transaction list
                 dateGroupedList
+                    .transition(.opacity)
             }
 
             // Bulk action bar
             if selectedTransactions.count >= 2 {
                 bulkActionBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .onChange(of: router.selectedMonth) {
@@ -151,14 +154,14 @@ struct TransactionsView: View {
     private var filterBar: some View {
         VStack(spacing: 0) {
             // Row 1: Search + filter pills + actions
-            HStack(spacing: CentmondTheme.Spacing.md) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
                 // Search field
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 13))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
-                    TextField("Search transactions...", text: $searchText)
+                    TextField("Search...", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(CentmondTheme.Typography.body)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
@@ -171,7 +174,8 @@ struct TransactionsView: View {
                                 .font(.system(size: 12))
                                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Clear search")
                     }
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.md)
@@ -182,11 +186,12 @@ struct TransactionsView: View {
                     RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                         .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
                 )
+                .layoutPriority(-1)
 
                 // Account filter
                 filterPill(
                     icon: "building.columns.fill",
-                    label: selectedAccountFilter?.name ?? "All Accounts",
+                    label: selectedAccountFilter?.name ?? "All Acco…",
                     isActive: selectedAccountFilter != nil
                 ) {
                     Button("All Accounts") { selectedAccountFilter = nil }
@@ -199,7 +204,7 @@ struct TransactionsView: View {
                 // Category filter
                 filterPill(
                     icon: "tag.fill",
-                    label: selectedCategoryFilter?.name ?? "All Categories",
+                    label: selectedCategoryFilter?.name ?? "All Cate…",
                     isActive: selectedCategoryFilter != nil
                 ) {
                     Button("All Categories") { selectedCategoryFilter = nil }
@@ -213,7 +218,7 @@ struct TransactionsView: View {
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 // Action buttons — glass union
                 GlassEffectContainer(spacing: 0) {
@@ -221,38 +226,31 @@ struct TransactionsView: View {
                         Button {
                             router.showSheet(.importCSV)
                         } label: {
-                            HStack(spacing: CentmondTheme.Spacing.xs) {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.system(size: 11, weight: .semibold))
-                                Text("Import CSV")
-                                    .font(CentmondTheme.Typography.captionMedium)
-                            }
-                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                            .padding(.horizontal, CentmondTheme.Spacing.md)
-                            .frame(height: 30)
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                                .frame(width: 32, height: 30)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Import transactions from CSV")
                         .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
                         .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
 
                         Button {
                             router.showSheet(.newTransaction)
                         } label: {
-                            HStack(spacing: CentmondTheme.Spacing.xs) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 11, weight: .semibold))
-                                Text("Add Transaction")
-                                    .font(CentmondTheme.Typography.captionMedium)
-                            }
-                            .foregroundStyle(CentmondTheme.Colors.accent)
-                            .padding(.horizontal, CentmondTheme.Spacing.md)
-                            .frame(height: 30)
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.accent)
+                                .frame(width: 32, height: 30)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Add a new transaction")
                         .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
                         .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
                     }
                 }
+                .layoutPriority(1)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.top, CentmondTheme.Spacing.md)
@@ -280,8 +278,9 @@ struct TransactionsView: View {
         } label: {
             Text(range.rawValue)
                 .font(CentmondTheme.Typography.caption)
+                .lineLimit(1)
                 .foregroundStyle(dateRange == range ? .white : CentmondTheme.Colors.textSecondary)
-                .padding(.horizontal, CentmondTheme.Spacing.md)
+                .padding(.horizontal, CentmondTheme.Spacing.sm)
                 .padding(.vertical, 5)
                 .background(dateRange == range ? CentmondTheme.Colors.accent : CentmondTheme.Colors.bgTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
@@ -289,8 +288,9 @@ struct TransactionsView: View {
                     RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                         .stroke(dateRange == range ? .clear : CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
                 )
+                .animation(CentmondTheme.Motion.micro, value: dateRange)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 
     @ViewBuilder
@@ -312,7 +312,7 @@ struct TransactionsView: View {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             }
-            .padding(.horizontal, CentmondTheme.Spacing.md)
+            .padding(.horizontal, CentmondTheme.Spacing.sm)
             .frame(height: 30)
             .background(isActive ? CentmondTheme.Colors.accentMuted : CentmondTheme.Colors.bgTertiary)
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
@@ -321,55 +321,73 @@ struct TransactionsView: View {
                     .stroke(isActive ? CentmondTheme.Colors.accent : CentmondTheme.Colors.strokeDefault, lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
         .foregroundStyle(isActive ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textSecondary)
+        .animation(CentmondTheme.Motion.micro, value: isActive)
     }
 
     // MARK: - Type Tab Bar
 
     private var typeTabBar: some View {
-        HStack(spacing: CentmondTheme.Spacing.lg) {
-            // Type tabs
+        ViewThatFits(in: .horizontal) {
+            // Full layout: tabs + summary + count
+            typeTabContent(showSummary: true, showCount: true)
+            // Medium: tabs + count only
+            typeTabContent(showSummary: false, showCount: true)
+            // Compact: tabs only
+            typeTabContent(showSummary: false, showCount: false)
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.xxl)
+        .padding(.vertical, CentmondTheme.Spacing.sm)
+    }
+
+    private func typeTabContent(showSummary: Bool, showCount: Bool) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
             typeTab("All", count: transactions.count, filter: .all)
             typeTab("Income", count: incomeCount, filter: .income)
             typeTab("Expenses", count: expenseCount, filter: .expense)
 
             Spacer()
 
-            // Summary
-            if !filteredTransactions.isEmpty {
-                HStack(spacing: CentmondTheme.Spacing.xl) {
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
+            if showSummary && !filteredTransactions.isEmpty {
+                HStack(spacing: CentmondTheme.Spacing.md) {
+                    HStack(spacing: 3) {
                         Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundStyle(CentmondTheme.Colors.positive)
-                        Text(CurrencyFormat.standard(totalIncome))
-                            .font(CentmondTheme.Typography.mono)
+                        Text(CurrencyFormat.compact(totalIncome))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.positive)
-                            .monospacedDigit()
+                            .lineLimit(1)
+                            .contentTransition(.numericText())
+                            .animation(CentmondTheme.Motion.numeric, value: totalIncome)
                     }
-                    HStack(spacing: CentmondTheme.Spacing.xs) {
+                    HStack(spacing: 3) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundStyle(CentmondTheme.Colors.negative)
-                        Text(CurrencyFormat.standard(totalExpenses))
-                            .font(CentmondTheme.Typography.mono)
+                        Text(CurrencyFormat.compact(totalExpenses))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.negative)
-                            .monospacedDigit()
+                            .lineLimit(1)
+                            .contentTransition(.numericText())
+                            .animation(CentmondTheme.Motion.numeric, value: totalExpenses)
                     }
                 }
             }
 
-            Text("\(filteredTransactions.count) transactions")
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            if showCount {
+                Text("\(filteredTransactions.count) transactions")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, CentmondTheme.Spacing.xxl)
-        .padding(.vertical, CentmondTheme.Spacing.sm)
     }
 
     private func typeTab(_ title: String, count: Int, filter: TypeFilter) -> some View {
         Button {
+            Haptics.tap()
             withAnimation(CentmondTheme.Motion.micro) {
                 typeFilter = filter
             }
@@ -377,10 +395,11 @@ struct TransactionsView: View {
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 Text(title)
                     .font(CentmondTheme.Typography.bodyMedium)
+                    .lineLimit(1)
 
                 Text("\(count)")
                     .font(CentmondTheme.Typography.caption)
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(typeFilter == filter ? CentmondTheme.Colors.accent.opacity(0.2) : CentmondTheme.Colors.bgTertiary)
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
@@ -390,8 +409,9 @@ struct TransactionsView: View {
             .padding(.vertical, CentmondTheme.Spacing.xs)
             .background(typeFilter == filter ? CentmondTheme.Colors.accentMuted.opacity(0.5) : .clear)
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
+            .animation(CentmondTheme.Motion.micro, value: typeFilter)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 
     // MARK: - Date-Grouped List
@@ -433,26 +453,30 @@ struct TransactionsView: View {
     }
 
     private func dateSectionHeader(_ date: Date, count: Int, total: Decimal) -> some View {
-        HStack {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
             Text(formatSectionDate(date))
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .textCase(.uppercase)
-                .tracking(0.3)
+                .tracking(0.4)
 
             Spacer()
 
             Text("\(count) transaction\(count == 1 ? "" : "s")")
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                .font(.system(size: 10))
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.7))
+
+            Text("·")
+                .font(.system(size: 10))
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.4))
 
             Text(CurrencyFormat.standard(total))
-                .font(CentmondTheme.Typography.mono)
-                .foregroundStyle(total >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle((total >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative).opacity(0.6))
                 .monospacedDigit()
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
-        .padding(.vertical, CentmondTheme.Spacing.sm)
+        .padding(.vertical, CentmondTheme.Spacing.xs)
         .background(CentmondTheme.Colors.bgPrimary.opacity(0.95))
     }
 
@@ -485,6 +509,7 @@ struct TransactionsView: View {
                 selectedTransactions.removeAll()
             }
             .buttonStyle(GhostButtonStyle())
+            .help("Deselect all transactions")
 
             Spacer()
 
@@ -503,6 +528,7 @@ struct TransactionsView: View {
                 }
             }
             .buttonStyle(SecondaryButtonStyle())
+            .help("Assign category to selected")
 
             Button("Mark Reviewed") {
                 for id in selectedTransactions {
@@ -513,6 +539,7 @@ struct TransactionsView: View {
                 selectedTransactions.removeAll()
             }
             .buttonStyle(SecondaryButtonStyle())
+            .help("Mark selected as reviewed")
 
             Button("Delete") {
                 for id in selectedTransactions {
@@ -523,6 +550,7 @@ struct TransactionsView: View {
                 selectedTransactions.removeAll()
             }
             .buttonStyle(SecondaryButtonStyle())
+            .help("Delete selected transactions")
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.md)
@@ -669,6 +697,7 @@ struct TransactionRowView: View {
             onSelect()
         }
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .contextMenu {

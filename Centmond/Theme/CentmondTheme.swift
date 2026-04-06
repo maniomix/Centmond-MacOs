@@ -116,6 +116,7 @@ enum CentmondTheme {
         static let chart: Animation = .easeOut(duration: 0.5)
         static let sheet: Animation = .easeInOut(duration: 0.3)
         static let page: Animation = .easeInOut(duration: 0.25)
+        static let numeric: Animation = .spring(response: 0.4, dampingFraction: 0.7)
     }
 
     // MARK: - Sizing Constants

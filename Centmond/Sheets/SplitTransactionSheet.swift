@@ -62,7 +62,7 @@ struct SplitTransactionSheet: View {
                                 .font(CentmondTheme.Typography.bodyMedium)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
                     }
 
                     // Remaining
@@ -144,7 +144,7 @@ struct SplitTransactionSheet: View {
                     Image(systemName: "minus.circle.fill")
                         .foregroundStyle(CentmondTheme.Colors.negative)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
         }
     }

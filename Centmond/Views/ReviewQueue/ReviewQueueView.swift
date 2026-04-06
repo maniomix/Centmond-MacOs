@@ -142,7 +142,7 @@ struct ReviewQueueView: View {
             .background(isActive ? CentmondTheme.Colors.accent.opacity(0.08) : CentmondTheme.Colors.bgTertiary)
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 
     // MARK: - Triage View
@@ -249,7 +249,7 @@ struct ReviewQueueView: View {
                                         .background(Color(hex: cat.colorHex).opacity(0.12))
                                         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.plainHover)
                                 }
                             }
                         }
@@ -444,7 +444,7 @@ struct ReviewItemRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help("Inspect")
 
             Button { onAccept() } label: {
@@ -452,7 +452,7 @@ struct ReviewItemRow: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(CentmondTheme.Colors.positive)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help("Mark as reviewed")
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
@@ -460,6 +460,7 @@ struct ReviewItemRow: View {
         .background(isHovered ? CentmondTheme.Colors.bgQuaternary : .clear)
         .contentShape(Rectangle())
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .contextMenu {

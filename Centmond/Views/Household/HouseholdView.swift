@@ -105,7 +105,7 @@ struct HouseholdView: View {
                                     )
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
                     .help(member.name)
                 }
             }

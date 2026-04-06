@@ -19,9 +19,9 @@ struct AppShell: View {
                 .inspector(isPresented: inspectorBinding) {
                     InspectorView(context: router.inspectorContext)
                         .inspectorColumnWidth(
-                            min: 300,
+                            min: 240,
                             ideal: CentmondTheme.Sizing.inspectorWidth,
-                            max: 440
+                            max: 400
                         )
                 }
         }

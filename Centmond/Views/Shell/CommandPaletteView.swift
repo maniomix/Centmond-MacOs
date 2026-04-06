@@ -142,8 +142,9 @@ struct CommandPaletteView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             hoveredID = hovering ? command.id : nil
         }
     }
@@ -193,6 +194,7 @@ struct PaletteCommand: Identifiable {
         PaletteCommand(title: "Go to Reports", icon: "doc.text.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.reports)),
         PaletteCommand(title: "Go to Review Queue", icon: "tray.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.reviewQueue)),
         PaletteCommand(title: "Go to Household", icon: "person.2.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.household)),
+        PaletteCommand(title: "Go to Settings", icon: "gearshape.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.settings)),
 
         // Quick Actions
         PaletteCommand(title: "New Transaction", icon: "plus.circle.fill", category: "Quick Actions", shortcutHint: "⌘N", action: .sheet(.newTransaction)),

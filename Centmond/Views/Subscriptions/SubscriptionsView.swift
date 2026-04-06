@@ -129,19 +129,9 @@ struct SubscriptionsView: View {
             Button {
                 router.showSheet(.newSubscription)
             } label: {
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Add")
-                        .font(CentmondTheme.Typography.captionMedium)
-                }
-                .foregroundStyle(CentmondTheme.Colors.accent)
-                .padding(.horizontal, CentmondTheme.Spacing.md)
-                .padding(.vertical, CentmondTheme.Spacing.sm)
-                .background(CentmondTheme.Colors.accentSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                Label("Add", systemImage: "plus")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AccentChipButtonStyle())
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -328,6 +318,7 @@ struct SubscriptionRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .contextMenu {

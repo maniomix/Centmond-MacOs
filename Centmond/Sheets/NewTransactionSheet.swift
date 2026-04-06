@@ -25,6 +25,10 @@ struct NewTransactionSheet: View {
 
     private var isValid: Bool { !rawCents.isEmpty && !payee.isEmpty }
 
+    private var filteredCategories: [BudgetCategory] {
+        categories.filter { isIncome ? !$0.isExpenseCategory : $0.isExpenseCategory }
+    }
+
     /// "125099" → "1,250.99"
     private var formattedAmount: String {
         guard !rawCents.isEmpty else { return "" }
@@ -63,7 +67,7 @@ struct NewTransactionSheet: View {
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
             .padding(.trailing, CentmondTheme.Spacing.lg)
             .padding(.top, CentmondTheme.Spacing.md)
@@ -72,10 +76,18 @@ struct NewTransactionSheet: View {
             VStack(spacing: CentmondTheme.Spacing.md) {
                 HStack(spacing: 6) {
                     typeChip("Expense", color: CentmondTheme.Colors.negative, selected: !isIncome) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { isIncome = false }
+                        Haptics.tap()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            isIncome = false
+                            selectedCategory = nil
+                        }
                     }
                     typeChip("Income", color: CentmondTheme.Colors.positive, selected: isIncome) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { isIncome = true }
+                        Haptics.tap()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            isIncome = true
+                            selectedCategory = nil
+                        }
                     }
                 }
 
@@ -173,7 +185,7 @@ struct NewTransactionSheet: View {
                         .frame(width: 16)
                     Picker("Category", selection: $selectedCategory) {
                         Text("Uncategorized").tag(nil as BudgetCategory?)
-                        ForEach(categories) { category in
+                        ForEach(filteredCategories) { category in
                             Label(category.name, systemImage: category.icon)
                                 .tag(category as BudgetCategory?)
                         }
@@ -233,15 +245,11 @@ struct NewTransactionSheet: View {
 
             Button { saveTransaction() } label: {
                 Text("Add Transaction")
-                    .font(CentmondTheme.Typography.bodyMedium)
-                    .foregroundStyle(isValid ? .white : CentmondTheme.Colors.textQuaternary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                    .background(isValid ? CentmondTheme.Colors.accent : CentmondTheme.Colors.bgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(!isValid)
+            .opacity(isValid ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
             .padding(.bottom, CentmondTheme.Spacing.lg)
             .offset(y: appeared ? 0 : 8)
@@ -269,7 +277,7 @@ struct NewTransactionSheet: View {
                 .background(selected ? color : CentmondTheme.Colors.bgTertiary)
                 .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 
     private func fieldRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -283,6 +291,7 @@ struct NewTransactionSheet: View {
     // MARK: - Save
 
     private func saveTransaction() {
+        Haptics.impact()
         guard let amount = decimalAmount else { return }
         let transaction = Transaction(
             date: date,

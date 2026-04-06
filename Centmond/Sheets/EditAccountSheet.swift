@@ -3,14 +3,35 @@ import SwiftData
 
 struct EditAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Account.sortOrder) private var existingAccounts: [Account]
+
     let account: Account
 
+    // Core fields
     @State private var name: String
     @State private var type: AccountType
     @State private var institutionName: String
     @State private var lastFourDigits: String
     @State private var balance: String
-    @State private var currency: String
+    @State private var currency: SupportedCurrency
+    @State private var selectedColor: String
+
+    // Extended fields
+    @State private var notes: String
+    @State private var includeInNetWorth: Bool
+    @State private var includeInBudgeting: Bool
+
+    // Credit card fields
+    @State private var creditLimit: String
+    @State private var statementClosingDay: String
+    @State private var paymentDueDay: String
+
+    // Validation & animation
+    @State private var hasAttemptedSave = false
+    @State private var appeared = false
+
+    private var accentColor: Color { Color(hex: selectedColor) }
 
     init(account: Account) {
         self.account = account
@@ -18,140 +39,342 @@ struct EditAccountSheet: View {
         _type = State(initialValue: account.type)
         _institutionName = State(initialValue: account.institutionName ?? "")
         _lastFourDigits = State(initialValue: account.lastFourDigits ?? "")
-        _balance = State(initialValue: "\(account.currentBalance)")
-        _currency = State(initialValue: account.currency)
+        _balance = State(initialValue: account.currentBalance == 0 ? "" : "\(account.currentBalance)")
+        _currency = State(initialValue: SupportedCurrency(rawValue: account.currency) ?? .usd)
+        _selectedColor = State(initialValue: account.colorHex ?? AccountColorPreset.blue.rawValue)
+        _notes = State(initialValue: account.notes ?? "")
+        _includeInNetWorth = State(initialValue: account.includeInNetWorth)
+        _includeInBudgeting = State(initialValue: account.includeInBudgeting)
+        _creditLimit = State(initialValue: account.creditLimit.map { "\($0)" } ?? "")
+        _statementClosingDay = State(initialValue: account.statementClosingDay.map { "\($0)" } ?? "")
+        _paymentDueDay = State(initialValue: account.paymentDueDay.map { "\($0)" } ?? "")
+    }
+
+    // MARK: - Validation
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var nameError: String? {
+        guard hasAttemptedSave else { return nil }
+        if trimmedName.isEmpty { return "Account name is required" }
+        if existingAccounts.contains(where: {
+            $0.id != account.id && $0.name.lowercased() == trimmedName.lowercased()
+        }) {
+            return "An account with this name already exists"
+        }
+        return nil
+    }
+
+    private var balanceError: String? {
+        guard hasAttemptedSave, !balance.isEmpty else { return nil }
+        if Decimal(string: balance) == nil { return "Enter a valid number" }
+        return nil
+    }
+
+    private var creditLimitError: String? {
+        guard hasAttemptedSave, !creditLimit.isEmpty else { return nil }
+        if Decimal(string: creditLimit) == nil { return "Enter a valid number" }
+        return nil
     }
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty
+        !trimmedName.isEmpty
+        && !existingAccounts.contains(where: { $0.id != account.id && $0.name.lowercased() == trimmedName.lowercased() })
+        && (balance.isEmpty || Decimal(string: balance) != nil)
+        && (creditLimit.isEmpty || Decimal(string: creditLimit) != nil)
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            // Close
             HStack {
-                Text("Edit Account")
-                    .font(CentmondTheme.Typography.heading2)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 Spacer()
-                Button {
-                    dismiss()
-                } label: {
+                Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.top, CentmondTheme.Spacing.xl)
-            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .padding(.trailing, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.md)
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Hero
+            VStack(spacing: CentmondTheme.Spacing.lg) {
+                ZStack {
+                    Circle()
+                        .fill(accentColor.opacity(0.15))
+                        .frame(width: 64, height: 64)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xl) {
-                    editField("ACCOUNT NAME") {
-                        TextField("Account name", text: $name)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Image(systemName: type.iconName)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(accentColor)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .shadow(color: accentColor.opacity(0.3), radius: 16, y: 4)
+
+                Picker("", selection: $type) {
+                    ForEach(AccountType.allCases) { accountType in
+                        Label(accountType.displayName, systemImage: accountType.iconName)
+                            .tag(accountType)
                     }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 340)
 
-                    editField("TYPE") {
-                        Picker("", selection: $type) {
-                            ForEach(AccountType.allCases) { t in
-                                Label(t.displayName, systemImage: t.iconName).tag(t)
+                HStack(spacing: 8) {
+                    ForEach(AccountColorPreset.allCases, id: \.rawValue) { preset in
+                        Circle()
+                            .fill(Color(hex: preset.rawValue))
+                            .frame(width: selectedColor == preset.rawValue ? 22 : 16,
+                                   height: selectedColor == preset.rawValue ? 22 : 16)
+                            .overlay {
+                                if selectedColor == preset.rawValue {
+                                    Circle()
+                                        .strokeBorder(.white, lineWidth: 2)
+                                }
                             }
-                        }
-                        .pickerStyle(.menu)
-                    }
-
-                    editField("INSTITUTION") {
-                        TextField("e.g., Chase Bank", text: $institutionName)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    }
-
-                    editField("LAST 4 DIGITS") {
-                        TextField("e.g., 4521", text: $lastFourDigits)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            .onChange(of: lastFourDigits) { _, newValue in
-                                let filtered = newValue.filter(\.isNumber)
-                                if filtered.count > 4 {
-                                    lastFourDigits = String(filtered.prefix(4))
-                                } else if filtered != newValue {
-                                    lastFourDigits = filtered
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                    selectedColor = preset.rawValue
                                 }
                             }
                     }
+                }
+            }
+            .padding(.bottom, CentmondTheme.Spacing.xl)
+            .offset(y: appeared ? 0 : 10)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.05), value: appeared)
 
-                    editField("CURRENT BALANCE") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            TextField("0.00", text: $balance)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
+            // Fields card
+            VStack(spacing: 1) {
+                fieldRow {
+                    fieldIcon("pencil", error: nameError != nil)
+                    TextField("Account name", text: $name)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+
+                fieldRow {
+                    fieldIcon("building.columns")
+                    TextField("Institution (optional)", text: $institutionName)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+
+                fieldRow {
+                    fieldIcon("number")
+                    TextField("Last 4 digits", text: $lastFourDigits)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .onChange(of: lastFourDigits) { _, newValue in
+                            let filtered = newValue.filter(\.isNumber)
+                            if filtered.count > 4 {
+                                lastFourDigits = String(filtered.prefix(4))
+                            } else if filtered != newValue {
+                                lastFourDigits = filtered
+                            }
+                        }
+                    Spacer()
+                    fieldIcon("dollarsign.circle")
+                    Picker("", selection: $currency) {
+                        ForEach(SupportedCurrency.allCases) { cur in
+                            Text("\(cur.symbol) \(cur.rawValue)").tag(cur)
                         }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
-                .padding(.horizontal, CentmondTheme.Spacing.xxl)
-                .padding(.vertical, CentmondTheme.Spacing.lg)
+
+                fieldRow {
+                    fieldIcon("banknote", error: balanceError != nil)
+                    Text(currency.symbol)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("Current balance", text: $balance)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                }
+
+                fieldRow {
+                    fieldIcon("note.text")
+                    TextField("Note (optional)", text: $notes)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.1), value: appeared)
+
+            // Credit card extras
+            if type == .creditCard {
+                VStack(spacing: 1) {
+                    fieldRow {
+                        fieldIcon("creditcard")
+                        Text(currency.symbol)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        TextField("Credit limit", text: $creditLimit)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
+
+                    fieldRow {
+                        fieldIcon("calendar")
+                        TextField("Closing day", text: $statementClosingDay)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .frame(maxWidth: 80)
+                            .onChange(of: statementClosingDay) { _, newValue in
+                                filterDay(&statementClosingDay, newValue)
+                            }
+
+                        Divider().frame(height: 14)
+
+                        fieldIcon("calendar.badge.exclamationmark")
+                        TextField("Due day", text: $paymentDueDay)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .frame(maxWidth: 80)
+                            .onChange(of: paymentDueDay) { _, newValue in
+                                filterDay(&paymentDueDay, newValue)
+                            }
+
+                        Spacer()
+                    }
+                }
+                .background(CentmondTheme.Colors.bgSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+                .padding(.horizontal, CentmondTheme.Spacing.lg)
+                .padding(.top, CentmondTheme.Spacing.sm)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Options
+            HStack(spacing: CentmondTheme.Spacing.xl) {
+                Toggle("Net Worth", isOn: $includeInNetWorth)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
-                Button("Save Changes") { save() }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!isValid)
+                Toggle("Budgeting", isOn: $includeInBudgeting)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.vertical, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.md)
+
+            // Errors
+            if hasAttemptedSave, let error = nameError ?? balanceError ?? creditLimitError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                    Text(error)
+                }
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.negative)
+                .padding(.top, CentmondTheme.Spacing.sm)
+            }
+
+            Spacer(minLength: CentmondTheme.Spacing.lg)
+
+            // Save
+            Button {
+                hasAttemptedSave = true
+                if isValid { save() }
+            } label: {
+                Text("Save Changes")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!isValid && hasAttemptedSave)
+            .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.15), value: appeared)
         }
-        .frame(minHeight: 450)
+        .background(CentmondTheme.Colors.bgPrimary)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                appeared = true
+            }
+        }
     }
 
-    @ViewBuilder
-    private func editField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-            Text(label)
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.3)
+    // MARK: - Components
+
+    private func fieldIcon(_ name: String, error: Bool = false) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
+            .frame(width: 18)
+    }
+
+    private func fieldRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
             content()
-                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(height: CentmondTheme.Sizing.inputHeight)
-                .background(CentmondTheme.Colors.bgInput)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                        .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                )
+        }
+        .frame(height: 38)
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+    }
+
+    private func filterDay(_ binding: inout String, _ newValue: String) {
+        let filtered = newValue.filter(\.isNumber)
+        if let day = Int(filtered), day > 31 {
+            binding = "31"
+        } else if filtered.count > 2 {
+            binding = String(filtered.prefix(2))
+        } else if filtered != newValue {
+            binding = filtered
         }
     }
+
+    // MARK: - Save
 
     private func save() {
-        account.name = name.trimmingCharacters(in: .whitespaces)
+        Haptics.impact()
+        account.name = trimmedName
         account.type = type
-        account.institutionName = institutionName.isEmpty ? nil : institutionName.trimmingCharacters(in: .whitespaces)
+        account.institutionName = institutionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : institutionName.trimmingCharacters(in: .whitespacesAndNewlines)
         account.lastFourDigits = lastFourDigits.isEmpty ? nil : lastFourDigits
         if let bal = Decimal(string: balance) {
             account.currentBalance = bal
+        } else if balance.isEmpty {
+            account.currentBalance = 0
         }
-        account.currency = currency
+        account.currency = currency.rawValue
+        account.colorHex = selectedColor
+        account.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        account.includeInNetWorth = includeInNetWorth
+        account.includeInBudgeting = includeInBudgeting
+        account.creditLimit = Decimal(string: creditLimit)
+        account.statementClosingDay = Int(statementClosingDay)
+        account.paymentDueDay = Int(paymentDueDay)
         dismiss()
     }
 }

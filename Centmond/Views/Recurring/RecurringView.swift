@@ -190,19 +190,9 @@ struct RecurringView: View {
             Button {
                 router.showSheet(.newRecurring)
             } label: {
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Add")
-                        .font(CentmondTheme.Typography.captionMedium)
-                }
-                .foregroundStyle(CentmondTheme.Colors.accent)
-                .padding(.horizontal, CentmondTheme.Spacing.md)
-                .padding(.vertical, CentmondTheme.Spacing.sm)
-                .background(CentmondTheme.Colors.accentSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                Label("Add", systemImage: "plus")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AccentChipButtonStyle())
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -378,7 +368,7 @@ struct RecurringRow: View {
                     .font(.system(size: 14))
                     .foregroundStyle(item.autoCreate ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textTertiary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help(item.autoCreate ? "Auto-create enabled" : "Auto-create disabled")
             .frame(width: 50)
 
@@ -397,6 +387,7 @@ struct RecurringRow: View {
         .frame(height: 48)
         .background(isHovered ? CentmondTheme.Colors.bgQuaternary : .clear)
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .overlay(alignment: .bottom) {

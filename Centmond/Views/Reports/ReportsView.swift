@@ -83,14 +83,16 @@ struct ReportsView: View {
                                         Image(systemName: "checkmark")
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundStyle(CentmondTheme.Colors.accent)
+                                            .transition(.scale.combined(with: .opacity))
                                     }
                                 }
                                 .padding(.horizontal, CentmondTheme.Spacing.md)
                                 .padding(.vertical, CentmondTheme.Spacing.sm)
                                 .background(reportType == type ? CentmondTheme.Colors.accentMuted : .clear)
                                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
+                                .animation(CentmondTheme.Motion.micro, value: reportType)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.plainHover)
                             .foregroundStyle(reportType == type ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textSecondary)
                         }
                     }
@@ -199,14 +201,8 @@ struct ReportsView: View {
     private func datePresetButton(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(CentmondTheme.Colors.bgTertiary)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MutedChipButtonStyle())
     }
 
     private func sectionLabel(_ text: String) -> some View {
@@ -226,6 +222,8 @@ struct ReportsView: View {
                 .font(CentmondTheme.Typography.mono)
                 .foregroundStyle(color)
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(CentmondTheme.Motion.numeric, value: value)
         }
     }
 
@@ -239,6 +237,7 @@ struct ReportsView: View {
                     heading: "No data for this period",
                     description: "Try adjusting the date range or add transactions."
                 )
+                .transition(.opacity)
             } else {
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
@@ -272,12 +271,16 @@ struct ReportsView: View {
                 switch reportType {
                 case .incomeVsExpense:
                     incomeVsExpenseChart
+                        .transition(.opacity)
                 case .spendingByCategory:
                     spendingByCategoryChart
+                        .transition(.opacity)
                 case .monthlyTrend:
                     monthlyTrendChart
+                        .transition(.opacity)
                 }
             }
+            .animation(CentmondTheme.Motion.layout, value: reportType)
         }
     }
 
@@ -587,6 +590,7 @@ struct ReportsView: View {
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(item.color.opacity(0.2))
                                 .frame(width: geo.size.width * (item.amount / maxAmount))
+                                .animation(CentmondTheme.Motion.default, value: item.amount)
                         }
                         .frame(height: 3)
 

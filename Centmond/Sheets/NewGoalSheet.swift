@@ -41,7 +41,7 @@ struct NewGoalSheet: View {
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.top, CentmondTheme.Spacing.xl)
@@ -76,7 +76,7 @@ struct NewGoalSheet: View {
                                         .background(icon == opt ? CentmondTheme.Colors.accent.opacity(0.12) : CentmondTheme.Colors.bgQuaternary)
                                         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.plainHover)
                             }
                         }
                     }

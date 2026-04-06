@@ -170,7 +170,7 @@ struct InsightsView: View {
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
 
             if !dismissedInsights.isEmpty {
@@ -201,7 +201,7 @@ struct InsightsView: View {
                 .background(isActive ? CentmondTheme.Colors.accent.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 
     // MARK: - Navigation
@@ -290,7 +290,7 @@ struct InsightCard: View {
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
 
                     if insight.isDismissed {
                         Button("Restore") {
@@ -298,14 +298,14 @@ struct InsightCard: View {
                         }
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
                     } else {
                         Button("Dismiss") {
                             onDismiss()
                         }
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
                     }
                 }
             }
@@ -320,6 +320,7 @@ struct InsightCard: View {
         .shadow(color: isHovered ? .black.opacity(0.3) : .clear, radius: 8, y: 2)
         .opacity(insight.isDismissed ? 0.6 : 1.0)
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .contextMenu {

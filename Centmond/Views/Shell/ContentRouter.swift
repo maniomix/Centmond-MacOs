@@ -32,6 +32,8 @@ struct ContentRouter: View {
                 ReviewQueueView()
             case .household:
                 HouseholdView()
+            case .settings:
+                InAppSettingsView()
             }
         }
         .screenBackground()

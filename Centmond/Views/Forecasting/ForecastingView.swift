@@ -100,6 +100,8 @@ struct ForecastingView: View {
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                     .foregroundStyle(safeToSpendColor)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: safeToSpend)
 
                 Text("remaining this month (\(daysLeftInMonth) days left)")
                     .font(CentmondTheme.Typography.body)
@@ -119,6 +121,7 @@ struct ForecastingView: View {
                 .padding(.vertical, CentmondTheme.Spacing.sm)
                 .background(CentmondTheme.Colors.accent.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Breakdown row
@@ -164,6 +167,8 @@ struct ForecastingView: View {
                 .font(CentmondTheme.Typography.monoLarge)
                 .foregroundStyle(color)
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(CentmondTheme.Motion.numeric, value: value)
         }
     }
 
@@ -199,6 +204,7 @@ struct ForecastingView: View {
                             .padding(.vertical, CentmondTheme.Spacing.xxl)
                         Spacer()
                     }
+                    .transition(.opacity)
                 } else {
                     // Running balance chart based on real obligations
                     let balancePoints = buildBalanceProjection(timeline: timeline)
@@ -270,6 +276,8 @@ struct ForecastingView: View {
                         plot.clipped()
                     }
                     .frame(height: 280)
+                    .animation(CentmondTheme.Motion.layout, value: forecastDays)
+                    .transition(.opacity)
 
                     Text("Projection based on current balance (\(CurrencyFormat.compact(totalBalance))) minus known upcoming obligations. Does not predict variable spending.")
                         .font(CentmondTheme.Typography.caption)

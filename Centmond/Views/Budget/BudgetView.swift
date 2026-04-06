@@ -110,6 +110,7 @@ struct BudgetView: View {
 
                         if uncategorizedSpent > 0 {
                             uncategorizedBar
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
                     .padding(CentmondTheme.Spacing.xxl)
@@ -155,7 +156,7 @@ struct BudgetView: View {
                     .font(CentmondTheme.Typography.heading2)
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .contentTransition(.numericText())
-                    .animation(CentmondTheme.Motion.default, value: router.selectedMonth)
+                    .animation(CentmondTheme.Motion.numeric, value: router.selectedMonth)
 
                 Text("Budget")
                     .font(CentmondTheme.Typography.caption)
@@ -179,7 +180,8 @@ struct BudgetView: View {
                         .padding(.horizontal, CentmondTheme.Spacing.md)
                         .frame(height: 30)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("Add a new budget category")
                     .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
                     .glassEffectUnion(id: "budgetActions", namespace: budgetHeaderNamespace)
 
@@ -196,7 +198,8 @@ struct BudgetView: View {
                         .padding(.horizontal, CentmondTheme.Spacing.md)
                         .frame(height: 30)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("Plan and allocate your monthly budget")
                     .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
                     .glassEffectUnion(id: "budgetActions", namespace: budgetHeaderNamespace)
                 }
@@ -256,6 +259,8 @@ struct BudgetView: View {
                                 .font(CentmondTheme.Typography.captionMedium)
                                 .foregroundStyle(spentColor)
                                 .monospacedDigit()
+                                .contentTransition(.numericText())
+                                .animation(CentmondTheme.Motion.numeric, value: spentProgress)
                         }
 
                         ProgressBarView(progress: spentProgress, color: spentColor, height: 8, cornerRadius: 4)
@@ -273,6 +278,8 @@ struct BudgetView: View {
                                 .font(CentmondTheme.Typography.captionMedium)
                                 .foregroundStyle(allocatedProgress > 1.0 ? CentmondTheme.Colors.warning : CentmondTheme.Colors.positive)
                                 .monospacedDigit()
+                                .contentTransition(.numericText())
+                                .animation(CentmondTheme.Motion.numeric, value: allocatedProgress)
                         }
 
                         ProgressBarView(
@@ -296,8 +303,8 @@ struct BudgetView: View {
 
                     detailCell(
                         label: "Remaining",
-                        value: CurrencyFormat.standard(isOverBudget ? 0 : remaining),
-                        color: isOverBudget ? CentmondTheme.Colors.negative : CentmondTheme.Colors.positive
+                        value: CurrencyFormat.standard(remaining),
+                        color: remaining < 0 ? CentmondTheme.Colors.negative : CentmondTheme.Colors.positive
                     )
 
                     dividerLine
@@ -325,6 +332,7 @@ struct BudgetView: View {
                         text: "\(CurrencyFormat.standard(totalSpent - totalBudgetAmount)) over budget",
                         color: CentmondTheme.Colors.negative
                     )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
 
                 if unallocated < 0 {
@@ -333,6 +341,7 @@ struct BudgetView: View {
                         text: "Categories exceed budget by \(CurrencyFormat.standard(-unallocated))",
                         color: CentmondTheme.Colors.warning
                     )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             } else {
                 // No budget set — prompt
@@ -346,14 +355,9 @@ struct BudgetView: View {
                         router.showSheet(.budgetPlanner)
                     } label: {
                         Text("Set Monthly Budget")
-                            .font(CentmondTheme.Typography.bodyMedium)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, CentmondTheme.Spacing.xl)
-                            .padding(.vertical, CentmondTheme.Spacing.md)
-                            .background(CentmondTheme.Colors.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .help("Set up your monthly spending limit")
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -389,6 +393,8 @@ struct BudgetView: View {
                 .font(CentmondTheme.Typography.mono)
                 .foregroundStyle(color)
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(CentmondTheme.Motion.numeric, value: value)
         }
         .frame(maxWidth: .infinity)
     }
@@ -491,7 +497,8 @@ struct BudgetView: View {
             }
             .font(CentmondTheme.Typography.captionMedium)
             .foregroundStyle(CentmondTheme.Colors.accent)
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
+            .help("Review uncategorized transactions")
         }
         .padding(CentmondTheme.Spacing.lg)
         .background(CentmondTheme.Colors.warningMuted.opacity(0.5))
@@ -546,6 +553,8 @@ private struct BudgetCategoryCardView: View {
                     .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(isOverBudget ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textTertiary)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(CentmondTheme.Motion.numeric, value: pct)
             }
 
             // Amount row
@@ -560,6 +569,8 @@ private struct BudgetCategoryCardView: View {
                         .font(CentmondTheme.Typography.monoLarge)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(CentmondTheme.Motion.numeric, value: spent)
                 }
 
                 Spacer()
@@ -616,6 +627,7 @@ private struct BudgetCategoryCardView: View {
         )
         .shadow(color: isHovered ? .black.opacity(0.2) : .clear, radius: 6, y: 2)
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
         .onTapGesture { onTap() }

@@ -147,11 +147,10 @@ struct TransactionInspectorView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Transaction")
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    .textCase(.uppercase)
-                    .tracking(0.3)
+                Text("TXN")
+                    .font(CentmondTheme.Typography.overline)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    .tracking(0.5)
 
                 Text(tx.payee)
                     .font(CentmondTheme.Typography.heading3)
@@ -159,7 +158,7 @@ struct TransactionInspectorView: View {
                     .lineLimit(1)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
             // Edit toggle
             Button {
@@ -170,13 +169,13 @@ struct TransactionInspectorView: View {
                 }
             } label: {
                 Image(systemName: isEditing ? "checkmark" : "pencil")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(isEditing ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
                     .background(isEditing ? CentmondTheme.Colors.positive.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help(isEditing ? "Save changes" : "Edit transaction")
 
             if isEditing {
@@ -184,13 +183,13 @@ struct TransactionInspectorView: View {
                     isEditing = false
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 26, height: 26)
                         .background(CentmondTheme.Colors.bgTertiary)
                         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .help("Cancel editing")
             }
         }
@@ -226,19 +225,12 @@ struct TransactionInspectorView: View {
                         .monospacedDigit()
                 }
             } else {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(formatAmount(tx.amount, isIncome: tx.isIncome))
-                        .font(CentmondTheme.Typography.heading1)
-                        .foregroundStyle(tx.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textPrimary)
-                        .monospacedDigit()
-
-                    Spacer()
-
+                HStack(alignment: .top) {
                     // Type badge
                     HStack(spacing: 4) {
                         Image(systemName: tx.isIncome ? "arrow.down" : "arrow.up")
                             .font(.system(size: 10, weight: .bold))
-                        Text(tx.isIncome ? "Income" : "Expense")
+                        Text(tx.isIncome ? "income" : "expense")
                     }
                     .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(tx.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
@@ -246,6 +238,24 @@ struct TransactionInspectorView: View {
                     .padding(.vertical, 4)
                     .background((tx.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative).opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
+
+                    Spacer()
+
+                    // Amount — sign + number only, no currency symbol
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(formatAmountShort(tx.amount, isIncome: tx.isIncome))
+                            .font(CentmondTheme.Typography.heading2)
+                            .foregroundStyle(tx.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+
+                        if let account = tx.account {
+                            Text(account.currency)
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        }
+                    }
                 }
             }
         }
@@ -261,7 +271,7 @@ struct TransactionInspectorView: View {
             inspectorField(
                 icon: "calendar",
                 label: "Date",
-                value: tx.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year())
+                value: tx.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())
             )
 
             // Category
@@ -621,14 +631,15 @@ struct TransactionInspectorView: View {
             Text(label)
                 .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                .frame(width: 60, alignment: .leading)
+                .frame(width: 56, alignment: .leading)
 
             Text(value)
-                .font(CentmondTheme.Typography.mono)
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .lineLimit(1)
                 .textSelection(.enabled)
 
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 
@@ -663,6 +674,16 @@ struct TransactionInspectorView: View {
         CurrencyFormat.signed(amount, isIncome: isIncome)
     }
 
+    /// Compact amount for inspector: "+2,500.00" without currency symbol
+    private func formatAmountShort(_ amount: Decimal, isIncome: Bool) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        let num = formatter.string(from: abs(amount) as NSDecimalNumber) ?? "0.00"
+        return isIncome ? "+\(num)" : "-\(num)"
+    }
+
     private func duplicateTransaction(_ tx: Transaction) {
         let dupe = Transaction(
             date: .now,
@@ -685,14 +706,8 @@ struct AccountInspectorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppRouter.self) private var router
 
-    @State private var isEditing = false
-    @State private var editName = ""
-    @State private var editType: AccountType = .checking
-    @State private var editInstitution = ""
-    @State private var editLastFour = ""
-    @State private var editBalance = ""
-    @State private var editCurrency = "USD"
     @State private var showDeleteConfirmation = false
+    @State private var showCloseConfirmation = false
 
     init(accountID: UUID) {
         self.accountID = accountID
@@ -718,63 +733,61 @@ struct AccountInspectorView: View {
         return account.currentBalance >= 0 ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.negative
     }
 
+    private var accountColor: Color {
+        guard let account else { return CentmondTheme.Colors.accent }
+        return Color(hex: account.effectiveColor)
+    }
+
+    // Quick stats
+    private var totalIncome: Decimal {
+        guard let account else { return 0 }
+        return account.transactions.filter { $0.isIncome }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var totalExpenses: Decimal {
+        guard let account else { return 0 }
+        return account.transactions.filter { !$0.isIncome }.reduce(0) { $0 + abs($1.amount) }
+    }
+
     var body: some View {
         if let account {
             VStack(spacing: 0) {
                 // Header
                 HStack(spacing: CentmondTheme.Spacing.md) {
+                    // Color indicator + icon
                     Image(systemName: account.type.iconName)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(CentmondTheme.Colors.accent)
-                        .frame(width: 40, height: 40)
-                        .background(CentmondTheme.Colors.accentMuted)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(accountColor)
+                        .frame(width: 36, height: 36)
+                        .background(accountColor.opacity(0.15))
                         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Account")
-                            .font(CentmondTheme.Typography.captionMedium)
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            .textCase(.uppercase)
+                        Text("ACCT")
+                            .font(CentmondTheme.Typography.overline)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                             .tracking(0.3)
 
                         Text(account.name)
                             .font(CentmondTheme.Typography.heading3)
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .lineLimit(1)
                     }
 
                     Spacer()
 
                     Button {
-                        if isEditing {
-                            saveEdits(account)
-                        } else {
-                            startEditing(account)
-                        }
+                        router.showSheet(.editAccount(account))
                     } label: {
-                        Image(systemName: isEditing ? "checkmark" : "pencil")
+                        Image(systemName: "pencil")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(isEditing ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
-                            .frame(width: 28, height: 28)
-                            .background(isEditing ? CentmondTheme.Colors.positive.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .frame(width: 26, height: 26)
+                            .background(CentmondTheme.Colors.bgTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                     }
-                    .buttonStyle(.plain)
-                    .help(isEditing ? "Save changes" : "Edit account")
-
-                    if isEditing {
-                        Button {
-                            isEditing = false
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                                .frame(width: 28, height: 28)
-                                .background(CentmondTheme.Colors.bgTertiary)
-                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Cancel editing")
-                    }
+                    .buttonStyle(.plainHover)
+                    .help("Edit account")
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.lg)
                 .padding(.vertical, CentmondTheme.Spacing.md)
@@ -783,57 +796,114 @@ struct AccountInspectorView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: CentmondTheme.Spacing.lg) {
-                        if isEditing {
-                            editFormSection
-                        } else {
-                            // Balance
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Current Balance")
-                                    .font(CentmondTheme.Typography.captionMedium)
-                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-
-                                Text(CurrencyFormat.standard(account.currentBalance, currencyCode: account.currency))
-                                    .font(CentmondTheme.Typography.heading1)
-                                    .monospacedDigit()
-                                    .foregroundStyle(balanceColor)
-                            }
-                            .padding(.vertical, CentmondTheme.Spacing.sm)
-
-                            if account.isArchived {
-                                HStack(spacing: CentmondTheme.Spacing.sm) {
-                                    Image(systemName: "archivebox.fill")
-                                        .font(.system(size: 12))
-                                    Text("Archived")
+                        // Status badges
+                        if account.statusLabel != nil || !account.includeInNetWorth || !account.includeInBudgeting {
+                            HStack(spacing: CentmondTheme.Spacing.sm) {
+                                if account.isClosed {
+                                    acctStatusBadge("Closed", icon: "xmark.circle.fill", color: CentmondTheme.Colors.textQuaternary)
                                 }
-                                .font(CentmondTheme.Typography.captionMedium)
-                                .foregroundStyle(CentmondTheme.Colors.warning)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(CentmondTheme.Colors.warning.opacity(0.12))
-                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
-                            }
-
-                            acctDivider
-
-                            // Details
-                            VStack(spacing: CentmondTheme.Spacing.md) {
-                                acctDetailRow("Type", value: account.type.displayName)
-                                if let institution = account.institutionName, !institution.isEmpty {
-                                    acctDetailRow("Institution", value: institution)
+                                if account.isArchived {
+                                    acctStatusBadge("Archived", icon: "archivebox.fill", color: CentmondTheme.Colors.warning)
                                 }
-                                if let digits = account.lastFourDigits, !digits.isEmpty {
-                                    acctDetailRow("Last 4 Digits", value: "···· \(digits)")
+                                if !account.includeInNetWorth {
+                                    acctStatusBadge("Excluded from Net Worth", icon: "eye.slash", color: CentmondTheme.Colors.textQuaternary)
                                 }
-                                acctDetailRow("Currency", value: account.currency)
-                                acctDetailRow("Transactions", value: "\(account.transactions.count)")
-                                acctDetailRow("Created", value: account.createdAt.formatted(date: .abbreviated, time: .omitted))
+                                if !account.includeInBudgeting {
+                                    acctStatusBadge("Excluded from Budget", icon: "eye.slash", color: CentmondTheme.Colors.textQuaternary)
+                                }
                             }
-
-                            acctDivider
-
-                            // Recent transactions
-                            recentTransactionsSection
                         }
+
+                        // Balance
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Current Balance")
+                                .font(CentmondTheme.Typography.captionMedium)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+
+                            Text(CurrencyFormat.standard(account.currentBalance, currencyCode: account.currency))
+                                .font(CentmondTheme.Typography.heading1)
+                                .monospacedDigit()
+                                .foregroundStyle(balanceColor)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .padding(.vertical, CentmondTheme.Spacing.xs)
+
+                        // Credit card utilization
+                        if account.type == .creditCard, let limit = account.creditLimit, limit > 0 {
+                            acctCreditCardSection(account, limit: limit)
+                        }
+
+                        acctDivider
+
+                        // Quick stats
+                        if !account.transactions.isEmpty {
+                            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+                                Text("QUICK STATS")
+                                    .font(CentmondTheme.Typography.overline)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                    .tracking(0.5)
+
+                                HStack(spacing: 0) {
+                                    acctStatItem("Income", value: CurrencyFormat.compact(totalIncome), color: CentmondTheme.Colors.positive)
+                                    acctStatItem("Expenses", value: CurrencyFormat.compact(totalExpenses), color: CentmondTheme.Colors.negative)
+                                    let net = totalIncome - totalExpenses
+                                    acctStatItem("Net", value: CurrencyFormat.compact(net), color: net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+                                }
+                            }
+
+                            acctDivider
+                        }
+
+                        // Details
+                        VStack(spacing: CentmondTheme.Spacing.md) {
+                            acctDetailRow("Type", value: account.type.displayName)
+                            if let institution = account.institutionName, !institution.isEmpty {
+                                acctDetailRow("Institution", value: institution)
+                            }
+                            if let digits = account.lastFourDigits, !digits.isEmpty {
+                                acctDetailRow("Last 4", value: "···· \(digits)")
+                            }
+                            acctDetailRow("Currency", value: account.currency)
+                            if account.openingBalance != 0 {
+                                acctDetailRow("Opening", value: CurrencyFormat.standard(account.openingBalance, currencyCode: account.currency))
+                            }
+                            acctDetailRow("Txns", value: "\(account.transactions.count)")
+                            acctDetailRow("Created", value: account.createdAt.formatted(.dateTime.month(.abbreviated).day().year()))
+
+                            if account.isClosed, let closedAt = account.closedAt {
+                                acctDetailRow("Closed", value: closedAt.formatted(.dateTime.month(.abbreviated).day().year()))
+                            }
+
+                            if account.type == .creditCard {
+                                if let closingDay = account.statementClosingDay {
+                                    acctDetailRow("Stmt Close", value: "Day \(closingDay)")
+                                }
+                                if let dueDay = account.paymentDueDay {
+                                    acctDetailRow("Due Day", value: "Day \(dueDay)")
+                                }
+                            }
+                        }
+
+                        // Notes
+                        if let notes = account.notes, !notes.isEmpty {
+                            acctDivider
+
+                            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
+                                Text("NOTES")
+                                    .font(CentmondTheme.Typography.overline)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                    .tracking(0.5)
+
+                                Text(notes)
+                                    .font(CentmondTheme.Typography.body)
+                                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            }
+                        }
+
+                        acctDivider
+
+                        // Recent transactions
+                        recentTransactionsSection
                     }
                     .padding(CentmondTheme.Spacing.lg)
                 }
@@ -855,10 +925,21 @@ struct AccountInspectorView: View {
             } message: {
                 let txCount = account.transactions.count
                 if txCount > 0 {
-                    Text("This will permanently delete \"\(account.name)\" and unlink \(txCount) transaction\(txCount == 1 ? "" : "s"). This cannot be undone.")
+                    Text("This will permanently delete \"\(account.name)\" and unlink \(txCount) transaction\(txCount == 1 ? "" : "s"). Consider archiving instead. This cannot be undone.")
                 } else {
                     Text("This will permanently delete \"\(account.name)\". This cannot be undone.")
                 }
+            }
+            .alert("Close Account", isPresented: $showCloseConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Close Account", role: .destructive) {
+                    account.isClosed = true
+                    account.closedAt = .now
+                    account.includeInNetWorth = false
+                    account.includeInBudgeting = false
+                }
+            } message: {
+                Text("Closing \"\(account.name)\" will mark it as inactive. It won't count toward budgets or net worth. You can reopen it later.")
             }
         } else {
             VStack(spacing: CentmondTheme.Spacing.md) {
@@ -873,54 +954,60 @@ struct AccountInspectorView: View {
         }
     }
 
-    // MARK: - Edit Form
+    // MARK: - Credit Card Section
 
-    private var editFormSection: some View {
-        VStack(spacing: CentmondTheme.Spacing.lg) {
-            acctEditField("NAME") {
-                TextField("Account name", text: $editName)
-                    .textFieldStyle(.plain)
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-            }
+    private func acctCreditCardSection(_ account: Account, limit: Decimal) -> some View {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            let utilization = account.creditUtilization ?? 0
+            let available = account.availableCredit ?? limit
 
-            acctEditField("TYPE") {
-                Picker("", selection: $editType) {
-                    ForEach(AccountType.allCases) { type in
-                        Label(type.displayName, systemImage: type.iconName).tag(type)
+            // Utilization bar
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Credit Utilization")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Spacer()
+                    Text("\(Int(utilization * 100))%")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(acctUtilizationColor(utilization))
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                            .fill(CentmondTheme.Colors.bgQuaternary)
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                            .fill(acctUtilizationColor(utilization))
+                            .frame(width: max(0, geo.size.width * min(utilization, 1.0)))
                     }
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
+                .frame(height: 5)
             }
 
-            acctEditField("INSTITUTION") {
-                TextField("e.g., Chase Bank", text: $editInstitution)
-                    .textFieldStyle(.plain)
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-            }
-
-            acctEditField("LAST 4 DIGITS") {
-                TextField("e.g., 4521", text: $editLastFour)
-                    .textFieldStyle(.plain)
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-            }
-
-            acctEditField("CURRENT BALANCE") {
-                HStack {
-                    Text("$")
-                        .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    TextField("0.00", text: $editBalance)
-                        .textFieldStyle(.plain)
-                        .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                        .monospacedDigit()
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Available")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    Text(CurrencyFormat.compact(available))
+                        .font(CentmondTheme.Typography.mono)
+                        .foregroundStyle(CentmondTheme.Colors.positive)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("Limit")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    Text(CurrencyFormat.compact(limit))
+                        .font(CentmondTheme.Typography.mono)
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
                 }
             }
         }
+        .padding(CentmondTheme.Spacing.sm)
+        .background(CentmondTheme.Colors.bgTertiary)
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
     }
 
     // MARK: - Recent Transactions
@@ -941,10 +1028,15 @@ struct AccountInspectorView: View {
                 VStack(spacing: 0) {
                     ForEach(recentTransactions) { tx in
                         HStack {
-                            Text(tx.payee)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tx.payee)
+                                    .font(CentmondTheme.Typography.body)
+                                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                                    .lineLimit(1)
+                                Text(tx.date.formatted(.dateTime.month(.abbreviated).day()))
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            }
 
                             Spacer()
 
@@ -972,31 +1064,69 @@ struct AccountInspectorView: View {
 
     private func acctFooterActions(_ account: Account) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
-            if account.isArchived {
+            if account.isClosed {
+                Button {
+                    account.isClosed = false
+                    account.closedAt = nil
+                    account.includeInNetWorth = true
+                    account.includeInBudgeting = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 11))
+                        Text("Reopen")
+                    }
+                    .font(CentmondTheme.Typography.caption)
+                }
+                .buttonStyle(GhostButtonStyle())
+                .help("Reopen this account")
+            } else if account.isArchived {
                 Button {
                     account.isArchived = false
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "tray.and.arrow.up")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                         Text("Unarchive")
                     }
                     .font(CentmondTheme.Typography.caption)
                 }
                 .buttonStyle(GhostButtonStyle())
+                .help("Unarchive this account")
             } else {
-                Button {
-                    account.isArchived = true
-                    router.inspectorContext = .none
+                Menu {
+                    Button {
+                        showCloseConfirmation = true
+                    } label: {
+                        Label("Close Account", systemImage: "xmark.circle")
+                    }
+
+                    Button {
+                        account.isArchived = true
+                        router.inspectorContext = .none
+                    } label: {
+                        Label("Archive", systemImage: "archivebox")
+                    }
+
+                    Button {
+                        duplicateAccount(account)
+                    } label: {
+                        Label("Duplicate", systemImage: "doc.on.doc")
+                    }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "archivebox")
+                        Image(systemName: "ellipsis")
                             .font(.system(size: 12))
-                        Text("Archive")
+                        Text("More")
                     }
                     .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    .padding(.horizontal, CentmondTheme.Spacing.sm)
+                    .padding(.vertical, CentmondTheme.Spacing.xs)
+                    .background(CentmondTheme.Colors.bgTertiary)
+                    .clipShape(Capsule())
                 }
-                .buttonStyle(GhostButtonStyle())
+                .help("More actions")
             }
 
             Spacer()
@@ -1009,7 +1139,7 @@ struct AccountInspectorView: View {
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
             .buttonStyle(GhostButtonStyle())
-            .help("Delete")
+            .help("Delete account permanently")
         }
         .padding(.horizontal, CentmondTheme.Spacing.lg)
         .padding(.vertical, CentmondTheme.Spacing.sm)
@@ -1026,56 +1156,70 @@ struct AccountInspectorView: View {
     private func acctDetailRow(_ label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(CentmondTheme.Typography.caption)
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .frame(width: 100, alignment: .leading)
+                .frame(width: 70, alignment: .leading)
             Text(value)
                 .font(CentmondTheme.Typography.body)
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                .lineLimit(1)
             Spacer()
         }
     }
 
-    @ViewBuilder
-    private func acctEditField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
+    private func acctStatusBadge(_ text: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+            Text(text)
+        }
+        .font(.system(size: 10, weight: .medium))
+        .foregroundStyle(color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
+    }
+
+    private func acctStatItem(_ label: String, value: String, color: Color) -> some View {
+        VStack(spacing: 2) {
             Text(label)
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.3)
-
-            content()
-                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(minHeight: CentmondTheme.Sizing.inputHeight)
-                .background(CentmondTheme.Colors.bgInput)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                        .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                )
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            Text(value)
+                .font(CentmondTheme.Typography.mono)
+                .foregroundStyle(color)
+                .monospacedDigit()
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private func startEditing(_ account: Account) {
-        editName = account.name
-        editType = account.type
-        editInstitution = account.institutionName ?? ""
-        editLastFour = account.lastFourDigits ?? ""
-        editBalance = "\(account.currentBalance)"
-        editCurrency = account.currency
-        isEditing = true
+    private func acctUtilizationColor(_ utilization: Double) -> Color {
+        if utilization > 0.9 { return CentmondTheme.Colors.negative }
+        if utilization > 0.7 { return CentmondTheme.Colors.warning }
+        return CentmondTheme.Colors.positive
     }
 
-    private func saveEdits(_ account: Account) {
-        account.name = editName
-        account.type = editType
-        account.institutionName = editInstitution.isEmpty ? nil : editInstitution
-        account.lastFourDigits = editLastFour.isEmpty ? nil : editLastFour
-        if let balance = Decimal(string: editBalance) {
-            account.currentBalance = balance
-        }
-        account.currency = editCurrency
-        isEditing = false
+    private func duplicateAccount(_ account: Account) {
+        let copy = Account(
+            name: "\(account.name) (Copy)",
+            type: account.type,
+            institutionName: account.institutionName,
+            lastFourDigits: nil,
+            currentBalance: 0,
+            currency: account.currency,
+            colorHex: account.colorHex,
+            sortOrder: account.sortOrder + 1,
+            openingBalance: 0,
+            openingBalanceDate: .now,
+            notes: account.notes,
+            includeInNetWorth: account.includeInNetWorth,
+            includeInBudgeting: account.includeInBudgeting,
+            creditLimit: account.creditLimit,
+            statementClosingDay: account.statementClosingDay,
+            paymentDueDay: account.paymentDueDay
+        )
+        modelContext.insert(copy)
     }
 }
 
@@ -1186,7 +1330,7 @@ struct BudgetCategoryInspectorView: View {
                             .background(isEditingBudget ? CentmondTheme.Colors.positive.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
                     .help(isEditingBudget ? "Save" : "Edit")
 
                     if isEditingBudget {
@@ -1200,7 +1344,7 @@ struct BudgetCategoryInspectorView: View {
                                 .background(CentmondTheme.Colors.bgTertiary)
                                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
                     }
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -2044,7 +2188,7 @@ struct SubscriptionInspectorView: View {
                     Label("Pause", systemImage: "pause.circle")
                         .font(CentmondTheme.Typography.caption)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .foregroundStyle(CentmondTheme.Colors.warning)
             } else if sub.status == .paused {
                 Button {
@@ -2053,7 +2197,7 @@ struct SubscriptionInspectorView: View {
                     Label("Resume", systemImage: "play.circle")
                         .font(CentmondTheme.Typography.caption)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .foregroundStyle(CentmondTheme.Colors.positive)
             } else {
                 Button {
@@ -2062,7 +2206,7 @@ struct SubscriptionInspectorView: View {
                     Label("Reactivate", systemImage: "arrow.uturn.backward")
                         .font(CentmondTheme.Typography.caption)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             }
 
@@ -2073,7 +2217,7 @@ struct SubscriptionInspectorView: View {
                     Label("Cancel", systemImage: "xmark.circle")
                         .font(CentmondTheme.Typography.caption)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
 
@@ -2085,7 +2229,7 @@ struct SubscriptionInspectorView: View {
                 Image(systemName: "pencil")
                     .font(.system(size: 12))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help("Edit subscription")
 
             Button {
@@ -2095,7 +2239,7 @@ struct SubscriptionInspectorView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
             .help("Delete subscription")
         }
         .padding(.horizontal, CentmondTheme.Spacing.lg)

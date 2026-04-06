@@ -476,7 +476,7 @@ extension ImportCSVSheet {
                     )
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 }
 
@@ -514,7 +514,7 @@ extension ImportCSVSheet {
                 }
                 .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(CentmondTheme.Colors.accent)
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 Spacer()
                 Text("\(categoriesToAdd.count) of \(newCategoryNames.count) selected")
                     .font(CentmondTheme.Typography.caption)
@@ -597,7 +597,7 @@ extension ImportCSVSheet {
             .padding(.vertical, CentmondTheme.Spacing.md)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plainHover)
     }
 }
 

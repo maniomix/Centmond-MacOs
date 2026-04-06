@@ -57,7 +57,7 @@ struct MetricCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .contentTransition(.numericText())
-                    .animation(CentmondTheme.Motion.default, value: value)
+                    .animation(CentmondTheme.Motion.numeric, value: value)
 
                 // Trend or subtitle
                 if let trend, let trendPositive {
@@ -79,6 +79,7 @@ struct MetricCard: View {
                             ? CentmondTheme.Colors.positive
                             : CentmondTheme.Colors.negative
                     )
+                    .animation(CentmondTheme.Motion.numeric, value: trendPositive)
                 } else if let subtitle {
                     Text(subtitle)
                         .font(CentmondTheme.Typography.caption)

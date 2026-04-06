@@ -230,6 +230,7 @@ struct DashboardView: View {
                     HStack(spacing: 0) {
                         ForEach(ChartStyle.allCases, id: \.self) { style in
                             Button {
+                                Haptics.tap()
                                 withAnimation(CentmondTheme.Motion.layout) {
                                     hoveredDay = nil
                                     chartStyle = style
@@ -241,8 +242,9 @@ struct DashboardView: View {
                                     .frame(width: 26, height: 22)
                                     .background(chartStyle == style ? CentmondTheme.Colors.accentSubtle : .clear)
                                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
+                                    .animation(CentmondTheme.Motion.micro, value: chartStyle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.plainHover)
                             .help(style.label)
                         }
                     }
@@ -257,9 +259,11 @@ struct DashboardView: View {
                 if safeTransactions.isEmpty {
                     emptyChartPlaceholder("Add transactions to see cash flow")
                         .frame(minHeight: 200)
+                        .transition(.opacity)
                 } else {
                     cashFlowChart
                         .frame(minHeight: 200)
+                        .transition(.opacity)
                         .animation(CentmondTheme.Motion.layout, value: chartStyle)
                         .overlay {
                             GeometryReader { geo in
@@ -272,7 +276,7 @@ struct DashboardView: View {
                                         .frame(width: tooltipW)
                                         .position(x: clampedX, y: max(hoverLocation.y - 46, 24))
                                         .allowsHitTesting(false)
-                                        .transition(.opacity)
+                                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                                 }
                             }
                         }
@@ -400,7 +404,8 @@ struct DashboardView: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("View all subscriptions")
                 }
 
                 HStack {
@@ -431,7 +436,7 @@ struct DashboardView: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .contentTransition(.numericText())
-                .animation(CentmondTheme.Motion.default, value: value)
+                .animation(CentmondTheme.Motion.numeric, value: value)
             Text(label)
                 .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
@@ -457,7 +462,8 @@ struct DashboardView: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("View all transactions")
                 }
 
                 if recentTransactions.isEmpty {
@@ -474,6 +480,7 @@ struct DashboardView: View {
                             router.showSheet(.newTransaction)
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        .help("Create a new transaction")
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -543,6 +550,7 @@ struct DashboardView: View {
                 .fill(hoveredTxID == transaction.id ? CentmondTheme.Colors.bgQuaternary : .clear)
         )
         .onHover { h in
+            if h { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) {
                 hoveredTxID = h ? transaction.id : nil
             }
@@ -568,7 +576,8 @@ struct DashboardView: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("View budget details")
                 }
 
 
@@ -589,7 +598,8 @@ struct DashboardView: View {
                                 .font(CentmondTheme.Typography.captionMedium)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Set up your monthly budget")
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, CentmondTheme.Spacing.xl)
@@ -613,7 +623,7 @@ struct DashboardView: View {
                                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                                 .monospacedDigit()
                                 .contentTransition(.numericText())
-                                .animation(CentmondTheme.Motion.default, value: monthlySpending)
+                                .animation(CentmondTheme.Motion.numeric, value: monthlySpending)
 
                             Text("of \(CurrencyFormat.standard(totalBudgeted)) budgeted")
                                 .font(CentmondTheme.Typography.caption)
@@ -725,7 +735,8 @@ struct DashboardView: View {
                                 .font(CentmondTheme.Typography.caption)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("View all goals")
                     }
                 }
 
@@ -746,7 +757,8 @@ struct DashboardView: View {
                                 .font(CentmondTheme.Typography.captionMedium)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Create a new savings goal")
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, CentmondTheme.Spacing.md)
@@ -775,6 +787,8 @@ struct DashboardView: View {
                     .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.accent)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(CentmondTheme.Motion.numeric, value: goal.progressPercentage)
             }
 
             ProgressBarView(
@@ -805,6 +819,7 @@ struct DashboardView: View {
                 .fill(hoveredGoalID == goal.id ? CentmondTheme.Colors.bgQuaternary : .clear)
         )
         .onHover { h in
+            if h { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) {
                 hoveredGoalID = h ? goal.id : nil
             }
@@ -830,7 +845,8 @@ struct DashboardView: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plainHover)
+                    .help("View all accounts")
                 }
 
                 if accounts.isEmpty {
@@ -850,7 +866,8 @@ struct DashboardView: View {
                                 .font(CentmondTheme.Typography.captionMedium)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plainHover)
+                        .help("Add a new bank account")
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, CentmondTheme.Spacing.md)
@@ -883,6 +900,8 @@ struct DashboardView: View {
                                     .font(CentmondTheme.Typography.mono)
                                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                                     .monospacedDigit()
+                                    .contentTransition(.numericText())
+                                    .animation(CentmondTheme.Motion.numeric, value: account.currentBalance)
                             }
                             .padding(.vertical, CentmondTheme.Spacing.xs)
                             .padding(.horizontal, CentmondTheme.Spacing.xs)
@@ -891,6 +910,7 @@ struct DashboardView: View {
                                     .fill(hoveredAccountID == account.id ? CentmondTheme.Colors.bgQuaternary : .clear)
                             )
                             .onHover { h in
+                                if h { Haptics.tick() }
                                 withAnimation(CentmondTheme.Motion.micro) {
                                     hoveredAccountID = h ? account.id : nil
                                 }
@@ -910,6 +930,8 @@ struct DashboardView: View {
                                 .font(CentmondTheme.Typography.mono)
                                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                                 .monospacedDigit()
+                                .contentTransition(.numericText())
+                                .animation(CentmondTheme.Motion.numeric, value: totalBalance)
                         }
                     }
                 }
@@ -1071,6 +1093,9 @@ struct DashboardView: View {
                                     }
                                     if let day: Int = proxy.value(atX: xInPlot) {
                                         let clamped = max(1, min(day, dayCount))
+                                        if hoveredDay != clamped {
+                                            Haptics.tick()
+                                        }
                                         withAnimation(CentmondTheme.Motion.micro) { hoveredDay = clamped }
                                     }
                                 case .ended:
@@ -1163,6 +1188,8 @@ struct DashboardView: View {
             }
             .chartLegend(.hidden)
             .chartAngleSelection(value: $hoveredDonutAngle)
+            .onChange(of: selectedDonutCategory) { _, _ in Haptics.tick() }
+            .animation(CentmondTheme.Motion.default, value: selectedDonutCategory)
         }
     }
 

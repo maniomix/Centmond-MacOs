@@ -89,7 +89,7 @@ struct LockScreenView: View {
                         .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
                 .padding(.top, CentmondTheme.Spacing.sm)
             }
 

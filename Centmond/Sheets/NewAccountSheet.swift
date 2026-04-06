@@ -4,180 +4,373 @@ import SwiftData
 struct NewAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Account.sortOrder) private var existingAccounts: [Account]
 
+    // Core fields
     @State private var name = ""
     @State private var type: AccountType = .checking
     @State private var institutionName = ""
     @State private var lastFourDigits = ""
     @State private var balance = ""
-    @State private var currency = "USD"
+    @State private var currency: SupportedCurrency = .usd
+    @State private var selectedColor: String = AccountColorPreset.blue.rawValue
+
+    // Extended fields
+    @State private var notes = ""
+    @State private var includeInNetWorth = true
+    @State private var includeInBudgeting = true
+
+    // Credit card fields
+    @State private var creditLimit = ""
+    @State private var statementClosingDay = ""
+    @State private var paymentDueDay = ""
+
+    // Validation & animation
     @State private var hasAttemptedSave = false
+    @State private var appeared = false
+
+    private var accentColor: Color { Color(hex: selectedColor) }
+
+    // MARK: - Validation
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var nameError: String? {
+        guard hasAttemptedSave else { return nil }
+        if trimmedName.isEmpty { return "Account name is required" }
+        if existingAccounts.contains(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+            return "An account with this name already exists"
+        }
+        return nil
+    }
+
+    private var balanceError: String? {
+        guard hasAttemptedSave, !balance.isEmpty else { return nil }
+        if Decimal(string: balance) == nil { return "Enter a valid number" }
+        return nil
+    }
+
+    private var creditLimitError: String? {
+        guard hasAttemptedSave, !creditLimit.isEmpty else { return nil }
+        if Decimal(string: creditLimit) == nil { return "Enter a valid number" }
+        return nil
+    }
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty
+        !trimmedName.isEmpty
+        && !existingAccounts.contains(where: { $0.name.lowercased() == trimmedName.lowercased() })
+        && (balance.isEmpty || Decimal(string: balance) != nil)
+        && (creditLimit.isEmpty || Decimal(string: creditLimit) != nil)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Close button
             HStack {
-                Text("New Account")
-                    .font(CentmondTheme.Typography.heading2)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-
                 Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
+                Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.top, CentmondTheme.Spacing.xl)
-            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .padding(.trailing, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.md)
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Hero: Big icon + type picker + color
+            VStack(spacing: CentmondTheme.Spacing.lg) {
+                // Big icon
+                ZStack {
+                    Circle()
+                        .fill(accentColor.opacity(0.15))
+                        .frame(width: 64, height: 64)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xl) {
-                    formField("ACCOUNT NAME", isRequired: true, showError: hasAttemptedSave && name.trimmingCharacters(in: .whitespaces).isEmpty) {
-                        TextField("e.g., Chase Checking", text: $name)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Image(systemName: type.iconName)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(accentColor)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .shadow(color: accentColor.opacity(0.3), radius: 16, y: 4)
+
+                // Type picker
+                Picker("", selection: $type) {
+                    ForEach(AccountType.allCases) { accountType in
+                        Label(accountType.displayName, systemImage: accountType.iconName)
+                            .tag(accountType)
                     }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 340)
 
-                    formField("TYPE") {
-                        Picker("", selection: $type) {
-                            ForEach(AccountType.allCases) { accountType in
-                                Label(accountType.displayName, systemImage: accountType.iconName)
-                                    .tag(accountType)
+                // Color swatches
+                HStack(spacing: 8) {
+                    ForEach(AccountColorPreset.allCases, id: \.rawValue) { preset in
+                        Circle()
+                            .fill(Color(hex: preset.rawValue))
+                            .frame(width: selectedColor == preset.rawValue ? 22 : 16,
+                                   height: selectedColor == preset.rawValue ? 22 : 16)
+                            .overlay {
+                                if selectedColor == preset.rawValue {
+                                    Circle()
+                                        .strokeBorder(.white, lineWidth: 2)
+                                }
                             }
-                        }
-                        .pickerStyle(.menu)
-                    }
-
-                    formField("INSTITUTION (OPTIONAL)") {
-                        TextField("e.g., Chase Bank", text: $institutionName)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    }
-
-                    formField("LAST 4 DIGITS (OPTIONAL)") {
-                        TextField("e.g., 4521", text: $lastFourDigits)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            .onChange(of: lastFourDigits) { _, newValue in
-                                let filtered = newValue.filter(\.isNumber)
-                                if filtered.count > 4 {
-                                    lastFourDigits = String(filtered.prefix(4))
-                                } else if filtered != newValue {
-                                    lastFourDigits = filtered
+                            .onTapGesture {
+                                Haptics.tick()
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                    selectedColor = preset.rawValue
                                 }
                             }
                     }
+                }
+            }
+            .padding(.bottom, CentmondTheme.Spacing.xl)
+            .offset(y: appeared ? 0 : 10)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.05), value: appeared)
 
-                    formField("CURRENT BALANCE") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            // Fields card
+            VStack(spacing: 1) {
+                fieldRow {
+                    fieldIcon("pencil", error: nameError != nil)
+                    TextField("Account name", text: $name)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
 
-                            TextField("0.00", text: $balance)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
+                fieldRow {
+                    fieldIcon("building.columns")
+                    TextField("Institution (optional)", text: $institutionName)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+
+                fieldRow {
+                    fieldIcon("number")
+                    TextField("Last 4 digits", text: $lastFourDigits)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .onChange(of: lastFourDigits) { _, newValue in
+                            let filtered = newValue.filter(\.isNumber)
+                            if filtered.count > 4 {
+                                lastFourDigits = String(filtered.prefix(4))
+                            } else if filtered != newValue {
+                                lastFourDigits = filtered
+                            }
+                        }
+                    Spacer()
+                    fieldIcon("dollarsign.circle")
+                    Picker("", selection: $currency) {
+                        ForEach(SupportedCurrency.allCases) { cur in
+                            Text("\(cur.symbol) \(cur.rawValue)").tag(cur)
                         }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
 
-                    if type == .creditCard {
-                        HStack(spacing: CentmondTheme.Spacing.sm) {
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 12))
-                                .foregroundStyle(CentmondTheme.Colors.info)
-                            Text("Enter a positive balance for amount owed.")
-                                .font(CentmondTheme.Typography.caption)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        }
+                fieldRow {
+                    fieldIcon("banknote", error: balanceError != nil)
+                    Text(currency.symbol)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("Opening balance", text: $balance)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                }
+
+                fieldRow {
+                    fieldIcon("note.text")
+                    TextField("Note (optional)", text: $notes)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.1), value: appeared)
+
+            // Credit card extra fields
+            if type == .creditCard {
+                VStack(spacing: 1) {
+                    fieldRow {
+                        fieldIcon("creditcard")
+                        Text(currency.symbol)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        TextField("Credit limit", text: $creditLimit)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
+
+                    fieldRow {
+                        fieldIcon("calendar")
+                        TextField("Closing day", text: $statementClosingDay)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .frame(maxWidth: 80)
+                            .onChange(of: statementClosingDay) { _, newValue in
+                                filterDay(&statementClosingDay, newValue)
+                            }
+
+                        Divider().frame(height: 14)
+
+                        fieldIcon("calendar.badge.exclamationmark")
+                        TextField("Due day", text: $paymentDueDay)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .frame(maxWidth: 80)
+                            .onChange(of: paymentDueDay) { _, newValue in
+                                filterDay(&paymentDueDay, newValue)
+                            }
+
+                        Spacer()
                     }
                 }
-                .padding(.horizontal, CentmondTheme.Spacing.xxl)
-                .padding(.vertical, CentmondTheme.Spacing.lg)
+                .background(CentmondTheme.Colors.bgSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+                .padding(.horizontal, CentmondTheme.Spacing.lg)
+                .padding(.top, CentmondTheme.Spacing.sm)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Options
+            HStack(spacing: CentmondTheme.Spacing.xl) {
+                Toggle("Net Worth", isOn: $includeInNetWorth)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
-            HStack {
-                Spacer()
-
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
-
-                Button("Create Account") {
-                    hasAttemptedSave = true
-                    if isValid { saveAccount() }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isValid && hasAttemptedSave)
+                Toggle("Budgeting", isOn: $includeInBudgeting)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.vertical, CentmondTheme.Spacing.lg)
-        }
-        .frame(minHeight: 450)
-    }
+            .padding(.top, CentmondTheme.Spacing.md)
 
-    @ViewBuilder
-    private func formField<Content: View>(_ label: String, isRequired: Bool = false, showError: Bool = false, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-            HStack(spacing: 2) {
-                Text(label)
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(showError ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textTertiary)
-                    .tracking(0.3)
-                if isRequired {
-                    Text("*")
-                        .font(CentmondTheme.Typography.captionMedium)
-                        .foregroundStyle(CentmondTheme.Colors.negative)
+            // Errors
+            if hasAttemptedSave, let error = nameError ?? balanceError ?? creditLimitError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                    Text(error)
+                }
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.negative)
+                .padding(.top, CentmondTheme.Spacing.sm)
+            }
+
+            Spacer(minLength: CentmondTheme.Spacing.lg)
+
+            // Create button
+            Button {
+                hasAttemptedSave = true
+                if isValid { saveAccount() }
+            } label: {
+                Text("Create Account")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!isValid && hasAttemptedSave)
+            .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.15), value: appeared)
+        }
+        .background(CentmondTheme.Colors.bgPrimary)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                appeared = true
+            }
+        }
+        .onChange(of: type) { _, newType in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                switch newType {
+                case .checking:   selectedColor = "3B82F6"
+                case .savings:    selectedColor = "22C55E"
+                case .creditCard: selectedColor = "EF4444"
+                case .investment: selectedColor = "8B5CF6"
+                case .cash:       selectedColor = "F59E0B"
+                case .other:      selectedColor = "64748B"
                 }
             }
-
-            content()
-                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(height: CentmondTheme.Sizing.inputHeight)
-                .background(CentmondTheme.Colors.bgInput)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                        .stroke(showError ? CentmondTheme.Colors.negative : CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                )
-
-            if showError {
-                Text("Account name is required")
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.negative)
-            }
         }
     }
 
+    // MARK: - Components
+
+    private func fieldIcon(_ name: String, error: Bool = false) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
+            .frame(width: 18)
+    }
+
+    private func fieldRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
+            content()
+        }
+        .frame(height: 38)
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+    }
+
+    private func filterDay(_ binding: inout String, _ newValue: String) {
+        let filtered = newValue.filter(\.isNumber)
+        if let day = Int(filtered), day > 31 {
+            binding = "31"
+        } else if filtered.count > 2 {
+            binding = String(filtered.prefix(2))
+        } else if filtered != newValue {
+            binding = filtered
+        }
+    }
+
+    // MARK: - Save
+
     private func saveAccount() {
+        Haptics.impact()
         let balanceDecimal = Decimal(string: balance) ?? 0
         let account = Account(
-            name: name.trimmingCharacters(in: .whitespaces),
+            name: trimmedName,
             type: type,
-            institutionName: institutionName.isEmpty ? nil : institutionName.trimmingCharacters(in: .whitespaces),
+            institutionName: institutionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : institutionName.trimmingCharacters(in: .whitespacesAndNewlines),
             lastFourDigits: lastFourDigits.isEmpty ? nil : lastFourDigits,
             currentBalance: balanceDecimal,
-            currency: currency
+            currency: currency.rawValue,
+            colorHex: selectedColor,
+            sortOrder: existingAccounts.count,
+            openingBalance: balanceDecimal,
+            openingBalanceDate: .now,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            includeInNetWorth: includeInNetWorth,
+            includeInBudgeting: includeInBudgeting,
+            creditLimit: Decimal(string: creditLimit),
+            statementClosingDay: Int(statementClosingDay),
+            paymentDueDay: Int(paymentDueDay)
         )
         modelContext.insert(account)
         dismiss()

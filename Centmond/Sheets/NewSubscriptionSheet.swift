@@ -46,7 +46,7 @@ struct NewSubscriptionSheet: View {
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plainHover)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.top, CentmondTheme.Spacing.xl)

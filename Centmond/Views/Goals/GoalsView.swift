@@ -200,19 +200,9 @@ struct GoalsView: View {
             Button {
                 router.showSheet(.newGoal)
             } label: {
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("New Goal")
-                        .font(CentmondTheme.Typography.captionMedium)
-                }
-                .foregroundStyle(CentmondTheme.Colors.accent)
-                .padding(.horizontal, CentmondTheme.Spacing.md)
-                .padding(.vertical, CentmondTheme.Spacing.sm)
-                .background(CentmondTheme.Colors.accentSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                Label("New Goal", systemImage: "plus")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AccentChipButtonStyle())
         }
         .padding(CentmondTheme.Spacing.lg)
         .background(CentmondTheme.Colors.bgSecondary)
@@ -264,7 +254,7 @@ struct GoalsView: View {
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 .textCase(.uppercase)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plainHover)
 
             if showCompleted {
                 LazyVGrid(columns: [
@@ -398,6 +388,7 @@ struct GoalCard: View {
         )
         .shadow(color: isHovered ? .black.opacity(0.3) : .clear, radius: 8, y: 2)
         .onHover { hovering in
+            if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
         }
     }

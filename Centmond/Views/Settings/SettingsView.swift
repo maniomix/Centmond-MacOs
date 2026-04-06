@@ -49,6 +49,7 @@ enum SettingsTab: String {
 struct GeneralSettingsView: View {
     @AppStorage("defaultCurrency") private var defaultCurrency = "USD"
     @AppStorage("startOfWeek") private var startOfWeek = 1
+    @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     var body: some View {
         Form {
@@ -73,6 +74,14 @@ struct GeneralSettingsView: View {
                     .disabled(true)
 
                 Toggle("Auto-open inspector on selection", isOn: AppStorage(wrappedValue: true, "autoOpenInspector").projectedValue)
+            }
+
+            Section("Feedback") {
+                Toggle("Haptic feedback", isOn: $hapticsEnabled)
+
+                Text("Provides subtle trackpad feedback on hover, selection, and actions. Requires a Force Touch trackpad.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
         }
         .formStyle(.grouped)

@@ -22,6 +22,9 @@ enum Screen: String, CaseIterable, Identifiable {
     case reviewQueue
     case household
 
+    // Settings
+    case settings
+
     var id: String { rawValue }
 
     var displayName: String {
@@ -39,6 +42,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .reports: "Reports"
         case .reviewQueue: "Review Queue"
         case .household: "Household"
+        case .settings: "Settings"
         }
     }
 
@@ -57,6 +61,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .reports: "doc.text.fill"
         case .reviewQueue: "tray.fill"
         case .household: "person.2.fill"
+        case .settings: "gearshape.fill"
         }
     }
 
@@ -70,15 +75,17 @@ enum Screen: String, CaseIterable, Identifiable {
             return .analysis
         case .reviewQueue, .household:
             return .manage
+        case .settings:
+            return .settings
         }
     }
 
     var requiresPro: Bool {
         switch self {
         case .goals, .forecasting, .netWorth, .reports, .household:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 }
@@ -88,6 +95,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case planning
     case analysis
     case manage
+    case settings
 
     var id: String { rawValue }
 
@@ -97,6 +105,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .planning: "PLANNING"
         case .analysis: "ANALYSIS"
         case .manage: "MANAGE"
+        case .settings: "SETTINGS"
         }
     }
 
@@ -192,7 +201,7 @@ final class AppRouter {
     var shouldShowInspector: Bool {
         guard isInspectorVisible else { return false }
         switch selectedScreen {
-        case .dashboard:
+        case .dashboard, .settings:
             return false
         default:
             return true
