@@ -188,6 +188,15 @@ struct RecurringView: View {
             }
 
             Button {
+                let count = RecurringService.materializeDue(in: modelContext)
+                if count > 0 { Haptics.impact() } else { Haptics.tap() }
+            } label: {
+                Label("Run Due", systemImage: "play.circle")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .help("Materialize all auto-create recurring items that are due")
+
+            Button {
                 router.showSheet(.newRecurring)
             } label: {
                 Label("Add", systemImage: "plus")
@@ -245,6 +254,10 @@ struct RecurringView: View {
                             onDelete: {
                                 itemToDelete = item
                                 showDeleteConfirmation = true
+                            },
+                            onRunNow: {
+                                let count = RecurringService.materializeOne(item, in: modelContext)
+                                if count > 0 { Haptics.impact() } else { Haptics.tap() }
                             }
                         )
                     }
@@ -279,6 +292,7 @@ struct RecurringRow: View {
     var onToggleAuto: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
+    var onRunNow: () -> Void
     @State private var isHovered = false
 
     private var displayDate: Date { projectedOccurrence ?? item.nextOccurrence }
@@ -397,6 +411,10 @@ struct RecurringRow: View {
             Button { onEdit() } label: {
                 Label("Edit", systemImage: "pencil")
             }
+            Button { onRunNow() } label: {
+                Label("Run Now", systemImage: "play.circle.fill")
+            }
+            .disabled(!item.isActive)
             Divider()
             Button { onToggleActive() } label: {
                 Label(item.isActive ? "Pause" : "Resume", systemImage: item.isActive ? "pause.circle" : "play.circle")

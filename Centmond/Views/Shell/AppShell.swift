@@ -1,8 +1,11 @@
 import SwiftUI
+import SwiftData
 
 struct AppShell: View {
+    @Environment(\.modelContext) private var modelContext
     @State private var router = AppRouter()
     @State private var showCommandPalette = false
+    @State private var didMaterializeRecurring = false
 
     private var inspectorBinding: Binding<Bool> {
         Binding(
@@ -50,6 +53,16 @@ struct AppShell: View {
         .onKeyPress(action: handleKeyPress)
         .onChange(of: router.selectedScreen) { _, _ in
             router.inspectorContext = .none
+        }
+        .task {
+            // Materialize any overdue recurring transactions exactly once
+            // per app launch. RecurringService is idempotent — it advances
+            // each template's nextOccurrence as it goes — so a second run
+            // within the same session is a no-op, but we gate on a flag
+            // anyway so we never block UI on startup work twice.
+            guard !didMaterializeRecurring else { return }
+            didMaterializeRecurring = true
+            RecurringService.materializeDue(in: modelContext)
         }
     }
 }

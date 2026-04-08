@@ -13,6 +13,12 @@ final class RecurringTransaction {
     var isActive: Bool
     var createdAt: Date
 
+    /// The occurrence date of the most recent Transaction materialized
+    /// from this template. `nil` until the first run. RecurringService
+    /// uses this purely as observability — the per-step advance of
+    /// `nextOccurrence` is what actually prevents double-materialization.
+    var lastMaterializedDate: Date?
+
     @Relationship var account: Account?
     @Relationship var category: BudgetCategory?
 
