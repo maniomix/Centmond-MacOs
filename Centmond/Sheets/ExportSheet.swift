@@ -1,13 +1,19 @@
 import SwiftUI
+import SwiftData
+#if os(macOS)
+import AppKit
+#endif
 
 struct ExportSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var format: ExportFormat = .csv
     @State private var dateRange: ExportDateRange = .allTime
     @State private var includeCategories = true
     @State private var includeAccounts = true
     @State private var includeNotes = true
+    @State private var exportError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,6 +72,12 @@ struct ExportSheet: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
+
+                    if let exportError {
+                        Text(exportError)
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.negative)
+                    }
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.xxl)
                 .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -108,8 +120,39 @@ struct ExportSheet: View {
     }
 
     private func performExport() {
-        // TODO: NSSavePanel + actual export logic
-        dismiss()
+        exportError = nil
+        let options = BackupService.ExportOptions(
+            format: format,
+            dateRange: dateRange,
+            includeCategories: includeCategories,
+            includeAccounts: includeAccounts,
+            includeNotes: includeNotes
+        )
+
+        do {
+            let (ext, data) = try BackupService.exportTransactions(options: options, in: modelContext)
+            #if os(macOS)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = []
+            panel.nameFieldStringValue = defaultFilename(extension: ext)
+            panel.canCreateDirectories = true
+            panel.isExtensionHidden = false
+            let response = panel.runModal()
+            guard response == .OK, let url = panel.url else { return }
+            try data.write(to: url)
+            dismiss()
+            #else
+            dismiss()
+            #endif
+        } catch {
+            exportError = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func defaultFilename(extension ext: String) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return "centmond-transactions-\(fmt.string(from: .now)).\(ext)"
     }
 }
 

@@ -6,21 +6,25 @@ struct RootView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @AppStorage("appPasscode") private var storedPasscode = ""
 
-    @State private var isUnlocked = false
+    /// Lives at the root so the same instance can be re-locked from sleep
+    /// notifications and the inactivity timer inside `AppLockController`.
+    @State private var lockController = AppLockController()
 
     var body: some View {
         Group {
             if !hasCompletedOnboarding {
                 OnboardingView()
-            } else if appLockEnabled && !storedPasscode.isEmpty && !isUnlocked {
+            } else if appLockEnabled && !storedPasscode.isEmpty && !lockController.isUnlocked {
                 LockScreenView {
-                    isUnlocked = true
+                    lockController.unlock()
                 }
             } else {
                 AppShell()
+                    .onAppear { lockController.notifyUserActivity() }
             }
         }
+        .environment(lockController)
         .animation(CentmondTheme.Motion.default, value: hasCompletedOnboarding)
-        .animation(CentmondTheme.Motion.default, value: isUnlocked)
+        .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
     }
 }

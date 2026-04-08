@@ -3,6 +3,12 @@ import SwiftUI
 struct ProUpgradeSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    /// Foundation for Pro gating. StoreKit hookup lands later (P7); for now
+    /// the upgrade button flips this flag locally so downstream feature
+    /// gates can already read `@AppStorage("isProUnlocked")` and behave
+    /// correctly. Restoring purchases will overwrite the same key.
+    @AppStorage("isProUnlocked") private var isProUnlocked = false
+
     private let features: [(icon: String, title: String, description: String)] = [
         ("target", "Goals", "Set savings goals and track progress over time"),
         ("chart.line.uptrend.xyaxis", "Forecasting", "Project future balances based on recurring patterns"),
@@ -69,16 +75,32 @@ struct ProUpgradeSheet: View {
 
             // Footer
             VStack(spacing: CentmondTheme.Spacing.sm) {
-                Button {
-                    // TODO: StoreKit integration
-                } label: {
-                    Text("Upgrade — $4.99/month")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle())
+                if isProUnlocked {
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(CentmondTheme.Colors.positive)
+                        Text("Pro is active on this Mac")
+                            .font(CentmondTheme.Typography.bodyMedium)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    }
+                    Button("Done") { dismiss() }
+                        .buttonStyle(PrimaryButtonStyle())
+                } else {
+                    Button {
+                        // TODO: StoreKit integration. For now, the flag just
+                        // flips locally so feature gates wired against
+                        // `isProUnlocked` already work end-to-end.
+                        isProUnlocked = true
+                        dismiss()
+                    } label: {
+                        Text("Upgrade — $4.99/month")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
 
-                Button("Maybe Later") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
+                    Button("Maybe Later") { dismiss() }
+                        .buttonStyle(SecondaryButtonStyle())
+                }
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.vertical, CentmondTheme.Spacing.lg)

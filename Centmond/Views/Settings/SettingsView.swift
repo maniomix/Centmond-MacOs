@@ -296,14 +296,11 @@ struct DataSettingsView: View {
         .navigationTitle("Data")
         .alert("Delete All Data?", isPresented: $showResetConfirmation) {
             Button("Delete Everything", role: .destructive) {
-                // Clear all preferences
-                UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-                UserDefaults.standard.set(false, forKey: "appLockEnabled")
-                UserDefaults.standard.set("", forKey: "appPasscode")
+                BackupService.wipeAllData(in: modelContext)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will reset all preferences. Database data must be deleted by removing the app's Application Support folder. This cannot be undone.")
+            Text("This will permanently delete every account, transaction, budget, goal, subscription, and other entry from Centmond, and reset onboarding and app lock. This cannot be undone.")
         }
         .alert("Export", isPresented: $showExportInfo) {
             Button("OK") {}
