@@ -23,7 +23,7 @@ struct NewTransactionSheet: View {
 
     private var amountActive: Bool { focusedField == .amount }
 
-    private var isValid: Bool { !rawCents.isEmpty && !payee.isEmpty }
+    private var isValid: Bool { !rawCents.isEmpty && !TextNormalization.isBlank(payee) }
 
     private var filteredCategories: [BudgetCategory] {
         categories.filter { isIncome ? !$0.isExpenseCategory : $0.isExpenseCategory }
@@ -292,12 +292,14 @@ struct NewTransactionSheet: View {
 
     private func saveTransaction() {
         Haptics.impact()
-        guard let amount = decimalAmount else { return }
+        guard let amount = decimalAmount, amount > 0 else { return }
+        let trimmedPayee = TextNormalization.trimmed(payee)
+        guard !trimmedPayee.isEmpty else { return }
         let transaction = Transaction(
             date: date,
-            payee: payee,
+            payee: trimmedPayee,
             amount: amount,
-            notes: notes.isEmpty ? nil : notes,
+            notes: TextNormalization.trimmedOrNil(notes),
             isIncome: isIncome,
             account: selectedAccount,
             category: selectedCategory

@@ -79,7 +79,10 @@ struct ReviewQueueView: View {
                 if !reviewItems.isEmpty {
                     Button {
                         // Mark all visible as reviewed
-                        for tx in reviewItems { tx.isReviewed = true }
+                        for tx in reviewItems {
+                            tx.isReviewed = true
+                            tx.updatedAt = .now
+                        }
                     } label: {
                         Label("Accept All", systemImage: "checkmark.circle")
                     }
@@ -109,11 +112,15 @@ struct ReviewQueueView: View {
                         ReviewItemRow(
                             transaction: tx,
                             categories: categories,
-                            onAccept: { tx.isReviewed = true },
+                            onAccept: {
+                                tx.isReviewed = true
+                                tx.updatedAt = .now
+                            },
                             onInspect: { router.inspectTransaction(tx.id) },
                             onCategorize: { category in
                                 tx.category = category
                                 tx.isReviewed = true
+                                tx.updatedAt = .now
                             }
                         )
                     }
@@ -235,6 +242,7 @@ struct ReviewQueueView: View {
                                     Button {
                                         tx.category = cat
                                         tx.isReviewed = true
+                                        tx.updatedAt = .now
                                         advance()
                                     } label: {
                                         HStack(spacing: 4) {
@@ -343,6 +351,7 @@ struct ReviewQueueView: View {
             guard idx < categories.count else { return .ignored }
             tx.category = categories[idx]
             tx.isReviewed = true
+            tx.updatedAt = .now
             advance()
             return .handled
         }
@@ -361,6 +370,7 @@ struct ReviewQueueView: View {
     private func markReviewed(_ tx: Transaction) {
         tx.isReviewed = true
         if tx.status == .pending { tx.status = .cleared }
+        tx.updatedAt = .now
         advance()
     }
 

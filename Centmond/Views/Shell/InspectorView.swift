@@ -62,6 +62,7 @@ struct TransactionInspectorView: View {
     @State private var editCategory: BudgetCategory?
     @State private var editAccount: Account?
     @State private var editStatus: TransactionStatus = .cleared
+    @State private var editError: String?
     @State private var showDeleteConfirmation = false
 
     init(transactionID: UUID) {
@@ -181,6 +182,7 @@ struct TransactionInspectorView: View {
             if isEditing {
                 Button {
                     isEditing = false
+                    editError = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .medium))
@@ -434,6 +436,17 @@ struct TransactionInspectorView: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(3...6)
             }
+
+            if let error = editError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                    Text(error)
+                }
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.negative)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.horizontal, CentmondTheme.Spacing.lg)
         .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -513,6 +526,7 @@ struct TransactionInspectorView: View {
             // Quick actions
             Button {
                 tx.isReviewed.toggle()
+                tx.updatedAt = .now
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: tx.isReviewed ? "checkmark.circle.fill" : "checkmark.circle")
@@ -645,28 +659,41 @@ struct TransactionInspectorView: View {
 
     private func startEditing(_ tx: Transaction) {
         editPayee = tx.payee
-        editAmount = "\(tx.amount)"
+        editAmount = DecimalInput.editableString(tx.amount)
         editDate = tx.date
         editNotes = tx.notes ?? ""
         editIsIncome = tx.isIncome
         editCategory = tx.category
         editAccount = tx.account
         editStatus = tx.status
+        editError = nil
         isEditing = true
     }
 
     private func saveEdits(_ tx: Transaction) {
-        tx.payee = editPayee
-        if let amount = Decimal(string: editAmount) {
-            tx.amount = amount
+        // Validation: refuse to save invalid edits. The pencil button stays
+        // in edit mode so the user can correct the input.
+        let trimmedPayee = TextNormalization.trimmed(editPayee)
+        if trimmedPayee.isEmpty {
+            editError = "Payee is required"
+            Haptics.tap()
+            return
         }
+        guard let amount = DecimalInput.parsePositive(editAmount) else {
+            editError = "Enter a valid amount"
+            Haptics.tap()
+            return
+        }
+        tx.payee = trimmedPayee
+        tx.amount = amount
         tx.date = editDate
-        tx.notes = editNotes.isEmpty ? nil : editNotes
+        tx.notes = TextNormalization.trimmedOrNil(editNotes)
         tx.isIncome = editIsIncome
         tx.category = editCategory
         tx.account = editAccount
         tx.status = editStatus
         tx.updatedAt = .now
+        editError = nil
         isEditing = false
     }
 

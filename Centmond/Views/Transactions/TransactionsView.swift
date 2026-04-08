@@ -519,6 +519,7 @@ struct TransactionsView: View {
                         for id in selectedTransactions {
                             if let tx = transactions.first(where: { $0.id == id }) {
                                 tx.category = category
+                                tx.updatedAt = .now
                             }
                         }
                         selectedTransactions.removeAll()
@@ -534,6 +535,7 @@ struct TransactionsView: View {
                 for id in selectedTransactions {
                     if let tx = transactions.first(where: { $0.id == id }) {
                         tx.isReviewed = true
+                        tx.updatedAt = .now
                     }
                 }
                 selectedTransactions.removeAll()
