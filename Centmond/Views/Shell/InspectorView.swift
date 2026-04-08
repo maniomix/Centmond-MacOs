@@ -100,6 +100,11 @@ struct TransactionInspectorView: View {
 
                         sectionDivider
 
+                        // Splits section
+                        splitsSection(transaction)
+
+                        sectionDivider
+
                         // Tags section
                         tagsSection(transaction)
 
@@ -503,6 +508,85 @@ struct TransactionInspectorView: View {
         .padding(.vertical, CentmondTheme.Spacing.md)
     }
 
+    // MARK: - Splits Section
+
+    private func splitsSection(_ tx: Transaction) -> some View {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            HStack {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "rectangle.split.3x1")
+                        .font(.system(size: 12))
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        .frame(width: 20)
+                    Text("Splits")
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    if !tx.splits.isEmpty {
+                        Text("\(tx.splits.count)")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(CentmondTheme.Colors.bgTertiary)
+                            .clipShape(Capsule())
+                    }
+                }
+                Spacer()
+                Button {
+                    router.showSheet(.splitTransaction(tx))
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: tx.splits.isEmpty ? "plus" : "pencil")
+                            .font(.system(size: 10, weight: .medium))
+                        Text(tx.splits.isEmpty ? "Split" : "Edit")
+                    }
+                    .font(CentmondTheme.Typography.caption)
+                }
+                .buttonStyle(GhostButtonStyle())
+                .disabled(isEditing)
+                .help(isEditing ? "Finish editing first" : (tx.splits.isEmpty ? "Split this transaction" : "Edit splits"))
+            }
+
+            if tx.splits.isEmpty {
+                Text("Not split")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    .padding(.leading, 32)
+            } else {
+                VStack(spacing: CentmondTheme.Spacing.xs) {
+                    ForEach(tx.splits.sorted(by: { $0.sortOrder < $1.sortOrder })) { split in
+                        HStack(spacing: CentmondTheme.Spacing.sm) {
+                            if let cat = split.category {
+                                Circle().fill(Color(hex: cat.colorHex)).frame(width: 8, height: 8)
+                                Text(cat.name)
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            } else {
+                                Circle().fill(CentmondTheme.Colors.textQuaternary).frame(width: 8, height: 8)
+                                Text("Uncategorized")
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            }
+                            if let memo = split.memo, !memo.isEmpty {
+                                Text("· \(memo)")
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                            Text(CurrencyFormat.standard(split.amount))
+                                .font(CentmondTheme.Typography.mono)
+                                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        }
+                    }
+                }
+                .padding(.leading, 32)
+            }
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.lg)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+    }
+
     // MARK: - Metadata Section
 
     private func metadataSection(_ tx: Transaction) -> some View {
@@ -692,6 +776,14 @@ struct TransactionInspectorView: View {
         }
         guard let amount = DecimalInput.parsePositive(editAmount) else {
             editError = "Enter a valid amount"
+            Haptics.tap()
+            return
+        }
+        // When splits exist, the parent amount is reconciled against them.
+        // Refuse changes here so reconciliation invariants stay intact —
+        // the user must edit splits via the Split sheet (or clear them).
+        if !tx.splits.isEmpty && amount != tx.amount {
+            editError = "Clear splits before changing the amount"
             Haptics.tap()
             return
         }

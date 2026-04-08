@@ -8,11 +8,28 @@ struct SplitTransactionSheet: View {
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
 
     @State private var splits: [SplitEntry] = []
+    @State private var saveError: String?
+
+    /// Reconciliation tolerance: a split set is valid if |sum - parent| ≤ this.
+    /// Decision Q3 — exact match preferred, 1¢ slack for rounding noise.
+    private static let reconcileTolerance: Decimal = Decimal(string: "0.01") ?? 0
 
     private var originalAmount: Decimal { transaction.amount }
-    private var allocatedAmount: Decimal { splits.reduce(0) { $0 + ($1.decimal ?? 0) } }
+    private var allocatedAmount: Decimal {
+        splits.reduce(0) { $0 + (DecimalInput.parseNonNegative($1.amount) ?? 0) }
+    }
     private var remainingAmount: Decimal { originalAmount - allocatedAmount }
-    private var isValid: Bool { splits.count >= 2 && remainingAmount == 0 }
+    private var remainingMagnitude: Decimal {
+        remainingAmount < 0 ? -remainingAmount : remainingAmount
+    }
+    private var filteredCategories: [BudgetCategory] {
+        categories.filter { transaction.isIncome ? !$0.isExpenseCategory : $0.isExpenseCategory }
+    }
+    private var isReconciled: Bool { remainingMagnitude <= Self.reconcileTolerance }
+    private var allRowsParse: Bool {
+        splits.allSatisfy { DecimalInput.parsePositive($0.amount) != nil }
+    }
+    private var isValid: Bool { splits.count >= 2 && allRowsParse && isReconciled }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,7 +90,17 @@ struct SplitTransactionSheet: View {
                         Spacer()
                         Text(CurrencyFormat.standard(remainingAmount))
                             .font(CentmondTheme.Typography.mono)
-                            .foregroundStyle(remainingAmount == 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.warning)
+                            .foregroundStyle(isReconciled ? CentmondTheme.Colors.positive : CentmondTheme.Colors.warning)
+                    }
+
+                    if let error = saveError {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.system(size: 10))
+                            Text(error)
+                        }
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.negative)
                     }
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.xxl)
@@ -84,20 +111,40 @@ struct SplitTransactionSheet: View {
 
             // Footer
             HStack {
+                if !transaction.splits.isEmpty {
+                    Button(role: .destructive) {
+                        clearSplits()
+                    } label: {
+                        Label("Clear Splits", systemImage: "trash")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .buttonStyle(SecondaryButtonStyle())
-                Button("Split Transaction") { saveSplits() }
+                Button(transaction.splits.isEmpty ? "Split Transaction" : "Save Splits") { saveSplits() }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!isValid)
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.vertical, CentmondTheme.Spacing.lg)
         }
-        .frame(minHeight: 450)
+        .frame(minHeight: 480)
         .onAppear {
             if splits.isEmpty {
-                splits = [SplitEntry(), SplitEntry()]
+                if transaction.splits.isEmpty {
+                    splits = [SplitEntry(), SplitEntry()]
+                } else {
+                    splits = transaction.splits
+                        .sorted(by: { $0.sortOrder < $1.sortOrder })
+                        .map {
+                            SplitEntry(
+                                amount: DecimalInput.editableString($0.amount),
+                                note: $0.memo ?? "",
+                                category: $0.category
+                            )
+                        }
+                }
             }
         }
     }
@@ -116,13 +163,24 @@ struct SplitTransactionSheet: View {
                     .monospacedDigit()
             }
             .padding(.horizontal, CentmondTheme.Spacing.sm)
-            .frame(width: 120, height: CentmondTheme.Sizing.inputHeight)
+            .frame(width: 110, height: CentmondTheme.Sizing.inputHeight)
             .background(CentmondTheme.Colors.bgInput)
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                     .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
             )
+
+            Picker("", selection: split.category) {
+                Text("Uncategorized").tag(nil as BudgetCategory?)
+                ForEach(filteredCategories) { category in
+                    Label(category.name, systemImage: category.icon)
+                        .tag(category as BudgetCategory?)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 150)
 
             TextField("Note (optional)", text: split.note)
                 .textFieldStyle(.plain)
@@ -150,15 +208,58 @@ struct SplitTransactionSheet: View {
     }
 
     private func saveSplits() {
-        // TODO: Create child transactions from splits
+        guard splits.count >= 2 else {
+            saveError = "Add at least two splits"
+            return
+        }
+        guard allRowsParse else {
+            saveError = "Each split needs a positive amount"
+            return
+        }
+        guard isReconciled else {
+            saveError = "Splits must add up to the transaction amount"
+            return
+        }
+
+        // Replace existing splits. Cascade delete on Transaction.splits
+        // removes the old TransactionSplit rows when we drop the references.
+        for old in transaction.splits {
+            modelContext.delete(old)
+        }
+
+        var newSplits: [TransactionSplit] = []
+        for (index, entry) in splits.enumerated() {
+            guard let amount = DecimalInput.parsePositive(entry.amount) else { continue }
+            let split = TransactionSplit(
+                amount: amount,
+                memo: TextNormalization.trimmedOrNil(entry.note),
+                sortOrder: index,
+                parentTransaction: transaction,
+                category: entry.category
+            )
+            modelContext.insert(split)
+            newSplits.append(split)
+        }
+        transaction.splits = newSplits
+        transaction.updatedAt = .now
+        Haptics.impact()
+        dismiss()
+    }
+
+    private func clearSplits() {
+        for old in transaction.splits {
+            modelContext.delete(old)
+        }
+        transaction.splits = []
+        transaction.updatedAt = .now
+        Haptics.tap()
         dismiss()
     }
 }
 
 private struct SplitEntry: Identifiable {
     let id = UUID()
-    var amount = ""
-    var note = ""
-
-    var decimal: Decimal? { Decimal(string: amount) }
+    var amount: String = ""
+    var note: String = ""
+    var category: BudgetCategory? = nil
 }
