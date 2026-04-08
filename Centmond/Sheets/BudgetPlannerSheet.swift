@@ -359,28 +359,44 @@ struct BudgetPlannerSheet: View {
     }
 
     private func savePlan() {
-        // Save total monthly budget
-        let totalAmt = Decimal(string: totalBudgetText) ?? 0
-        if let existing = totalBudgets.first(where: { $0.year == selectedYear && $0.month == selectedMonthNum }) {
-            existing.amount = totalAmt
-        } else if totalAmt > 0 {
-            modelContext.insert(MonthlyTotalBudget(year: selectedYear, month: selectedMonthNum, amount: totalAmt))
+        // Save total monthly budget. Clearing the field deletes the row
+        // entirely so the BudgetView falls back to "Not set" instead of
+        // showing a $0 limit (which would render every transaction as
+        // over budget).
+        let totalAmt = DecimalInput.parsePositive(totalBudgetText)
+        let existingTotal = totalBudgets.first(where: { $0.year == selectedYear && $0.month == selectedMonthNum })
+        if let totalAmt {
+            if let existingTotal {
+                existingTotal.amount = totalAmt
+            } else {
+                modelContext.insert(MonthlyTotalBudget(year: selectedYear, month: selectedMonthNum, amount: totalAmt))
+            }
+        } else if let existingTotal {
+            modelContext.delete(existingTotal)
         }
 
-        // Save category budgets
+        // Save per-category budgets. Same rule: clearing a field deletes
+        // the override row so the category falls back to its own
+        // `budgetAmount` default — without this, a cleared field would
+        // be persisted as a $0 cap and the row would always show "over".
         for category in expenseCategories {
-            let amt = Decimal(string: amounts[category.id] ?? "") ?? 0
-            if let existing = monthlyBudgets.first(where: {
+            let amt = DecimalInput.parsePositive(amounts[category.id] ?? "")
+            let existing = monthlyBudgets.first {
                 $0.categoryID == category.id && $0.year == selectedYear && $0.month == selectedMonthNum
-            }) {
-                existing.amount = amt
-            } else if amt > 0 {
-                modelContext.insert(MonthlyBudget(
-                    categoryID: category.id,
-                    year: selectedYear,
-                    month: selectedMonthNum,
-                    amount: amt
-                ))
+            }
+            if let amt {
+                if let existing {
+                    existing.amount = amt
+                } else {
+                    modelContext.insert(MonthlyBudget(
+                        categoryID: category.id,
+                        year: selectedYear,
+                        month: selectedMonthNum,
+                        amount: amt
+                    ))
+                }
+            } else if let existing {
+                modelContext.delete(existing)
             }
         }
         dismiss()
