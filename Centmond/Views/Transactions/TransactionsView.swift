@@ -11,6 +11,7 @@ struct TransactionsView: View {
 
     @State private var searchText = ""
     @State private var selectedTransactions: Set<UUID> = []
+    @State private var showBulkDeleteConfirmation = false
     @State private var typeFilter: TypeFilter = .all
     @State private var selectedAccountFilter: Account?
     @State private var selectedCategoryFilter: BudgetCategory?
@@ -558,43 +559,32 @@ struct TransactionsView: View {
             Menu("Categorize") {
                 ForEach(categories) { category in
                     Button {
-                        for id in selectedTransactions {
-                            if let tx = transactions.first(where: { $0.id == id }) {
-                                tx.category = category
-                                tx.updatedAt = .now
-                            }
-                        }
-                        selectedTransactions.removeAll()
+                        bulkCategorize(category)
                     } label: {
                         Label(category.name, systemImage: category.icon)
                     }
                 }
             }
             .buttonStyle(SecondaryButtonStyle())
-            .help("Assign category to selected")
+            .help("Assign category to selected (transfers are skipped)")
 
             Button("Mark Reviewed") {
-                for id in selectedTransactions {
-                    if let tx = transactions.first(where: { $0.id == id }) {
-                        tx.isReviewed = true
-                        tx.updatedAt = .now
-                    }
-                }
-                selectedTransactions.removeAll()
+                bulkMarkReviewed()
             }
             .buttonStyle(SecondaryButtonStyle())
             .help("Mark selected as reviewed")
 
             Button("Delete") {
-                for id in selectedTransactions {
-                    if let tx = transactions.first(where: { $0.id == id }) {
-                        modelContext.delete(tx)
-                    }
-                }
-                selectedTransactions.removeAll()
+                showBulkDeleteConfirmation = true
             }
             .buttonStyle(SecondaryButtonStyle())
             .help("Delete selected transactions")
+            .alert("Delete Transactions", isPresented: $showBulkDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) { bulkDelete() }
+            } message: {
+                Text(bulkDeleteWarning)
+            }
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.md)
@@ -606,6 +596,85 @@ struct TransactionsView: View {
 
     // MARK: - Helpers
 
+
+    // MARK: - Bulk operations
+
+    /// Selected transactions, in stable order, that still exist in the
+    /// store. Used by every bulk action so we don't keep stale ids around
+    /// after a delete.
+    private var selectedLiveTransactions: [Transaction] {
+        selectedTransactions.compactMap { id in
+            transactions.first(where: { $0.id == id })
+        }
+    }
+
+    private var bulkDeleteWarning: String {
+        let total = selectedLiveTransactions.count
+        let transferLegs = selectedLiveTransactions.filter(\.isTransfer).count
+        if transferLegs > 0 {
+            return "Delete \(total) transaction(s)? \(transferLegs) of these are transfer legs — their paired legs will also be removed. This cannot be undone."
+        }
+        return "Delete \(total) transaction(s)? This cannot be undone."
+    }
+
+    private func bulkCategorize(_ category: BudgetCategory) {
+        // Transfers are intentionally uncategorized — skip them so a
+        // bulk pick doesn't accidentally tag both legs of a transfer
+        // with a spending category and pollute analytics later.
+        for tx in selectedLiveTransactions where !tx.isTransfer {
+            tx.category = category
+            tx.updatedAt = .now
+        }
+        selectedTransactions.removeAll()
+    }
+
+    private func bulkMarkReviewed() {
+        for tx in selectedLiveTransactions {
+            tx.isReviewed = true
+            tx.updatedAt = .now
+        }
+        selectedTransactions.removeAll()
+    }
+
+    private func bulkDelete() {
+        // Collect every account that will need a balance recalc *before*
+        // we start deleting, since the relationships disappear with the
+        // rows. Transfer legs route through TransferService.deletePair so
+        // both halves go together — and that helper recalculates its own
+        // pair, but we still resync any plain-transaction accounts here.
+        var accountsToRecalc: Set<UUID> = []
+        var accountLookup: [UUID: Account] = [:]
+
+        for tx in selectedLiveTransactions {
+            // A previous iteration may have deleted this row already if it
+            // was the paired leg of an earlier transfer in the selection.
+            guard !tx.isDeleted, tx.modelContext != nil else { continue }
+            if tx.isTransfer {
+                if let other = TransferService.pairedLeg(of: tx, in: modelContext),
+                   let acc = other.account {
+                    accountsToRecalc.insert(acc.id)
+                    accountLookup[acc.id] = acc
+                }
+                if let acc = tx.account {
+                    accountsToRecalc.insert(acc.id)
+                    accountLookup[acc.id] = acc
+                }
+                TransferService.deletePair(tx, in: modelContext)
+            } else {
+                if let acc = tx.account {
+                    accountsToRecalc.insert(acc.id)
+                    accountLookup[acc.id] = acc
+                }
+                modelContext.delete(tx)
+            }
+        }
+        for id in accountsToRecalc {
+            if let acc = accountLookup[id] {
+                BalanceService.recalculate(account: acc)
+            }
+        }
+        selectedTransactions.removeAll()
+    }
 
     private func duplicateTransaction(_ transaction: Transaction) {
         let dupe = Transaction(
