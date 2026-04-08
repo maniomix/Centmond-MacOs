@@ -50,6 +50,7 @@ struct TransactionInspectorView: View {
     @Query private var transactions: [Transaction]
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
+    @Query(sort: \Tag.name) private var allTags: [Tag]
     @Environment(\.modelContext) private var modelContext
     @Environment(AppRouter.self) private var router
 
@@ -62,6 +63,7 @@ struct TransactionInspectorView: View {
     @State private var editCategory: BudgetCategory?
     @State private var editAccount: Account?
     @State private var editStatus: TransactionStatus = .cleared
+    @State private var editTagsInput: String = ""
     @State private var editError: String?
     @State private var showDeleteConfirmation = false
 
@@ -437,6 +439,14 @@ struct TransactionInspectorView: View {
                     .lineLimit(3...6)
             }
 
+            // Tags
+            editField("Tags") {
+                TextField("Comma-separated", text: $editTagsInput)
+                    .textFieldStyle(.plain)
+                    .font(CentmondTheme.Typography.body)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+            }
+
             if let error = editError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
@@ -666,6 +676,7 @@ struct TransactionInspectorView: View {
         editCategory = tx.category
         editAccount = tx.account
         editStatus = tx.status
+        editTagsInput = tx.tags.map(\.name).joined(separator: ", ")
         editError = nil
         isEditing = true
     }
@@ -692,6 +703,7 @@ struct TransactionInspectorView: View {
         tx.category = editCategory
         tx.account = editAccount
         tx.status = editStatus
+        tx.tags = TagService.resolve(input: editTagsInput, in: modelContext, existing: allTags)
         tx.updatedAt = .now
         editError = nil
         isEditing = false
@@ -722,6 +734,7 @@ struct TransactionInspectorView: View {
             category: tx.category
         )
         modelContext.insert(dupe)
+        dupe.tags = tx.tags
     }
 }
 

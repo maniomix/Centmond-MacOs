@@ -7,12 +7,14 @@ struct TransactionsView: View {
     @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
+    @Query(sort: \Tag.name) private var allTags: [Tag]
 
     @State private var searchText = ""
     @State private var selectedTransactions: Set<UUID> = []
     @State private var typeFilter: TypeFilter = .all
     @State private var selectedAccountFilter: Account?
     @State private var selectedCategoryFilter: BudgetCategory?
+    @State private var selectedTagFilter: Tag?
     @State private var dateRange: DateRange = .thisMonth
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: .now)!
     @State private var customEnd: Date = .now
@@ -54,7 +56,8 @@ struct TransactionsView: View {
                 $0.payee.lowercased().contains(query) ||
                 ($0.category?.name.lowercased().contains(query) ?? false) ||
                 ($0.notes?.lowercased().contains(query) ?? false) ||
-                ($0.account?.name.lowercased().contains(query) ?? false)
+                ($0.account?.name.lowercased().contains(query) ?? false) ||
+                $0.tags.contains(where: { $0.name.lowercased().contains(query) })
             }
         }
 
@@ -73,6 +76,11 @@ struct TransactionsView: View {
         // Category filter
         if let category = selectedCategoryFilter {
             result = result.filter { $0.category?.id == category.id }
+        }
+
+        // Tag filter
+        if let tag = selectedTagFilter {
+            result = result.filter { $0.tags.contains(where: { $0.id == tag.id }) }
         }
 
         // Date filter
@@ -214,6 +222,21 @@ struct TransactionsView: View {
                             selectedCategoryFilter = category
                         } label: {
                             Label(category.name, systemImage: category.icon)
+                        }
+                    }
+                }
+
+                // Tag filter
+                if !allTags.isEmpty {
+                    filterPill(
+                        icon: "number",
+                        label: selectedTagFilter.map { "#\($0.name)" } ?? "All Tags",
+                        isActive: selectedTagFilter != nil
+                    ) {
+                        Button("All Tags") { selectedTagFilter = nil }
+                        Divider()
+                        ForEach(allTags) { tag in
+                            Button("#\(tag.name)") { selectedTagFilter = tag }
                         }
                     }
                 }
@@ -576,6 +599,7 @@ struct TransactionsView: View {
             category: transaction.category
         )
         modelContext.insert(dupe)
+        dupe.tags = transaction.tags
     }
 }
 
@@ -631,6 +655,22 @@ struct TransactionRowView: View {
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             .lineLimit(1)
+                    }
+
+                    if !transaction.tags.isEmpty {
+                        Text("·")
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        ForEach(Array(transaction.tags.prefix(2))) { tag in
+                            Text("#\(tag.name)")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.accent)
+                                .lineLimit(1)
+                        }
+                        if transaction.tags.count > 2 {
+                            Text("+\(transaction.tags.count - 2)")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        }
                     }
                 }
             }

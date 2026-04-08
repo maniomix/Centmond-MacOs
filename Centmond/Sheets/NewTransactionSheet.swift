@@ -6,6 +6,7 @@ struct NewTransactionSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
+    @Query(sort: \Tag.name) private var existingTags: [Tag]
 
     /// Raw cents digits (only digits stored, e.g. "125099" → $1,250.99)
     @State private var rawCents = ""
@@ -14,12 +15,13 @@ struct NewTransactionSheet: View {
     @State private var selectedAccount: Account?
     @State private var date = Date.now
     @State private var notes = ""
+    @State private var tagsInput = ""
     @State private var isIncome = false
     @State private var appeared = false
     @State private var amountScale: CGFloat = 1.0
     @FocusState private var focusedField: FormField?
 
-    private enum FormField: Hashable { case amount, payee, notes }
+    private enum FormField: Hashable { case amount, payee, notes, tags }
 
     private var amountActive: Bool { focusedField == .amount }
 
@@ -233,6 +235,18 @@ struct NewTransactionSheet: View {
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         .focused($focusedField, equals: .notes)
                 }
+
+                fieldRow {
+                    Image(systemName: "number")
+                        .font(.system(size: 11))
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        .frame(width: 16)
+                    TextField("Tags (comma-separated)", text: $tagsInput)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .focused($focusedField, equals: .tags)
+                }
             }
             .background(CentmondTheme.Colors.bgSecondary)
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
@@ -305,6 +319,10 @@ struct NewTransactionSheet: View {
             category: selectedCategory
         )
         modelContext.insert(transaction)
+        let resolved = TagService.resolve(input: tagsInput, in: modelContext, existing: existingTags)
+        if !resolved.isEmpty {
+            transaction.tags = resolved
+        }
         dismiss()
     }
 }
