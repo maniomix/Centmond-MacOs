@@ -12,6 +12,7 @@ final class Goal {
     var monthlyContribution: Decimal?
     var status: GoalStatus
     var createdAt: Date
+    var updatedAt: Date = Date.now
 
     init(
         name: String,
@@ -31,6 +32,7 @@ final class Goal {
         self.monthlyContribution = monthlyContribution
         self.status = status
         self.createdAt = .now
+        self.updatedAt = .now
     }
 
     var progressPercentage: Double {

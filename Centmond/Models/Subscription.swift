@@ -11,6 +11,7 @@ final class Subscription {
     var nextPaymentDate: Date
     var status: SubscriptionStatus
     var createdAt: Date
+    var updatedAt: Date = Date.now
 
     @Relationship var account: Account?
 
@@ -32,6 +33,7 @@ final class Subscription {
         self.status = status
         self.account = account
         self.createdAt = .now
+        self.updatedAt = .now
     }
 
     var annualCost: Decimal {

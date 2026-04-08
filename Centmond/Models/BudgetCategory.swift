@@ -10,6 +10,7 @@ final class BudgetCategory {
     var budgetAmount: Decimal
     var isExpenseCategory: Bool
     var sortOrder: Int
+    var updatedAt: Date = Date.now
 
     @Relationship var parentCategory: BudgetCategory?
     @Relationship(inverse: \BudgetCategory.parentCategory) var subcategories: [BudgetCategory]
@@ -32,5 +33,6 @@ final class BudgetCategory {
         self.sortOrder = sortOrder
         self.subcategories = []
         self.transactions = []
+        self.updatedAt = .now
     }
 }

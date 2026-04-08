@@ -13,197 +13,300 @@ struct NewGoalSheet: View {
     @State private var targetDate = Calendar.current.date(byAdding: .year, value: 1, to: .now)!
     @State private var icon = "target"
     @State private var hasAttemptedSave = false
+    @State private var appeared = false
 
-    private let iconOptions = ["target", "house.fill", "car.fill", "airplane", "graduationcap.fill", "heart.fill", "gift.fill", "banknote.fill"]
+    private let iconOptions = [
+        "target", "house.fill", "car.fill", "airplane",
+        "graduationcap.fill", "heart.fill", "gift.fill", "banknote.fill"
+    ]
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty &&
-        (Decimal(string: targetAmount) ?? 0) > 0
+        !TextNormalization.isBlank(name) &&
+        DecimalInput.parsePositive(targetAmount) != nil
+    }
+
+    private var nameError: String? {
+        guard hasAttemptedSave else { return nil }
+        if TextNormalization.isBlank(name) { return "Goal name is required" }
+        return nil
+    }
+
+    private var amountError: String? {
+        guard hasAttemptedSave else { return nil }
+        if DecimalInput.parsePositive(targetAmount) == nil { return "Enter a target amount" }
+        return nil
+    }
+
+    // Progress preview
+    private var progressPercent: Double? {
+        guard let target = DecimalInput.parsePositive(targetAmount) else { return nil }
+        let current = DecimalInput.parseNonNegative(currentAmount) ?? 0
+        return min(Double(truncating: (current / target) as NSDecimalNumber), 1.0)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Close button
             HStack {
-                Text("New Goal")
-                    .font(CentmondTheme.Typography.heading2)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-
                 Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
+                Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plainHover)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.top, CentmondTheme.Spacing.xl)
-            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .padding(.trailing, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.md)
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Hero: Big icon + icon picker
+            VStack(spacing: CentmondTheme.Spacing.lg) {
+                ZStack {
+                    Circle()
+                        .fill(CentmondTheme.Colors.accent.opacity(0.15))
+                        .frame(width: 64, height: 64)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xl) {
-                    goalFormField("GOAL NAME", showError: hasAttemptedSave && name.trimmingCharacters(in: .whitespaces).isEmpty, errorText: "Goal name is required") {
-                        TextField("e.g., Emergency Fund", text: $name)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    }
+                    Image(systemName: icon)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .shadow(color: CentmondTheme.Colors.accent.opacity(0.3), radius: 16, y: 4)
 
-                    VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-                        Text("ICON")
-                            .font(CentmondTheme.Typography.captionMedium)
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            .tracking(0.3)
+                Text("New Goal")
+                    .font(CentmondTheme.Typography.heading2)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
 
-                        HStack(spacing: CentmondTheme.Spacing.sm) {
-                            ForEach(iconOptions, id: \.self) { opt in
-                                Button {
-                                    icon = opt
-                                } label: {
-                                    Image(systemName: opt)
-                                        .font(.system(size: 14))
-                                        .frame(width: 32, height: 32)
-                                        .foregroundStyle(icon == opt ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
-                                        .background(icon == opt ? CentmondTheme.Colors.accent.opacity(0.12) : CentmondTheme.Colors.bgQuaternary)
-                                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
-                                }
-                                .buttonStyle(.plainHover)
+                // Icon picker
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    ForEach(iconOptions, id: \.self) { opt in
+                        Button {
+                            Haptics.tick()
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                icon = opt
                             }
+                        } label: {
+                            Image(systemName: opt)
+                                .font(.system(size: 14))
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(icon == opt ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
+                                .background(icon == opt ? CentmondTheme.Colors.accent.opacity(0.12) : CentmondTheme.Colors.bgQuaternary)
+                                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                         }
+                        .buttonStyle(.plainHover)
                     }
+                }
+            }
+            .padding(.bottom, CentmondTheme.Spacing.xl)
+            .offset(y: appeared ? 0 : 10)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.05), value: appeared)
 
-                    goalFormField("TARGET AMOUNT", showError: hasAttemptedSave && (Decimal(string: targetAmount) ?? 0) <= 0, errorText: "Enter a target amount greater than zero") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            TextField("10,000", text: $targetAmount)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
-                        }
-                    }
-
-                    goalFormField("SAVED SO FAR (OPTIONAL)") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            TextField("0", text: $currentAmount)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
-                        }
-                    }
-
-                    goalFormField("MONTHLY CONTRIBUTION (OPTIONAL)") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            TextField("500", text: $monthlyContribution)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
-                        }
-                    }
-
-                    Toggle("Set a target date", isOn: $hasTargetDate)
+            // Fields card
+            VStack(spacing: 1) {
+                fieldRow {
+                    fieldIcon("pencil", error: nameError != nil)
+                    TextField("Goal name", text: $name)
+                        .textFieldStyle(.plain)
                         .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
 
-                    if hasTargetDate {
-                        goalFormField("TARGET DATE") {
-                            DatePicker("", selection: $targetDate, displayedComponents: .date)
-                                .labelsHidden()
+                fieldRow {
+                    fieldIcon("flag.fill", error: amountError != nil)
+                    Text("$")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("Target amount", text: $targetAmount)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                }
+
+                fieldRow {
+                    fieldIcon("banknote")
+                    Text("$")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("Saved so far", text: $currentAmount)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                    Spacer()
+                    Text("optional")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+
+                fieldRow {
+                    fieldIcon("arrow.up.right")
+                    Text("$")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("Monthly contribution", text: $monthlyContribution)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                    Spacer()
+                    Text("optional")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.1), value: appeared)
+
+            // Target date card
+            VStack(spacing: 1) {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    fieldIcon("calendar")
+                    Text("Target date")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Spacer()
+                    Toggle("", isOn: $hasTargetDate)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .onChange(of: hasTargetDate) { _, _ in
+                            Haptics.tap()
+                        }
+                }
+                .frame(height: 38)
+                .padding(.horizontal, CentmondTheme.Spacing.md)
+
+                if hasTargetDate {
+                    Divider().background(CentmondTheme.Colors.strokeSubtle)
+                        .padding(.horizontal, CentmondTheme.Spacing.md)
+
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        fieldIcon("calendar.badge.clock")
+                        DatePicker("", selection: $targetDate, displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                    .frame(height: 38)
+                    .padding(.horizontal, CentmondTheme.Spacing.md)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.sm)
+            .offset(y: appeared ? 0 : 6)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.12), value: appeared)
+
+            // Progress preview
+            if let pct = progressPercent {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: icon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+
+                    Text("Starting at \(Int(pct * 100))%")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(CentmondTheme.Colors.bgQuaternary)
+
+                            Capsule()
+                                .fill(CentmondTheme.Colors.accent)
+                                .frame(width: max(geo.size.width * pct, 4))
                         }
                     }
-
-                    // Progress preview
-                    if let target = Decimal(string: targetAmount), target > 0 {
-                        let current = Decimal(string: currentAmount) ?? 0
-                        let pct = min(Double(truncating: (current / target) as NSDecimalNumber), 1.0)
-                        HStack(spacing: CentmondTheme.Spacing.sm) {
-                            Image(systemName: icon)
-                                .foregroundStyle(CentmondTheme.Colors.accent)
-                            Text("Starting at \(Int(pct * 100))%")
-                                .font(CentmondTheme.Typography.caption)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        }
-                    }
+                    .frame(height: 4)
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.xxl)
-                .padding(.vertical, CentmondTheme.Spacing.lg)
+                .padding(.top, CentmondTheme.Spacing.md)
+                .transition(.opacity)
             }
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
-
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
-                Button("Create Goal") {
-                    hasAttemptedSave = true
-                    if isValid { saveGoal() }
+            // Errors
+            if hasAttemptedSave, let error = nameError ?? amountError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                    Text(error)
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.negative)
+                .padding(.top, CentmondTheme.Spacing.sm)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.vertical, CentmondTheme.Spacing.lg)
+
+            Spacer(minLength: CentmondTheme.Spacing.lg)
+
+            // Create button
+            Button {
+                hasAttemptedSave = true
+                if isValid { saveGoal() }
+            } label: {
+                Text("Create Goal")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!isValid && hasAttemptedSave)
+            .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.15), value: appeared)
         }
-        .frame(minHeight: 500)
+        .background(CentmondTheme.Colors.bgPrimary)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                appeared = true
+            }
+        }
     }
 
-    @ViewBuilder
-    private func goalFormField<Content: View>(_ label: String, showError: Bool = false, errorText: String? = nil, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-            Text(label)
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(showError ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textTertiary)
-                .tracking(0.3)
+    // MARK: - Components
 
+    private func fieldIcon(_ name: String, error: Bool = false) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
+            .frame(width: 18)
+    }
+
+    private func fieldRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
             content()
-                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(height: CentmondTheme.Sizing.inputHeight)
-                .background(CentmondTheme.Colors.bgInput)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                        .stroke(showError ? CentmondTheme.Colors.negative : CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                )
-
-            if showError, let errorText {
-                Text(errorText)
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.negative)
-            }
         }
+        .frame(height: 38)
+        .padding(.horizontal, CentmondTheme.Spacing.md)
     }
+
+    // MARK: - Save
 
     private func saveGoal() {
-        let target = Decimal(string: targetAmount) ?? 0
-        let current = Decimal(string: currentAmount) ?? 0
-        let monthly = Decimal(string: monthlyContribution)
+        Haptics.impact()
+        guard let target = DecimalInput.parsePositive(targetAmount) else { return }
+        let current = DecimalInput.parseNonNegative(currentAmount) ?? 0
+        let monthly = DecimalInput.parsePositive(monthlyContribution)
+        let trimmedName = TextNormalization.trimmed(name)
 
         let goal = Goal(
-            name: name.trimmingCharacters(in: .whitespaces),
+            name: trimmedName,
             icon: icon,
             targetAmount: target,
             currentAmount: current,
             targetDate: hasTargetDate ? targetDate : nil,
-            monthlyContribution: monthly
+            monthlyContribution: monthly,
+            status: current >= target ? .completed : .active
         )
         modelContext.insert(goal)
         dismiss()
