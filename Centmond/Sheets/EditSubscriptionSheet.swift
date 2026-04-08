@@ -12,146 +12,320 @@ struct EditSubscriptionSheet: View {
     @State private var billingCycle: BillingCycle
     @State private var nextPaymentDate: Date
     @State private var selectedAccount: Account?
+    @State private var hasAttemptedSave = false
+    @State private var appeared = false
+    @State private var showDatePicker = false
 
     init(subscription: Subscription) {
         self.subscription = subscription
         _serviceName = State(initialValue: subscription.serviceName)
         _categoryName = State(initialValue: subscription.categoryName)
-        _amount = State(initialValue: "\(subscription.amount)")
+        _amount = State(initialValue: DecimalInput.editableString(subscription.amount))
         _billingCycle = State(initialValue: subscription.billingCycle)
         _nextPaymentDate = State(initialValue: subscription.nextPaymentDate)
         _selectedAccount = State(initialValue: subscription.account)
     }
 
     private var isValid: Bool {
-        !serviceName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        (Decimal(string: amount) ?? 0) > 0
+        !TextNormalization.isBlank(serviceName) &&
+        DecimalInput.parsePositive(amount) != nil
+    }
+
+    private var nameError: String? {
+        guard hasAttemptedSave else { return nil }
+        if TextNormalization.isBlank(serviceName) { return "Service name is required" }
+        return nil
+    }
+
+    private var amountError: String? {
+        guard hasAttemptedSave else { return nil }
+        if DecimalInput.parsePositive(amount) == nil { return "Enter an amount" }
+        return nil
+    }
+
+    private var annualPreview: Decimal {
+        let amt = DecimalInput.parsePositive(amount) ?? 0
+        switch billingCycle {
+        case .weekly: return amt * 52
+        case .biweekly: return amt * 26
+        case .monthly: return amt * 12
+        case .quarterly: return amt * 4
+        case .semiannual: return amt * 2
+        case .annual: return amt
+        }
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            // Close button
             HStack {
-                Text("Edit Subscription")
-                    .font(CentmondTheme.Typography.heading2)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plainHover)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.top, CentmondTheme.Spacing.xl)
-            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .padding(.trailing, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.md)
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
+            // Hero
+            VStack(spacing: CentmondTheme.Spacing.lg) {
+                ZStack {
+                    Circle()
+                        .fill(CentmondTheme.Colors.accent.opacity(0.15))
+                        .frame(width: 64, height: 64)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xl) {
-                    subEditField("SERVICE NAME") {
-                        TextField("Service name", text: $serviceName)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    }
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                }
+                .shadow(color: CentmondTheme.Colors.accent.opacity(0.3), radius: 16, y: 4)
 
-                    subEditField("AMOUNT") {
-                        HStack {
-                            Text("$")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            TextField("0.00", text: $amount)
-                                .textFieldStyle(.plain)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                .monospacedDigit()
-                        }
-                    }
+                Text("Edit Subscription")
+                    .font(CentmondTheme.Typography.heading2)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+            }
+            .padding(.bottom, CentmondTheme.Spacing.xl)
+            .offset(y: appeared ? 0 : 10)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.05), value: appeared)
 
-                    subEditField("BILLING CYCLE") {
-                        Picker("", selection: $billingCycle) {
-                            ForEach(BillingCycle.allCases) { cycle in
-                                Text(cycle.displayName).tag(cycle)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
+            // Main fields card
+            VStack(spacing: 1) {
+                fieldRow {
+                    fieldIcon("pencil", error: nameError != nil)
+                    TextField("Service name", text: $serviceName)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
 
-                    subEditField("NEXT PAYMENT DATE") {
-                        DatePicker("", selection: $nextPaymentDate, displayedComponents: .date)
-                            .labelsHidden()
-                    }
+                fieldRow {
+                    fieldIcon("dollarsign.circle", error: amountError != nil)
+                    Text("$")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    TextField("0.00", text: $amount)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                }
 
-                    subEditField("CATEGORY") {
-                        TextField("e.g., Entertainment", text: $categoryName)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    }
+                fieldRow {
+                    fieldIcon("tag")
+                    TextField("Category", text: $categoryName)
+                        .textFieldStyle(.plain)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.1), value: appeared)
 
-                    if !accounts.isEmpty {
-                        subEditField("PAYMENT ACCOUNT") {
-                            Picker("", selection: $selectedAccount) {
-                                Text("None").tag(nil as Account?)
-                                ForEach(accounts.filter { !$0.isArchived }) { account in
-                                    Text(account.name).tag(account as Account?)
+            // Billing & date card
+            VStack(spacing: 1) {
+                fieldRow {
+                    fieldIcon("repeat")
+                    Text("Billing cycle")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Spacer()
+                    Menu {
+                        ForEach(BillingCycle.allCases) { cycle in
+                            Button {
+                                billingCycle = cycle
+                                Haptics.tap()
+                            } label: {
+                                if cycle == billingCycle {
+                                    Label(cycle.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(cycle.displayName)
                                 }
                             }
-                            .pickerStyle(.menu)
                         }
+                    } label: {
+                        inlineChip(billingCycle.displayName)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+
+                fieldRow {
+                    fieldIcon("calendar")
+                    Text("Next payment")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Spacer()
+                    Button {
+                        showDatePicker.toggle()
+                    } label: {
+                        inlineChip(nextPaymentDate.formatted(.dateTime.day().month(.abbreviated).year()))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+                        DatePicker("", selection: $nextPaymentDate, displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.graphical)
+                            .padding()
                     }
                 }
+
+                if !accounts.isEmpty {
+                    fieldRow {
+                        fieldIcon("building.columns")
+                        Text("Account")
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        Spacer()
+                        Menu {
+                            Button {
+                                selectedAccount = nil
+                                Haptics.tap()
+                            } label: {
+                                if selectedAccount == nil {
+                                    Label("None", systemImage: "checkmark")
+                                } else {
+                                    Text("None")
+                                }
+                            }
+                            ForEach(accounts.filter { !$0.isArchived }) { account in
+                                Button {
+                                    selectedAccount = account
+                                    Haptics.tap()
+                                } label: {
+                                    if selectedAccount?.id == account.id {
+                                        Label(account.name, systemImage: "checkmark")
+                                    } else {
+                                        Text(account.name)
+                                    }
+                                }
+                            }
+                        } label: {
+                            inlineChip(selectedAccount?.name ?? "None")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+            }
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.top, CentmondTheme.Spacing.sm)
+            .offset(y: appeared ? 0 : 6)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.12), value: appeared)
+
+            // Annual cost preview
+            if DecimalInput.parsePositive(amount) != nil {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(CentmondTheme.Colors.info)
+
+                    Text("Annual cost: \(CurrencyFormat.standard(annualPreview))")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                }
                 .padding(.horizontal, CentmondTheme.Spacing.xxl)
-                .padding(.vertical, CentmondTheme.Spacing.lg)
+                .padding(.top, CentmondTheme.Spacing.md)
+                .transition(.opacity)
             }
 
-            Divider().background(CentmondTheme.Colors.strokeSubtle)
-
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
-                Button("Save Changes") { save() }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!isValid)
+            // Errors
+            if hasAttemptedSave, let error = nameError ?? amountError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                    Text(error)
+                }
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.negative)
+                .padding(.top, CentmondTheme.Spacing.sm)
             }
-            .padding(.horizontal, CentmondTheme.Spacing.xxl)
-            .padding(.vertical, CentmondTheme.Spacing.lg)
+
+            Spacer(minLength: CentmondTheme.Spacing.lg)
+
+            // Save button
+            Button {
+                hasAttemptedSave = true
+                if isValid { save() }
+            } label: {
+                Text("Save Changes")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!isValid && hasAttemptedSave)
+            .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
+            .padding(.horizontal, CentmondTheme.Spacing.lg)
+            .padding(.bottom, CentmondTheme.Spacing.lg)
+            .offset(y: appeared ? 0 : 8)
+            .opacity(appeared ? 1 : 0)
+            .animation(CentmondTheme.Motion.default.delay(0.15), value: appeared)
         }
-        .frame(minHeight: 480)
+        .background(CentmondTheme.Colors.bgPrimary)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                appeared = true
+            }
+        }
     }
 
-    @ViewBuilder
-    private func subEditField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-            Text(label)
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.3)
+    // MARK: - Components
+
+    private func fieldIcon(_ name: String, error: Bool = false) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
+            .frame(width: 18)
+    }
+
+    private func fieldRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
             content()
-                .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(height: CentmondTheme.Sizing.inputHeight)
-                .background(CentmondTheme.Colors.bgInput)
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
-                        .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
-                )
         }
+        .frame(height: 38)
+        .padding(.horizontal, CentmondTheme.Spacing.md)
     }
+
+    private func inlineChip(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Text(text)
+                .font(CentmondTheme.Typography.captionMedium)
+                .foregroundStyle(CentmondTheme.Colors.accent)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.6))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(CentmondTheme.Colors.accent.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+
+    // MARK: - Save
 
     private func save() {
-        subscription.serviceName = serviceName.trimmingCharacters(in: .whitespaces)
-        subscription.categoryName = categoryName.trimmingCharacters(in: .whitespaces)
-        if let amt = Decimal(string: amount) { subscription.amount = amt }
+        Haptics.impact()
+        guard let amt = DecimalInput.parsePositive(amount) else { return }
+        subscription.serviceName = TextNormalization.trimmed(serviceName)
+        subscription.categoryName = TextNormalization.trimmed(categoryName)
+        subscription.amount = amt
         subscription.billingCycle = billingCycle
         subscription.nextPaymentDate = nextPaymentDate
         subscription.account = selectedAccount
+        subscription.updatedAt = .now
         dismiss()
     }
 }

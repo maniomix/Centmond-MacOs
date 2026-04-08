@@ -207,9 +207,13 @@ struct SubscriptionsView: View {
                             isSelected: selectedSubID == sub.id,
                             onSelect: { router.inspectSubscription(sub.id) },
                             onEdit: { router.showSheet(.editSubscription(sub)) },
-                            onPause: { sub.status = .paused },
-                            onResume: { sub.status = .active },
-                            onCancel: { sub.status = .cancelled },
+                            onPause: { sub.status = .paused; sub.updatedAt = .now },
+                            onResume: { sub.status = .active; sub.updatedAt = .now },
+                            onCancel: { sub.status = .cancelled; sub.updatedAt = .now },
+                            onMarkPaid: {
+                                SubscriptionService.markPaid(sub, in: modelContext)
+                                Haptics.impact()
+                            },
                             onDelete: {
                                 subscriptionToDelete = sub
                                 showDeleteConfirmation = true
@@ -248,6 +252,7 @@ struct SubscriptionRow: View {
     var onPause: () -> Void
     var onResume: () -> Void
     var onCancel: () -> Void
+    var onMarkPaid: () -> Void
     var onDelete: () -> Void
     @State private var isHovered = false
 
@@ -330,6 +335,9 @@ struct SubscriptionRow: View {
             }
             Divider()
             if subscription.status == .active {
+                Button { onMarkPaid() } label: {
+                    Label("Mark Paid (logs transaction)", systemImage: "checkmark.circle")
+                }
                 Button { onPause() } label: {
                     Label("Pause", systemImage: "pause.circle")
                 }
