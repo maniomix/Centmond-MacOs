@@ -10,6 +10,12 @@ final class HouseholdMember {
     var isOwner: Bool
     var joinedAt: Date
 
+    // Inverse of Transaction.householdMember (S6). Nullify on delete:
+    // removing a member should clear attribution on their transactions,
+    // not cascade and destroy ledger history.
+    @Relationship(deleteRule: .nullify, inverse: \Transaction.householdMember)
+    var transactions: [Transaction] = []
+
     init(
         name: String,
         email: String? = nil,

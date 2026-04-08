@@ -155,13 +155,32 @@ struct HouseholdView: View {
 
                 combinedStats
                 memberCards
-
-                if case .combined = viewMode {
-                    activityFeed
-                }
+                activityFeed
             }
             .padding(CentmondTheme.Spacing.xxl)
         }
+    }
+
+    // MARK: - Scoped data
+
+    /// Transactions visible under the current viewMode. Combined returns
+    /// everything; member returns only that member's attributed rows.
+    /// Transfer legs are kept here — the spending/income filters below
+    /// strip them so balance math stays correct.
+    private var scopedTransactions: [Transaction] {
+        switch viewMode {
+        case .combined:
+            return transactions
+        case .member(let id):
+            return transactions.filter { $0.householdMember?.id == id }
+        }
+    }
+
+    private var selectedMember: HouseholdMember? {
+        if case .member(let id) = viewMode {
+            return members.first { $0.id == id }
+        }
+        return nil
     }
 
     // MARK: - Add Member Form
@@ -225,7 +244,11 @@ struct HouseholdView: View {
             let activeAccounts = accounts.filter { !$0.isArchived }
             let balance = activeAccounts.reduce(Decimal.zero) { $0 + $1.currentBalance }
             let spending = currentMonthSpending()
+            let isMemberView = selectedMember != nil
 
+            // Total balance is household-wide even in member view — accounts
+            // are not owned by individuals in this schema, so showing a
+            // member-scoped balance would be misleading.
             statCard(
                 label: "Total Balance",
                 value: CurrencyFormat.compact(balance),
@@ -233,19 +256,19 @@ struct HouseholdView: View {
                 color: CentmondTheme.Colors.accent
             )
             statCard(
-                label: "This Month's Spending",
+                label: isMemberView ? "\(selectedMember?.name ?? "")'s Spending" : "This Month's Spending",
                 value: CurrencyFormat.compact(spending),
                 icon: "cart.fill",
                 color: CentmondTheme.Colors.negative
             )
             statCard(
-                label: "Members",
-                value: "\(members.count)",
-                icon: "person.2.fill",
+                label: isMemberView ? "Transactions" : "Members",
+                value: isMemberView ? "\(scopedTransactions.count)" : "\(members.count)",
+                icon: isMemberView ? "list.bullet" : "person.2.fill",
                 color: CentmondTheme.Colors.positive
             )
 
-            if members.count > 1 {
+            if !isMemberView, members.count > 1 {
                 let perPerson = members.count > 0 ? spending / Decimal(members.count) : 0
                 statCard(
                     label: "Avg per Person",
@@ -354,6 +377,17 @@ struct HouseholdView: View {
                     }
 
                     Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("THIS MONTH")
+                            .font(CentmondTheme.Typography.overline)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .tracking(0.5)
+                        Text(CurrencyFormat.compact(monthlySpending(for: member)))
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
                 }
             }
         }
@@ -389,20 +423,29 @@ struct HouseholdView: View {
 
     private var activityFeed: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-            Text("RECENT ACTIVITY")
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.5)
+            HStack {
+                Text("RECENT ACTIVITY")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .tracking(0.5)
+                if let member = selectedMember {
+                    Text("· \(member.name)")
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                }
+            }
 
             CardContainer {
                 VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-                    if transactions.isEmpty {
-                        Text("No recent activity")
+                    if scopedTransactions.isEmpty {
+                        Text(selectedMember == nil
+                             ? "No recent activity"
+                             : "Nothing attributed to \(selectedMember?.name ?? "this member") yet")
                             .font(CentmondTheme.Typography.body)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             .padding(.vertical, CentmondTheme.Spacing.lg)
                     } else {
-                        let recent = Array(transactions.sorted(by: { $0.date > $1.date }).prefix(15))
+                        let recent = Array(scopedTransactions.sorted(by: { $0.date > $1.date }).prefix(15))
                         ForEach(recent) { tx in
                             HStack(spacing: CentmondTheme.Spacing.sm) {
                                 Circle()
@@ -425,6 +468,18 @@ struct HouseholdView: View {
                                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                                 }
 
+                                if selectedMember == nil, let member = tx.householdMember {
+                                    Circle()
+                                        .fill(Color(hex: member.avatarColor))
+                                        .frame(width: 14, height: 14)
+                                        .overlay {
+                                            Text(String(member.name.prefix(1)))
+                                                .font(.system(size: 8, weight: .semibold))
+                                                .foregroundStyle(.white)
+                                        }
+                                        .help(member.name)
+                                }
+
                                 Spacer()
 
                                 Text(CurrencyFormat.compact(tx.amount))
@@ -442,11 +497,27 @@ struct HouseholdView: View {
 
     // MARK: - Helpers
 
-    private func currentMonthSpending() -> Decimal {
+    /// Spending for the current calendar month, scoped to the active
+    /// viewMode. Uses `BalanceService.isSpendingExpense` so transfer legs
+    /// are excluded — counting them would double-bill the household every
+    /// time money moved between accounts.
+    private func monthlySpending(for member: HouseholdMember) -> Decimal {
         let calendar = Calendar.current
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: .now))!
         return transactions
-            .filter { !$0.isIncome && $0.date >= startOfMonth }
+            .filter {
+                $0.householdMember?.id == member.id
+                && $0.date >= startOfMonth
+                && BalanceService.isSpendingExpense($0)
+            }
+            .reduce(Decimal.zero) { $0 + $1.amount }
+    }
+
+    private func currentMonthSpending() -> Decimal {
+        let calendar = Calendar.current
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: .now))!
+        return scopedTransactions
+            .filter { $0.date >= startOfMonth && BalanceService.isSpendingExpense($0) }
             .reduce(Decimal.zero) { $0 + $1.amount }
     }
 

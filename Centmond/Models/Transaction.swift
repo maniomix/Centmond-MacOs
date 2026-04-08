@@ -23,6 +23,14 @@ final class Transaction {
     @Relationship var category: BudgetCategory?
     @Relationship(inverse: \Tag.transactions) var tags: [Tag]
 
+    // Household attribution (S6). Optional — pre-existing rows and any
+    // transaction created without a member assignment stay nil so the
+    // Combined view continues to show everything. The inverse + nullify
+    // delete rule live on HouseholdMember.transactions, so removing a
+    // member clears this pointer instead of cascading and wiping the
+    // ledger.
+    @Relationship var householdMember: HouseholdMember?
+
     // Splits are now line items on a dedicated entity, not child transactions.
     @Relationship(deleteRule: .cascade, inverse: \TransactionSplit.parentTransaction)
     var splits: [TransactionSplit]
