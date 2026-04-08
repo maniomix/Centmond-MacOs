@@ -31,4 +31,15 @@ enum AccountType: String, Codable, CaseIterable, Identifiable {
         case .other: "ellipsis.circle.fill"
         }
     }
+
+    /// True for account types that represent money owed (liabilities)
+    /// rather than money owned (assets). Net-worth and balance views
+    /// flip the sign on these. Currently only credit cards qualify;
+    /// when loans land they belong here too.
+    var isLiability: Bool {
+        switch self {
+        case .creditCard: return true
+        case .checking, .savings, .investment, .cash, .other: return false
+        }
+    }
 }

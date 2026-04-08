@@ -27,13 +27,13 @@ struct ForecastingView: View {
 
     private var monthlyIncome: Decimal {
         transactions
-            .filter { $0.isIncome && $0.date >= startOfMonth && $0.date <= .now }
+            .filter { BalanceService.isSpendingIncome($0) && $0.date >= startOfMonth && $0.date <= .now }
             .reduce(Decimal.zero) { $0 + $1.amount }
     }
 
     private var monthlySpending: Decimal {
         transactions
-            .filter { !$0.isIncome && $0.date >= startOfMonth && $0.date <= .now }
+            .filter { BalanceService.isSpendingExpense($0) && $0.date >= startOfMonth && $0.date <= .now }
             .reduce(Decimal.zero) { $0 + $1.amount }
     }
 
@@ -71,7 +71,12 @@ struct ForecastingView: View {
     }
 
     private var totalBalance: Decimal {
-        accounts.filter { !$0.isArchived }.reduce(Decimal.zero) { $0 + $1.currentBalance }
+        // Mirror NetWorthView eligibility so the safe-to-spend hero and
+        // balance projection start from the same picture of the user's
+        // money.
+        accounts
+            .filter { !$0.isArchived && !$0.isClosed && $0.includeInNetWorth }
+            .reduce(Decimal.zero) { $0 + $1.currentBalance }
     }
 
     var body: some View {

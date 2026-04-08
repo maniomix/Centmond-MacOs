@@ -38,10 +38,10 @@ struct ReportsView: View {
     }
 
     private var totalIncome: Decimal {
-        filteredTransactions.filter(\.isIncome).reduce(Decimal.zero) { $0 + $1.amount }
+        filteredTransactions.filter(BalanceService.isSpendingIncome).reduce(Decimal.zero) { $0 + $1.amount }
     }
     private var totalExpenses: Decimal {
-        filteredTransactions.filter { !$0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
+        filteredTransactions.filter(BalanceService.isSpendingExpense).reduce(Decimal.zero) { $0 + $1.amount }
     }
 
     var body: some View {
@@ -649,7 +649,7 @@ struct ReportsView: View {
 
         var grouped: [String: (income: Double, expenses: Double, sortKey: String)] = [:]
 
-        for tx in filteredTransactions {
+        for tx in filteredTransactions where !tx.isTransfer {
             let key = formatter.string(from: tx.date)
             let sortKey = sortFormatter.string(from: tx.date)
             let amount = NSDecimalNumber(decimal: tx.amount).doubleValue
@@ -675,7 +675,7 @@ struct ReportsView: View {
     }
 
     private func getCategoryBreakdown() -> [CategoryData] {
-        let expenses = filteredTransactions.filter { !$0.isIncome }
+        let expenses = filteredTransactions.filter(BalanceService.isSpendingExpense)
         var byCategory: [String: (amount: Double, count: Int)] = [:]
 
         for tx in expenses {

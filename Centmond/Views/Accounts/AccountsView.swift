@@ -99,13 +99,13 @@ struct AccountsView: View {
 
     private var totalAssets: Decimal {
         activeAccounts
-            .filter { $0.type != .creditCard && $0.includeInNetWorth }
+            .filter { !$0.type.isLiability && $0.includeInNetWorth }
             .reduce(0) { $0 + $1.currentBalance }
     }
 
     private var totalLiabilities: Decimal {
         activeAccounts
-            .filter { $0.type == .creditCard && $0.includeInNetWorth }
+            .filter { $0.type.isLiability && $0.includeInNetWorth }
             .reduce(0) { $0 + abs($1.currentBalance) }
     }
 

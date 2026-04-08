@@ -5,13 +5,19 @@ struct NetWorthView: View {
     @Environment(AppRouter.self) private var router
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
 
-    private var activeAccounts: [Account] { accounts.filter { !$0.isArchived } }
+    /// Accounts eligible for net-worth math: not archived, not closed,
+    /// and explicitly opted in via `includeInNetWorth`. The user can
+    /// toggle that flag per account to keep e.g. an experimental cash
+    /// account out of the totals without archiving it.
+    private var activeAccounts: [Account] {
+        accounts.filter { !$0.isArchived && !$0.isClosed && $0.includeInNetWorth }
+    }
 
     private var assetAccounts: [Account] {
-        activeAccounts.filter { $0.type != .creditCard }
+        activeAccounts.filter { !$0.type.isLiability }
     }
     private var liabilityAccounts: [Account] {
-        activeAccounts.filter { $0.type == .creditCard }
+        activeAccounts.filter { $0.type.isLiability }
     }
 
     private var totalAssets: Decimal {
