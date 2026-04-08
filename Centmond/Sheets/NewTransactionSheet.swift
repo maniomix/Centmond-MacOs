@@ -7,12 +7,14 @@ struct NewTransactionSheet: View {
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query(sort: \Tag.name) private var existingTags: [Tag]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
 
     /// Raw cents digits (only digits stored, e.g. "125099" → $1,250.99)
     @State private var rawCents = ""
     @State private var payee = ""
     @State private var selectedCategory: BudgetCategory?
     @State private var selectedAccount: Account?
+    @State private var selectedMember: HouseholdMember?
     @State private var date = Date.now
     @State private var notes = ""
     @State private var tagsInput = ""
@@ -213,6 +215,24 @@ struct NewTransactionSheet: View {
                     Spacer()
                 }
 
+                if !members.isEmpty {
+                    fieldRow {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            .frame(width: 16)
+                        Picker("Member", selection: $selectedMember) {
+                            Text("Unassigned").tag(nil as HouseholdMember?)
+                            ForEach(members) { member in
+                                Text(member.name).tag(member as HouseholdMember?)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        Spacer()
+                    }
+                }
+
                 fieldRow {
                     Image(systemName: "calendar")
                         .font(.system(size: 11))
@@ -319,6 +339,7 @@ struct NewTransactionSheet: View {
             category: selectedCategory
         )
         modelContext.insert(transaction)
+        transaction.householdMember = selectedMember
         let resolved = TagService.resolve(input: tagsInput, in: modelContext, existing: existingTags)
         if !resolved.isEmpty {
             transaction.tags = resolved

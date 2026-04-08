@@ -51,6 +51,7 @@ struct TransactionInspectorView: View {
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query(sort: \Tag.name) private var allTags: [Tag]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
     @Environment(\.modelContext) private var modelContext
     @Environment(AppRouter.self) private var router
 
@@ -62,6 +63,7 @@ struct TransactionInspectorView: View {
     @State private var editIsIncome = false
     @State private var editCategory: BudgetCategory?
     @State private var editAccount: Account?
+    @State private var editMember: HouseholdMember?
     @State private var editStatus: TransactionStatus = .cleared
     @State private var editTagsInput: String = ""
     @State private var editError: String?
@@ -337,6 +339,32 @@ struct TransactionInspectorView: View {
                 )
             )
 
+            // Member (only when household exists)
+            if !members.isEmpty {
+                inspectorField(
+                    icon: "person.fill",
+                    label: "Member",
+                    valueView: AnyView(
+                        Group {
+                            if let member = tx.householdMember {
+                                HStack(spacing: CentmondTheme.Spacing.xs) {
+                                    Circle()
+                                        .fill(Color(hex: member.avatarColor))
+                                        .frame(width: 10, height: 10)
+                                    Text(member.name)
+                                        .font(CentmondTheme.Typography.body)
+                                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                                }
+                            } else {
+                                Text("Unassigned")
+                                    .font(CentmondTheme.Typography.body)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            }
+                        }
+                    )
+                )
+            }
+
             // Status
             inspectorField(
                 icon: "circle.inset.filled",
@@ -428,6 +456,20 @@ struct TransactionInspectorView: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
+            }
+
+            // Member (only when household exists)
+            if !members.isEmpty {
+                editField("Member") {
+                    Picker("", selection: $editMember) {
+                        Text("Unassigned").tag(nil as HouseholdMember?)
+                        ForEach(members) { member in
+                            Text(member.name).tag(member as HouseholdMember?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
             }
 
             // Status
@@ -835,6 +877,7 @@ struct TransactionInspectorView: View {
         editIsIncome = tx.isIncome
         editCategory = tx.category
         editAccount = tx.account
+        editMember = tx.householdMember
         editStatus = tx.status
         editTagsInput = tx.tags.map(\.name).joined(separator: ", ")
         editError = nil
@@ -891,6 +934,7 @@ struct TransactionInspectorView: View {
         tx.isIncome = editIsIncome
         tx.category = editCategory
         tx.account = editAccount
+        tx.householdMember = editMember
         tx.status = editStatus
         tx.tags = TagService.resolve(input: editTagsInput, in: modelContext, existing: allTags)
         tx.updatedAt = .now
