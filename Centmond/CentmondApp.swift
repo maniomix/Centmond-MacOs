@@ -8,6 +8,7 @@ struct CentmondApp: App {
             RootView()
                 .modelContainer(for: [
                     Transaction.self,
+                    TransactionSplit.self,
                     Account.self,
                     BudgetCategory.self,
                     MonthlyBudget.self,

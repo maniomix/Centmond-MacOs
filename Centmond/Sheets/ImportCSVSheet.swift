@@ -1084,11 +1084,6 @@ extension ImportCSVSheet {
             do {
                 let descriptor = FetchDescriptor<Transaction>()
                 let all = try modelContext.fetch(descriptor)
-                // Break self-referential relationships to avoid constraint violations
-                for tx in all {
-                    tx.splitParent = nil
-                    tx.splitChildren = []
-                }
                 for tx in all {
                     modelContext.delete(tx)
                 }

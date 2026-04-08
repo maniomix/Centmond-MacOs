@@ -14,11 +14,18 @@ final class Transaction {
     var createdAt: Date
     var updatedAt: Date
 
+    // Transfer pairing (P1.4). Both legs of a transfer share `transferGroupID`
+    // and have `isTransfer == true`. Single-sided transactions leave both nil/false.
+    var transferGroupID: UUID?
+    var isTransfer: Bool = false
+
     @Relationship var account: Account?
     @Relationship var category: BudgetCategory?
     @Relationship(inverse: \Tag.transactions) var tags: [Tag]
-    @Relationship var splitParent: Transaction?
-    @Relationship(inverse: \Transaction.splitParent) var splitChildren: [Transaction]
+
+    // Splits are now line items on a dedicated entity, not child transactions.
+    @Relationship(deleteRule: .cascade, inverse: \TransactionSplit.parentTransaction)
+    var splits: [TransactionSplit]
 
     init(
         date: Date = .now,
@@ -42,7 +49,9 @@ final class Transaction {
         self.account = account
         self.category = category
         self.tags = []
-        self.splitChildren = []
+        self.splits = []
+        self.transferGroupID = nil
+        self.isTransfer = false
         self.createdAt = .now
         self.updatedAt = .now
     }

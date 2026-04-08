@@ -24,8 +24,6 @@ struct EditAccountSheet: View {
 
     // Credit card fields
     @State private var creditLimit: String
-    @State private var statementClosingDay: String
-    @State private var paymentDueDay: String
 
     // Validation & animation
     @State private var hasAttemptedSave = false
@@ -46,8 +44,6 @@ struct EditAccountSheet: View {
         _includeInNetWorth = State(initialValue: account.includeInNetWorth)
         _includeInBudgeting = State(initialValue: account.includeInBudgeting)
         _creditLimit = State(initialValue: account.creditLimit.map { "\($0)" } ?? "")
-        _statementClosingDay = State(initialValue: account.statementClosingDay.map { "\($0)" } ?? "")
-        _paymentDueDay = State(initialValue: account.paymentDueDay.map { "\($0)" } ?? "")
     }
 
     // MARK: - Validation
@@ -236,32 +232,6 @@ struct EditAccountSheet: View {
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                             .monospacedDigit()
                     }
-
-                    fieldRow {
-                        fieldIcon("calendar")
-                        TextField("Closing day", text: $statementClosingDay)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            .frame(maxWidth: 80)
-                            .onChange(of: statementClosingDay) { _, newValue in
-                                filterDay(&statementClosingDay, newValue)
-                            }
-
-                        Divider().frame(height: 14)
-
-                        fieldIcon("calendar.badge.exclamationmark")
-                        TextField("Due day", text: $paymentDueDay)
-                            .textFieldStyle(.plain)
-                            .font(CentmondTheme.Typography.body)
-                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            .frame(maxWidth: 80)
-                            .onChange(of: paymentDueDay) { _, newValue in
-                                filterDay(&paymentDueDay, newValue)
-                            }
-
-                        Spacer()
-                    }
                 }
                 .background(CentmondTheme.Colors.bgSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
@@ -343,17 +313,6 @@ struct EditAccountSheet: View {
         .padding(.horizontal, CentmondTheme.Spacing.md)
     }
 
-    private func filterDay(_ binding: inout String, _ newValue: String) {
-        let filtered = newValue.filter(\.isNumber)
-        if let day = Int(filtered), day > 31 {
-            binding = "31"
-        } else if filtered.count > 2 {
-            binding = String(filtered.prefix(2))
-        } else if filtered != newValue {
-            binding = filtered
-        }
-    }
-
     // MARK: - Save
 
     private func save() {
@@ -373,8 +332,6 @@ struct EditAccountSheet: View {
         account.includeInNetWorth = includeInNetWorth
         account.includeInBudgeting = includeInBudgeting
         account.creditLimit = Decimal(string: creditLimit)
-        account.statementClosingDay = Int(statementClosingDay)
-        account.paymentDueDay = Int(paymentDueDay)
         dismiss()
     }
 }

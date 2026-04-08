@@ -26,8 +26,6 @@ final class Account {
 
     // Credit card fields
     var creditLimit: Decimal?
-    var statementClosingDay: Int?
-    var paymentDueDay: Int?
 
     @Relationship(inverse: \Transaction.account) var transactions: [Transaction]
 
@@ -45,9 +43,7 @@ final class Account {
         notes: String? = nil,
         includeInNetWorth: Bool = true,
         includeInBudgeting: Bool = true,
-        creditLimit: Decimal? = nil,
-        statementClosingDay: Int? = nil,
-        paymentDueDay: Int? = nil
+        creditLimit: Decimal? = nil
     ) {
         self.id = UUID()
         self.name = name
@@ -69,8 +65,6 @@ final class Account {
         self.isClosed = false
         self.closedAt = nil
         self.creditLimit = creditLimit
-        self.statementClosingDay = statementClosingDay
-        self.paymentDueDay = paymentDueDay
     }
 
     // MARK: - Computed

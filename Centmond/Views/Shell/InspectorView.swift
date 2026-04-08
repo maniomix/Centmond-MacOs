@@ -873,15 +873,6 @@ struct AccountInspectorView: View {
                             if account.isClosed, let closedAt = account.closedAt {
                                 acctDetailRow("Closed", value: closedAt.formatted(.dateTime.month(.abbreviated).day().year()))
                             }
-
-                            if account.type == .creditCard {
-                                if let closingDay = account.statementClosingDay {
-                                    acctDetailRow("Stmt Close", value: "Day \(closingDay)")
-                                }
-                                if let dueDay = account.paymentDueDay {
-                                    acctDetailRow("Due Day", value: "Day \(dueDay)")
-                                }
-                            }
                         }
 
                         // Notes
@@ -1215,9 +1206,7 @@ struct AccountInspectorView: View {
             notes: account.notes,
             includeInNetWorth: account.includeInNetWorth,
             includeInBudgeting: account.includeInBudgeting,
-            creditLimit: account.creditLimit,
-            statementClosingDay: account.statementClosingDay,
-            paymentDueDay: account.paymentDueDay
+            creditLimit: account.creditLimit
         )
         modelContext.insert(copy)
     }

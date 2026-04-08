@@ -468,9 +468,7 @@ struct AccountsView: View {
             notes: account.notes,
             includeInNetWorth: account.includeInNetWorth,
             includeInBudgeting: account.includeInBudgeting,
-            creditLimit: account.creditLimit,
-            statementClosingDay: account.statementClosingDay,
-            paymentDueDay: account.paymentDueDay
+            creditLimit: account.creditLimit
         )
         modelContext.insert(copy)
     }
