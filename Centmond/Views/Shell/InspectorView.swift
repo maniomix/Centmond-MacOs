@@ -98,6 +98,11 @@ struct TransactionInspectorView: View {
                             detailsSection(transaction)
                         }
 
+                        if transaction.isTransfer {
+                            sectionDivider
+                            transferSection(transaction)
+                        }
+
                         sectionDivider
 
                         // Splits section
@@ -508,6 +513,66 @@ struct TransactionInspectorView: View {
         .padding(.vertical, CentmondTheme.Spacing.md)
     }
 
+    // MARK: - Transfer Section
+
+    private func transferSection(_ tx: Transaction) -> some View {
+        let other = TransferService.pairedLeg(of: tx, in: modelContext)
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .frame(width: 20)
+                Text("Transfer")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                Spacer()
+                Text(tx.isIncome ? "Incoming" : "Outgoing")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(tx.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(CentmondTheme.Colors.bgTertiary)
+                    .clipShape(Capsule())
+            }
+
+            if let other = other {
+                Button {
+                    router.inspectorContext = .transaction(other.id)
+                } label: {
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        Image(systemName: tx.isIncome ? "arrow.up.right" : "arrow.down.left")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        Text(tx.isIncome ? "From" : "To")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        Text(other.account?.name ?? "—")
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    }
+                    .padding(.horizontal, CentmondTheme.Spacing.sm)
+                    .padding(.vertical, 6)
+                    .background(CentmondTheme.Colors.bgTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                }
+                .buttonStyle(.plainHover)
+                .padding(.leading, 32)
+            } else {
+                Text("Paired leg missing")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.warning)
+                    .padding(.leading, 32)
+            }
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.lg)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+    }
+
     // MARK: - Splits Section
 
     private func splitsSection(_ tx: Transaction) -> some View {
@@ -543,8 +608,10 @@ struct TransactionInspectorView: View {
                     .font(CentmondTheme.Typography.caption)
                 }
                 .buttonStyle(GhostButtonStyle())
-                .disabled(isEditing)
-                .help(isEditing ? "Finish editing first" : (tx.splits.isEmpty ? "Split this transaction" : "Edit splits"))
+                .disabled(isEditing || tx.isTransfer)
+                .help(tx.isTransfer
+                      ? "Transfers cannot be split"
+                      : (isEditing ? "Finish editing first" : (tx.splits.isEmpty ? "Split this transaction" : "Edit splits")))
             }
 
             if tx.splits.isEmpty {
@@ -640,7 +707,8 @@ struct TransactionInspectorView: View {
                     .font(.system(size: 12))
             }
             .buttonStyle(GhostButtonStyle())
-            .help("Duplicate")
+            .disabled(tx.isTransfer)
+            .help(tx.isTransfer ? "Transfers cannot be duplicated" : "Duplicate")
 
             Button {
                 showDeleteConfirmation = true
@@ -651,14 +719,20 @@ struct TransactionInspectorView: View {
             }
             .buttonStyle(GhostButtonStyle())
             .help("Delete")
-            .alert("Delete Transaction", isPresented: $showDeleteConfirmation) {
+            .alert(tx.isTransfer ? "Delete Transfer" : "Delete Transaction", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
-                    modelContext.delete(tx)
+                    if tx.isTransfer {
+                        TransferService.deletePair(tx, in: modelContext)
+                    } else {
+                        modelContext.delete(tx)
+                    }
                     router.inspectorContext = .none
                 }
             } message: {
-                Text("Are you sure you want to delete this transaction? This cannot be undone.")
+                Text(tx.isTransfer
+                     ? "Both legs of this transfer will be removed. This cannot be undone."
+                     : "Are you sure you want to delete this transaction? This cannot be undone.")
             }
         }
         .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -786,6 +860,26 @@ struct TransactionInspectorView: View {
             editError = "Clear splits before changing the amount"
             Haptics.tap()
             return
+        }
+        // Transfers are paired — amount, account, and direction must
+        // match the other leg, so the inspector refuses changes that
+        // would desync them. Edit the pair via Delete + recreate.
+        if tx.isTransfer {
+            if amount != tx.amount {
+                editError = "Cannot edit transfer amount — delete and recreate"
+                Haptics.tap()
+                return
+            }
+            if editAccount?.id != tx.account?.id {
+                editError = "Cannot move a transfer leg between accounts"
+                Haptics.tap()
+                return
+            }
+            if editIsIncome != tx.isIncome {
+                editError = "Cannot flip transfer direction"
+                Haptics.tap()
+                return
+            }
         }
         tx.payee = trimmedPayee
         tx.amount = amount

@@ -116,6 +116,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 
 enum SheetType: Identifiable {
     case newTransaction
+    case newTransfer
     case newAccount
     case newGoal
     case newSubscription
@@ -134,6 +135,7 @@ enum SheetType: Identifiable {
     var id: String {
         switch self {
         case .newTransaction: "newTransaction"
+        case .newTransfer: "newTransfer"
         case .newAccount: "newAccount"
         case .newGoal: "newGoal"
         case .newSubscription: "newSubscription"

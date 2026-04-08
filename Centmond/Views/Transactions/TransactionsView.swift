@@ -260,6 +260,19 @@ struct TransactionsView: View {
                         .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
 
                         Button {
+                            router.showSheet(.newTransfer)
+                        } label: {
+                            Image(systemName: "arrow.left.arrow.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                                .frame(width: 32, height: 30)
+                        }
+                        .buttonStyle(.plainHover)
+                        .help("Create a transfer between accounts")
+                        .glassEffect(.regular, in: .rect(cornerRadius: CentmondTheme.Radius.sm))
+                        .glassEffectUnion(id: "actions", namespace: filterBarNamespace)
+
+                        Button {
                             router.showSheet(.newTransaction)
                         } label: {
                             Image(systemName: "plus")
@@ -460,7 +473,11 @@ struct TransactionsView: View {
                                     }
                                 },
                                 onDelete: {
-                                    modelContext.delete(transaction)
+                                    if transaction.isTransfer {
+                                        TransferService.deletePair(transaction, in: modelContext)
+                                    } else {
+                                        modelContext.delete(transaction)
+                                    }
                                 },
                                 onDuplicate: {
                                     duplicateTransaction(transaction)
@@ -638,10 +655,18 @@ struct TransactionRowView: View {
 
             // Payee + category name
             VStack(alignment: .leading, spacing: 2) {
-                Text(transaction.payee)
-                    .font(CentmondTheme.Typography.bodyMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if transaction.isTransfer {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .help("Transfer")
+                    }
+                    Text(transaction.payee)
+                        .font(CentmondTheme.Typography.bodyMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .lineLimit(1)
+                }
 
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Text(transaction.category?.name ?? "Uncategorized")

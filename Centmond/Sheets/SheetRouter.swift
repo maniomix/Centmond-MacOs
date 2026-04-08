@@ -8,6 +8,8 @@ struct SheetRouter: View {
             switch sheet {
             case .newTransaction:
                 NewTransactionSheet()
+            case .newTransfer:
+                NewTransferSheet()
             case .newAccount:
                 NewAccountSheet()
             case .newGoal:
