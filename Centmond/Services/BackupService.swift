@@ -112,6 +112,7 @@ enum BackupService {
         let transferGroupID: UUID?
         let category: String?
         let account: String?
+        let householdMember: String?
         let notes: String?
         let tags: [String]
     }
@@ -130,6 +131,7 @@ enum BackupService {
                 transferGroupID: tx.transferGroupID,
                 category: options.includeCategories ? tx.category?.name : nil,
                 account: options.includeAccounts ? tx.account?.name : nil,
+                householdMember: tx.householdMember?.name,
                 notes: options.includeNotes ? tx.notes : nil,
                 tags: tx.tags.map(\.name)
             )
