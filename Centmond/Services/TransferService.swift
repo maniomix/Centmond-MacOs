@@ -55,6 +55,7 @@ enum TransferService {
 
         context.insert(outLeg)
         context.insert(inLeg)
+        BalanceService.recalculate(source, destination)
         return (outLeg, inLeg)
     }
 
@@ -74,9 +75,12 @@ enum TransferService {
     /// can never drift apart. For non-transfer transactions this just
     /// deletes the single row.
     static func deletePair(_ tx: Transaction, in context: ModelContext) {
+        let otherAccount = pairedLeg(of: tx, in: context)?.account
+        let txAccount = tx.account
         if let other = pairedLeg(of: tx, in: context) {
             context.delete(other)
         }
         context.delete(tx)
+        BalanceService.recalculate(txAccount, otherAccount)
     }
 }

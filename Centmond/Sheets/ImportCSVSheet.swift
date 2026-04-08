@@ -1116,6 +1116,11 @@ extension ImportCSVSheet {
         // Single atomic save — delete + insert happen together
         do {
             try modelContext.save()
+            // Replace mode wipes transactions across every account, and
+            // append mode may have inserted transactions tied to existing
+            // accounts (when CSV importer learns to map them). Either way,
+            // resync stored balances after the bulk write.
+            BalanceService.recalculateAll(in: modelContext)
             importedCount = count
             withAnimation(CentmondTheme.Motion.default) { step = .success }
         } catch {

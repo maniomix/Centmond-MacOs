@@ -476,7 +476,9 @@ struct TransactionsView: View {
                                     if transaction.isTransfer {
                                         TransferService.deletePair(transaction, in: modelContext)
                                     } else {
+                                        let account = transaction.account
                                         modelContext.delete(transaction)
+                                        if let account { BalanceService.recalculate(account: account) }
                                     }
                                 },
                                 onDuplicate: {
@@ -617,6 +619,9 @@ struct TransactionsView: View {
         )
         modelContext.insert(dupe)
         dupe.tags = transaction.tags
+        if let account = transaction.account {
+            BalanceService.recalculate(account: account)
+        }
     }
 }
 

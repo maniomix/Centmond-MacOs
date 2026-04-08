@@ -725,7 +725,9 @@ struct TransactionInspectorView: View {
                     if tx.isTransfer {
                         TransferService.deletePair(tx, in: modelContext)
                     } else {
+                        let account = tx.account
                         modelContext.delete(tx)
+                        if let account { BalanceService.recalculate(account: account) }
                     }
                     router.inspectorContext = .none
                 }
@@ -881,6 +883,7 @@ struct TransactionInspectorView: View {
                 return
             }
         }
+        let previousAccount = tx.account
         tx.payee = trimmedPayee
         tx.amount = amount
         tx.date = editDate
@@ -891,6 +894,9 @@ struct TransactionInspectorView: View {
         tx.status = editStatus
         tx.tags = TagService.resolve(input: editTagsInput, in: modelContext, existing: allTags)
         tx.updatedAt = .now
+        // Recalculate both old and new accounts so an account swap or
+        // amount/direction change is reflected immediately.
+        BalanceService.recalculate(previousAccount, editAccount)
         editError = nil
         isEditing = false
     }
@@ -921,6 +927,9 @@ struct TransactionInspectorView: View {
         )
         modelContext.insert(dupe)
         dupe.tags = tx.tags
+        if let account = tx.account {
+            BalanceService.recalculate(account: account)
+        }
     }
 }
 

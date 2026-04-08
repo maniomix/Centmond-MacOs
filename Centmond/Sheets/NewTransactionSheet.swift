@@ -323,6 +323,9 @@ struct NewTransactionSheet: View {
         if !resolved.isEmpty {
             transaction.tags = resolved
         }
+        if let account = selectedAccount {
+            BalanceService.recalculate(account: account)
+        }
         dismiss()
     }
 }

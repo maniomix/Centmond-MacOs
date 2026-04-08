@@ -58,7 +58,7 @@ struct DashboardView: View {
     }
 
     private var monthlyExpenses: [Transaction] {
-        safeTransactions.filter { !$0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
+        safeTransactions.filter { BalanceService.isSpendingExpense($0) && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
     }
 
     private var monthlySpending: Decimal {
@@ -66,7 +66,7 @@ struct DashboardView: View {
     }
 
     private var monthlyIncomeTransactions: [Transaction] {
-        safeTransactions.filter { $0.isIncome && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
+        safeTransactions.filter { BalanceService.isSpendingIncome($0) && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
     }
 
     private var monthlyIncome: Decimal {
@@ -655,7 +655,7 @@ struct DashboardView: View {
 
     private func spentInCategory(_ category: BudgetCategory) -> Decimal {
         safeTransactions
-            .filter { !$0.isIncome && $0.category?.id == category.id && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
+            .filter { BalanceService.isSpendingExpense($0) && $0.category?.id == category.id && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
             .reduce(0) { $0 + $1.amount }
     }
 
