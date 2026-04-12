@@ -127,12 +127,50 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: CentmondTheme.Spacing.lg) {
                 metricsRow
+                aiQuickAccessBanner
                 mainChartsRow
                 bottomRow
             }
             .padding(CentmondTheme.Spacing.lg)
         }
         .background(CentmondTheme.Colors.bgPrimary)
+    }
+
+    // MARK: - AI Quick Access
+
+    private var aiQuickAccessBanner: some View {
+        Button {
+            router.navigate(to: .aiChat)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AI Assistant")
+                        .font(CentmondTheme.Typography.bodyMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Text("Ask about your spending, get budget advice, or optimize your finances")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+            .padding(CentmondTheme.Spacing.md)
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                    .strokeBorder(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plainHover)
     }
 
     // MARK: - Row 1: Metrics

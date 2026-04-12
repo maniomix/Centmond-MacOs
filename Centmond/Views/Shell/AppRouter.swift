@@ -1,6 +1,9 @@
 import SwiftUI
 
 enum Screen: String, CaseIterable, Identifiable {
+    // AI
+    case aiChat
+
     // Core
     case dashboard
     case transactions
@@ -29,6 +32,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .aiChat: "AI Chat"
         case .dashboard: "Dashboard"
         case .transactions: "Transactions"
         case .budget: "Budget"
@@ -48,6 +52,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
+        case .aiChat: "brain.head.profile.fill"
         case .dashboard: "house.fill"
         case .transactions: "list.bullet.rectangle.fill"
         case .budget: "chart.pie.fill"
@@ -67,6 +72,8 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var section: SidebarSection {
         switch self {
+        case .aiChat:
+            return .ai
         case .dashboard, .transactions, .budget, .accounts:
             return .core
         case .goals, .subscriptions, .recurring, .forecasting:
@@ -82,7 +89,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var requiresPro: Bool {
         switch self {
-        case .goals, .forecasting, .netWorth, .reports, .household:
+        case .goals, .forecasting, .netWorth, .reports, .household, .aiChat:
             true
         default:
             false
@@ -91,6 +98,7 @@ enum Screen: String, CaseIterable, Identifiable {
 }
 
 enum SidebarSection: String, CaseIterable, Identifiable {
+    case ai
     case core
     case planning
     case analysis
@@ -101,6 +109,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .ai: "AI"
         case .core: "CORE"
         case .planning: "PLANNING"
         case .analysis: "ANALYSIS"
@@ -203,7 +212,7 @@ final class AppRouter {
     var shouldShowInspector: Bool {
         guard isInspectorVisible else { return false }
         switch selectedScreen {
-        case .dashboard, .settings:
+        case .dashboard, .settings, .aiChat:
             return false
         default:
             return true

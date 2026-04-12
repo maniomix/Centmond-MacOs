@@ -6,6 +6,29 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3C75BBC82F8B13B4002D5565 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBC72F8B13B4002D5565 /* MarkdownUI */; };
+		3C75BBCB2F8B13C7002D5565 /* Splash in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCA2F8B13C7002D5565 /* Splash */; };
+		3C75BBCD2F8B13C7002D5565 /* SplashHTMLGen in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCC2F8B13C7002D5565 /* SplashHTMLGen */; };
+		3C75BBCF2F8B13C7002D5565 /* SplashImageGen in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCE2F8B13C7002D5565 /* SplashImageGen */; };
+		3C75BBD12F8B13C7002D5565 /* SplashMarkdown in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD02F8B13C7002D5565 /* SplashMarkdown */; };
+		3C75BBD32F8B13C7002D5565 /* SplashTokenizer in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD22F8B13C7002D5565 /* SplashTokenizer */; };
+		3C75BBDA2F8B13DB002D5565 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD92F8B13DB002D5565 /* Pow */; };
+		3C75BBDF2F8B13FD002D5565 /* SkeletonUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBDE2F8B13FD002D5565 /* SkeletonUI */; };
+		3C75BBE82F8B1420002D5565 /* Shiny in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBE72F8B1420002D5565 /* Shiny */; };
+		3C75BBED2F8B1456002D5565 /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBEC2F8B1456002D5565 /* RiveRuntime */; };
+		3C75BBF22F8B147D002D5565 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF12F8B147D002D5565 /* Lottie */; };
+		3C75BBF42F8B147D002D5565 /* Lottie-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */; };
+		3C75BBF72F8B15A1002D5565 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */; };
+		3C75BBF92F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */; };
+		3C75BBFB2F8B15A1002D5565 /* SwiftUIIntrospect-Static in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */; };
+		3C75BBFE2F8B15C4002D5565 /* Flow in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBFD2F8B15C4002D5565 /* Flow */; };
+		3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC002F8B15DC002D5565 /* ExyteGrid */; };
+		3C75BC042F8B15ED002D5565 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC032F8B15ED002D5565 /* KeyboardShortcuts */; };
+		3C75BC072F8B1620002D5565 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC062F8B1620002D5565 /* LaunchAtLogin */; };
+		3C9D0B372F8ADC9400797BB1 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3C9D0B362F8ADC9400797BB1 /* LlamaSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		3C1AA5D82F71F03600958A72 /* Centmond.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Centmond.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +46,26 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3C75BBFE2F8B15C4002D5565 /* Flow in Frameworks */,
+				3C75BBD32F8B13C7002D5565 /* SplashTokenizer in Frameworks */,
+				3C75BBF42F8B147D002D5565 /* Lottie-Dynamic in Frameworks */,
+				3C75BBDF2F8B13FD002D5565 /* SkeletonUI in Frameworks */,
+				3C75BBFB2F8B15A1002D5565 /* SwiftUIIntrospect-Static in Frameworks */,
+				3C75BBDA2F8B13DB002D5565 /* Pow in Frameworks */,
+				3C75BBED2F8B1456002D5565 /* RiveRuntime in Frameworks */,
+				3C9D0B372F8ADC9400797BB1 /* LlamaSwift in Frameworks */,
+				3C75BBC82F8B13B4002D5565 /* MarkdownUI in Frameworks */,
+				3C75BBF72F8B15A1002D5565 /* SwiftUIIntrospect in Frameworks */,
+				3C75BBCB2F8B13C7002D5565 /* Splash in Frameworks */,
+				3C75BC042F8B15ED002D5565 /* KeyboardShortcuts in Frameworks */,
+				3C75BBCD2F8B13C7002D5565 /* SplashHTMLGen in Frameworks */,
+				3C75BBD12F8B13C7002D5565 /* SplashMarkdown in Frameworks */,
+				3C75BBE82F8B1420002D5565 /* Shiny in Frameworks */,
+				3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */,
+				3C75BBCF2F8B13C7002D5565 /* SplashImageGen in Frameworks */,
+				3C75BBF22F8B147D002D5565 /* Lottie in Frameworks */,
+				3C75BC072F8B1620002D5565 /* LaunchAtLogin in Frameworks */,
+				3C75BBF92F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +108,26 @@
 			);
 			name = Centmond;
 			packageProductDependencies = (
+				3C9D0B362F8ADC9400797BB1 /* LlamaSwift */,
+				3C75BBC72F8B13B4002D5565 /* MarkdownUI */,
+				3C75BBCA2F8B13C7002D5565 /* Splash */,
+				3C75BBCC2F8B13C7002D5565 /* SplashHTMLGen */,
+				3C75BBCE2F8B13C7002D5565 /* SplashImageGen */,
+				3C75BBD02F8B13C7002D5565 /* SplashMarkdown */,
+				3C75BBD22F8B13C7002D5565 /* SplashTokenizer */,
+				3C75BBD92F8B13DB002D5565 /* Pow */,
+				3C75BBDE2F8B13FD002D5565 /* SkeletonUI */,
+				3C75BBE72F8B1420002D5565 /* Shiny */,
+				3C75BBEC2F8B1456002D5565 /* RiveRuntime */,
+				3C75BBF12F8B147D002D5565 /* Lottie */,
+				3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */,
+				3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */,
+				3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */,
+				3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */,
+				3C75BBFD2F8B15C4002D5565 /* Flow */,
+				3C75BC002F8B15DC002D5565 /* ExyteGrid */,
+				3C75BC032F8B15ED002D5565 /* KeyboardShortcuts */,
+				3C75BC062F8B1620002D5565 /* LaunchAtLogin */,
 			);
 			productName = Centmond;
 			productReference = 3C1AA5D82F71F03600958A72 /* Centmond.app */;
@@ -94,6 +157,21 @@
 			);
 			mainGroup = 3C1AA5CF2F71F03600958A72;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3C9D0B352F8ADC9400797BB1 /* XCRemoteSwiftPackageReference "llama" */,
+				3C75BBC62F8B13B4002D5565 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */,
+				3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */,
+				3C75BBDD2F8B13FD002D5565 /* XCRemoteSwiftPackageReference "SkeletonUI" */,
+				3C75BBE62F8B1420002D5565 /* XCRemoteSwiftPackageReference "shiny" */,
+				3C75BBEB2F8B1456002D5565 /* XCRemoteSwiftPackageReference "rive-ios" */,
+				3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+				3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
+				3C75BBFC2F8B15C4002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Flow" */,
+				3C75BBFF2F8B15DC002D5565 /* XCRemoteSwiftPackageReference "Grid" */,
+				3C75BC022F8B15ED002D5565 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3C1AA5D92F71F03600958A72 /* Products */;
 			projectDirPath = "";
@@ -337,6 +415,216 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3C75BBC62F8B13B4002D5565 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+		3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/JohnSundell/Splash";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
+		3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/movingparts-io/Pow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+		3C75BBDD2F8B13FD002D5565 /* XCRemoteSwiftPackageReference "SkeletonUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/CSolanaM/SkeletonUI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.2;
+			};
+		};
+		3C75BBE62F8B1420002D5565 /* XCRemoteSwiftPackageReference "shiny" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/maustinstar/shiny";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+		3C75BBEB2F8B1456002D5565 /* XCRemoteSwiftPackageReference "rive-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rive-app/rive-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.18.3;
+			};
+		};
+		3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.6.0;
+			};
+		};
+		3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/siteline/SwiftUI-Introspect";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 26.0.1;
+			};
+		};
+		3C75BBFC2F8B15C4002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Flow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tevelee/SwiftUI-Flow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.1;
+			};
+		};
+		3C75BBFF2F8B15DC002D5565 /* XCRemoteSwiftPackageReference "Grid" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/exyte/Grid";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+		3C75BC022F8B15ED002D5565 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+		3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		3C9D0B352F8ADC9400797BB1 /* XCRemoteSwiftPackageReference "llama" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mattt/llama.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8763.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3C75BBC72F8B13B4002D5565 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC62F8B13B4002D5565 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+		3C75BBCA2F8B13C7002D5565 /* Splash */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = Splash;
+		};
+		3C75BBCC2F8B13C7002D5565 /* SplashHTMLGen */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = SplashHTMLGen;
+		};
+		3C75BBCE2F8B13C7002D5565 /* SplashImageGen */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = SplashImageGen;
+		};
+		3C75BBD02F8B13C7002D5565 /* SplashMarkdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = SplashMarkdown;
+		};
+		3C75BBD22F8B13C7002D5565 /* SplashTokenizer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = SplashTokenizer;
+		};
+		3C75BBD92F8B13DB002D5565 /* Pow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */;
+			productName = Pow;
+		};
+		3C75BBDE2F8B13FD002D5565 /* SkeletonUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBDD2F8B13FD002D5565 /* XCRemoteSwiftPackageReference "SkeletonUI" */;
+			productName = SkeletonUI;
+		};
+		3C75BBE72F8B1420002D5565 /* Shiny */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBE62F8B1420002D5565 /* XCRemoteSwiftPackageReference "shiny" */;
+			productName = Shiny;
+		};
+		3C75BBEC2F8B1456002D5565 /* RiveRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBEB2F8B1456002D5565 /* XCRemoteSwiftPackageReference "rive-ios" */;
+			productName = RiveRuntime;
+		};
+		3C75BBF12F8B147D002D5565 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+		3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = "Lottie-Dynamic";
+		};
+		3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
+			productName = SwiftUIIntrospect;
+		};
+		3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
+			productName = "SwiftUIIntrospect-Dynamic";
+		};
+		3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
+			productName = "SwiftUIIntrospect-Static";
+		};
+		3C75BBFD2F8B15C4002D5565 /* Flow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBFC2F8B15C4002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Flow" */;
+			productName = Flow;
+		};
+		3C75BC002F8B15DC002D5565 /* ExyteGrid */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BBFF2F8B15DC002D5565 /* XCRemoteSwiftPackageReference "Grid" */;
+			productName = ExyteGrid;
+		};
+		3C75BC032F8B15ED002D5565 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BC022F8B15ED002D5565 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		3C75BC062F8B1620002D5565 /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
+			productName = LaunchAtLogin;
+		};
+		3C9D0B362F8ADC9400797BB1 /* LlamaSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C9D0B352F8ADC9400797BB1 /* XCRemoteSwiftPackageReference "llama" */;
+			productName = LlamaSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3C1AA5D02F71F03600958A72 /* Project object */;
 }

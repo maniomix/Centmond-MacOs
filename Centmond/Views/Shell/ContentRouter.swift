@@ -6,6 +6,8 @@ struct ContentRouter: View {
     var body: some View {
         Group {
             switch screen {
+            case .aiChat:
+                AIChatView(isEmbedded: true)
             case .dashboard:
                 DashboardView()
             case .transactions:

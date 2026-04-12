@@ -82,6 +82,7 @@ extension AppShell {
         "7": .recurring,
         "8": .forecasting,
         "9": .insights,
+        "0": .aiChat,
     ]
 
     func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
