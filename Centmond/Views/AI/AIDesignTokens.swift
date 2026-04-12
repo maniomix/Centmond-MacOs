@@ -18,7 +18,7 @@ enum DS {
         static let subtext  = Color.secondary
         static let surface  = Color(.controlBackgroundColor)
         static let surface2 = Color(.windowBackgroundColor)
-        static let surfaceElevated = Color(.controlBackgroundColor)
+        static let surfaceElevated = Color.white.opacity(0.08)
         static let bg       = Color(.windowBackgroundColor)
         static let danger   = Color.red
         static let warning  = Color.orange

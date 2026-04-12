@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import ExyteGrid
 import os
 
 // ============================================================
@@ -74,34 +75,30 @@ struct AIOptimizerView: View {
             (.spendingFreeze,     "Spending Freeze"),
         ]
 
-        return LazyVGrid(columns: [
-            GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())
-        ], spacing: 10) {
-            ForEach(types, id: \.0) { (type, label) in
-                Button {
-                    runOptimization(type)
-                } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: type.icon)
-                            .font(.system(size: 20))
-                            .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.accent)
-                        Text(label)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(optimizer.latestResult?.type == type
-                                  ? DS.Colors.accent
-                                  : (colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface))
-                    )
+        return Grid(types, id: \.0, tracks: 3, spacing: 10) { (type, label) in
+            Button {
+                runOptimization(type)
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: type.icon)
+                        .font(.system(size: 20))
+                        .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.accent)
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(optimizer.latestResult?.type == type
+                              ? DS.Colors.accent
+                              : (colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface))
+                )
             }
+            .buttonStyle(.plain)
         }
     }
 

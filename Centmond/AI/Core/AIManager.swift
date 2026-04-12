@@ -46,10 +46,10 @@ final class AIManager {
 
     // MARK: - M4 16GB Parameters
 
-    private let maxTokens: Int32 = 2048
-    private let contextSize: UInt32 = 8192
+    private let maxTokens: Int32 = 512
+    private let contextSize: UInt32 = 2048
     private let gpuLayers: Int32 = 99
-    private let batchSize: UInt32 = 512
+    private let batchSize: UInt32 = 256
 
     // MARK: - Model Paths
 
@@ -62,7 +62,11 @@ final class AIManager {
         return dir
     }
 
-    static let modelFilename = "gemma-4-E4B-it-Q6_K.gguf"
+    private static let activeModelKey = "ai.active_model_filename"
+
+    static var modelFilename: String {
+        UserDefaults.standard.string(forKey: activeModelKey) ?? "gemma-4-E4B-it-Q6_K.gguf"
+    }
 
     static var modelURL: URL {
         modelDirectory.appendingPathComponent(modelFilename)
@@ -76,10 +80,48 @@ final class AIManager {
         FileManager.default.fileExists(atPath: Self.resolvedModelURL.path)
     }
 
+    /// All .gguf files in the AIModels directory (tracked by @Observable)
+    var availableModels: [AIModelFile] = []
+
+    /// Scan the AIModels directory and update availableModels
+    func refreshAvailableModels() {
+        let dir = Self.modelDirectory
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            availableModels = []
+            return
+        }
+
+        availableModels = files
+            .filter { $0.pathExtension.lowercased() == "gguf" }
+            .compactMap { url -> AIModelFile? in
+                let name = url.lastPathComponent
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { Int64($0) }
+                return AIModelFile(filename: name, sizeBytes: size)
+            }
+            .sorted { ($0.sizeBytes ?? 0) < ($1.sizeBytes ?? 0) }
+    }
+
+    /// Switch active model — unloads current, sets new filename, loads new
+    /// The filename of the model currently loaded in memory (not just selected in UserDefaults)
+    var loadedModelFilename: String = ""
+
+    func switchModel(to filename: String) {
+        guard filename != Self.modelFilename else { return }
+        log.info("Switching model: \(Self.modelFilename) → \(filename)")
+        unloadModel()
+        loadedModelFilename = ""
+        UserDefaults.standard.set(filename, forKey: Self.activeModelKey)
+        loadModel()
+    }
+
     // MARK: - Init / Deinit
 
     private init() {
         llama_backend_init()
+        refreshAvailableModels()
     }
 
     deinit {
@@ -143,7 +185,8 @@ final class AIManager {
                 self.setupContext()
                 self.setupSampler()
                 self.status = .ready
-                log.info("AI model loaded successfully")
+                self.loadedModelFilename = Self.modelFilename
+                log.info("AI model loaded successfully: \(Self.modelFilename)")
             }
         }
     }
@@ -169,7 +212,8 @@ final class AIManager {
         var cparams = llama_context_default_params()
         cparams.n_ctx = contextSize
         cparams.n_batch = batchSize
-        cparams.n_threads = Int32(max(1, min(4, ProcessInfo.processInfo.activeProcessorCount - 1)))
+        // Use only 2 threads so the UI / window-server keep enough CPU headroom.
+        cparams.n_threads = 2
         cparams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO
 
         context = llama_init_from_model(model, cparams)
@@ -215,7 +259,7 @@ final class AIManager {
         self.isGenerating = true
         self.status = .generating
 
-        generationTask = Task.detached(priority: .userInitiated) {
+        generationTask = Task.detached(priority: .background) {
             await AIManager.runGeneration(
                 ctx: ctx, mdl: mdl, smp: smp,
                 messages: messages, systemPrompt: systemPrompt,
@@ -298,6 +342,8 @@ final class AIManager {
 
         llama_memory_clear(llama_get_memory(ctx), true)
 
+        // Prompt ingestion — yield between batches so the GPU doesn't
+        // starve the window server and freeze the UI.
         let batchLimit = Int(llama_n_batch(ctx))
         var offset = 0
         while offset < tokens.count {
@@ -314,11 +360,16 @@ final class AIManager {
                 return
             }
             offset += chunkSize
+
+            // ✦ Critical: give the GPU compositor & main thread breathing room
+            // between prompt-ingestion batches.
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(2))
         }
 
         let eosToken = llama_vocab_eos(vocab)
 
-        for _ in 0..<maxTokens {
+        for i in 0..<maxTokens {
             if Task.isCancelled { break }
 
             let tokenId = llama_sampler_sample(smp, ctx, -1)
@@ -334,10 +385,17 @@ final class AIManager {
             }
 
             var nextToken = tokenId
-            let batch = llama_batch_get_one(&nextToken, 1)
-            if llama_decode(ctx, batch) != 0 {
+            let singleBatch = llama_batch_get_one(&nextToken, 1)
+            if llama_decode(ctx, singleBatch) != 0 {
                 log.error("llama_decode failed during generation")
                 break
+            }
+
+            // ✦ Every 3 tokens, yield + micro-sleep so the window server
+            // can composite frames and the UI stays responsive.
+            if i % 3 == 2 {
+                await Task.yield()
+                try? await Task.sleep(for: .milliseconds(1))
             }
         }
 
@@ -412,18 +470,41 @@ final class AIManager {
     // ============================================================
 
     func importModel(from sourceURL: URL) throws {
-        let dest = Self.modelURL
+        let dest = Self.modelDirectory.appendingPathComponent(sourceURL.lastPathComponent)
         if FileManager.default.fileExists(atPath: dest.path) {
             try FileManager.default.removeItem(at: dest)
         }
         try FileManager.default.copyItem(at: sourceURL, to: dest)
-        log.info("AI model imported to \(dest.lastPathComponent)")
+        // Set the imported model as active
+        UserDefaults.standard.set(dest.lastPathComponent, forKey: Self.activeModelKey)
+        log.info("AI model imported: \(dest.lastPathComponent)")
+        refreshAvailableModels()
     }
 
     func deleteModel() {
+        let currentFile = Self.modelURL
         unloadModel()
-        try? FileManager.default.removeItem(at: Self.modelURL)
-        log.info("AI model deleted")
+        try? FileManager.default.removeItem(at: currentFile)
+        log.info("AI model deleted: \(currentFile.lastPathComponent)")
+        refreshAvailableModels()
+
+        // If other models exist, switch to the first one
+        if let first = availableModels.first {
+            UserDefaults.standard.set(first.filename, forKey: Self.activeModelKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.activeModelKey)
+        }
+    }
+
+    func deleteModel(filename: String) {
+        let url = Self.modelDirectory.appendingPathComponent(filename)
+        if filename == Self.modelFilename {
+            deleteModel()
+        } else {
+            try? FileManager.default.removeItem(at: url)
+            log.info("AI model deleted: \(filename)")
+            refreshAvailableModels()
+        }
     }
 
     var modelFileSize: Int64? {
@@ -436,9 +517,9 @@ final class AIManager {
     // MARK: - Model Download
     // ============================================================
 
-    nonisolated static let defaultDownloadURL = "https://huggingface.co/Dextermitur/MacOs-Gemma-Centmond/resolve/main/gemma-4-E4B-it-Q6_K.gguf"
-    nonisolated static let modelDownloadSizeLabel = "~7 GB"
-    nonisolated static let estimatedModelBytes: Int64 = 7_070_000_000
+    nonisolated static let defaultDownloadURL = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q5_K_M.gguf"
+    nonisolated static let modelDownloadSizeLabel = "~5.5 GB"
+    nonisolated static let estimatedModelBytes: Int64 = 5_480_000_000
 
     private static let downloadURLKey = "ai.download_url"
 
@@ -446,6 +527,9 @@ final class AIManager {
         get { UserDefaults.standard.string(forKey: Self.downloadURLKey) ?? Self.defaultDownloadURL }
         set { UserDefaults.standard.set(newValue, forKey: Self.downloadURLKey) }
     }
+
+    /// The filename currently being downloaded
+    var downloadingFilename: String = ""
 
     private var downloadTask: URLSessionDownloadTask?
     private var downloadID: UUID?
@@ -474,19 +558,23 @@ final class AIManager {
         return valid
     }
 
-    func downloadModel() {
+    /// Download a specific model from the catalog, or the default
+    func downloadModel(option: AIModelFile.DownloadOption? = nil) {
         guard !isDownloading else { return }
 
-        guard let url = URL(string: downloadURL) else {
+        let downloadOpt = option ?? AIModelFile.downloadCatalog.first!
+        guard let url = URL(string: downloadOpt.url) else {
             status = .error("Invalid download URL")
             return
         }
+
+        downloadingFilename = downloadOpt.filename
 
         let thisDownloadID = UUID()
         downloadID = thisDownloadID
 
         status = .downloading(progress: 0, downloadedBytes: 0)
-        log.info("Starting model download from \(url)")
+        log.info("Starting model download: \(downloadOpt.filename) from \(url)")
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForResource = 3600
@@ -495,14 +583,16 @@ final class AIManager {
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         let task = session.downloadTask(with: url)
 
+        let estimatedSize = downloadOpt.estimatedBytes
+
         delegate.onProgress = { [weak self] bytesWritten, totalExpected in
             Task { @MainActor in
                 guard let self, self.downloadID == thisDownloadID else { return }
                 let progress: Double
-                if totalExpected > 0 {
+                if totalExpected > 0 && totalExpected != NSURLSessionTransferSizeUnknown {
                     progress = Double(bytesWritten) / Double(totalExpected)
                 } else {
-                    progress = min(0.99, Double(bytesWritten) / Double(Self.estimatedModelBytes))
+                    progress = min(0.99, Double(bytesWritten) / Double(estimatedSize))
                 }
                 self.status = .downloading(progress: progress, downloadedBytes: bytesWritten)
             }
@@ -548,12 +638,17 @@ final class AIManager {
                 }
 
                 do {
-                    let dest = Self.modelURL
+                    let targetFilename = self.downloadingFilename.isEmpty ? Self.modelFilename : self.downloadingFilename
+                    let dest = Self.modelDirectory.appendingPathComponent(targetFilename)
                     if FileManager.default.fileExists(atPath: dest.path) {
                         try FileManager.default.removeItem(at: dest)
                     }
                     try FileManager.default.moveItem(at: tempURL, to: dest)
-                    log.info("Model saved (\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))")
+                    log.info("Model saved: \(targetFilename) (\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))")
+                    // Set as active model
+                    UserDefaults.standard.set(targetFilename, forKey: Self.activeModelKey)
+                    self.downloadingFilename = ""
+                    self.refreshAvailableModels()
                     self.loadModel()
                 } catch {
                     self.status = .error("Save failed: \(error.localizedDescription)")

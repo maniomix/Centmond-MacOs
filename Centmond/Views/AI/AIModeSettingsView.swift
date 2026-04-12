@@ -220,8 +220,8 @@ struct AIModeIndicator: View {
                     .font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(modeColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
             .background(modeColor.opacity(0.12), in: Capsule())
         }
         .buttonStyle(.plain)

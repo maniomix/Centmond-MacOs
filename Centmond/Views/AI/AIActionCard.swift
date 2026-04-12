@@ -17,6 +17,7 @@ struct AIActionCard: View {
     let onReject: (UUID) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var appeared = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -110,6 +111,14 @@ struct AIActionCard: View {
                 .strokeBorder(accentColor.opacity(action.status == .pending ? 0.4 : 0.15), lineWidth: 1)
         )
         .opacity(action.status == .rejected ? 0.5 : 1.0)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 16)
+        .scaleEffect(appeared ? 1 : 0.92)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.15)) {
+                appeared = true
+            }
+        }
     }
 
     // MARK: - Detail Rows
@@ -305,22 +314,38 @@ struct AIActionCard: View {
 
     private func parseAnalysisEntries(_ text: String) -> [AnalysisEntry] {
         var entries: [AnalysisEntry] = []
-        let segments = text
-            .replacingOccurrences(of: "\n", with: ",")
-            .components(separatedBy: ",")
+
+        // Split by newlines first, then by commas — but only commas NOT inside parentheses
+        let lines = text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
+        var segments: [String] = []
+        for line in lines {
+            segments.append(contentsOf: splitIgnoringParentheses(line))
+        }
+
         for segment in segments {
-            if let dollarIdx = segment.range(of: "$") {
-                let beforeDollar = String(segment[segment.startIndex..<dollarIdx.lowerBound])
+            // Strip parenthetical content from labels: "Shopping (clothes, shoes)" → "Shopping"
+            let cleaned = segment.replacingOccurrences(
+                of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression
+            )
+
+            if let dollarIdx = cleaned.range(of: "$") {
+                let beforeDollar = String(cleaned[cleaned.startIndex..<dollarIdx.lowerBound])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 var label = beforeDollar
                 if label.hasSuffix(":") { label = String(label.dropLast()).trimmingCharacters(in: .whitespaces) }
                 if let lastColon = label.lastIndex(of: ":") {
                     label = String(label[label.index(after: lastColon)...]).trimmingCharacters(in: .whitespaces)
                 }
-                let valueStr = String(segment[dollarIdx.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                // Remove leading conjunctions
+                for prefix in ["and ", "و "] {
+                    if label.lowercased().hasPrefix(prefix) {
+                        label = String(label.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                    }
+                }
+                let valueStr = String(cleaned[dollarIdx.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
                 let cleanValue = extractDollarValue(valueStr)
                 let pctMatch = extractPercentage(from: segment)
 
@@ -331,15 +356,37 @@ struct AIActionCard: View {
                         entries.append(AnalysisEntry(label: label, value: displayValue))
                     }
                 }
-            } else if let colonRange = segment.range(of: ":") {
-                let label = segment[segment.startIndex..<colonRange.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
-                let value = segment[colonRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let colonRange = cleaned.range(of: ":") {
+                let label = cleaned[cleaned.startIndex..<colonRange.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = cleaned[colonRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
                 if !label.isEmpty && !value.isEmpty && Double(value.replacingOccurrences(of: ",", with: "")) != nil {
                     entries.append(AnalysisEntry(label: label, value: value))
                 }
             }
         }
         return entries
+    }
+
+    /// Split a string by commas, but ignore commas inside parentheses.
+    private func splitIgnoringParentheses(_ text: String) -> [String] {
+        var segments: [String] = []
+        var current = ""
+        var depth = 0
+        for char in text {
+            if char == "(" { depth += 1 }
+            else if char == ")" { depth = max(0, depth - 1) }
+
+            if char == "," && depth == 0 {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { segments.append(trimmed) }
+                current = ""
+            } else {
+                current.append(char)
+            }
+        }
+        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { segments.append(trimmed) }
+        return segments
     }
 
     private func extractDollarValue(_ str: String) -> String {

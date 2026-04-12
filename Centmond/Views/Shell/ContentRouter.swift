@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentRouter: View {
     let screen: Screen
+    @Environment(AppRouter.self) private var router
 
     var body: some View {
         Group {
@@ -41,6 +42,71 @@ struct ContentRouter: View {
         .screenBackground()
         .navigationTitle(screen.displayName)
         .toolbarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                // AI Chat has its own toolbar — keep this empty for it
+                if screen == .aiChat {
+                    Color.clear.frame(height: 1)
+                } else {
+                    screenToolbarContent
+                }
+            }
+        }
+    }
+
+    // MARK: - Per-Screen Toolbar Content
+
+    @ViewBuilder
+    private var screenToolbarContent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: screen.iconName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(CentmondTheme.Colors.accent)
+
+            Text(screen.displayName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                .fixedSize()
+
+            screenSubtitle
+        }
+        .padding(.horizontal, 15)
+        .animation(.none, value: router.selectedMonth)
+    }
+
+    @ViewBuilder
+    private var screenSubtitle: some View {
+        let subtitleStyle = Font.system(size: 11, weight: .medium)
+        let subtitleColor = CentmondTheme.Colors.textTertiary
+
+        switch screen {
+        case .dashboard, .transactions, .budget:
+            Text(monthLabel)
+                .font(subtitleStyle)
+                .foregroundStyle(subtitleColor)
+                .fixedSize()
+
+        case .forecasting:
+            Text("Projection")
+                .font(subtitleStyle)
+                .foregroundStyle(subtitleColor)
+
+        case .settings:
+            if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                Text("v\(version)")
+                    .font(subtitleStyle)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+        default:
+            EmptyView()
+        }
+    }
+
+    private var monthLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        return formatter.string(from: router.selectedMonth)
     }
 }
 

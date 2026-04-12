@@ -1,4 +1,6 @@
 import SwiftUI
+import KeyboardShortcuts
+import UniformTypeIdentifiers
 
 struct InAppSettingsView: View {
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
@@ -7,6 +9,16 @@ struct InAppSettingsView: View {
     @AppStorage("autoOpenInspector") private var autoOpenInspector = true
     @AppStorage("tableDensity") private var tableDensity = "default"
     @AppStorage("sidebarIconOnly") private var sidebarIconOnly = false
+
+    // AI
+    private let aiManager = AIManager.shared
+    private let modeManager = AIAssistantModeManager.shared
+    private let insightEngine = AIInsightEngine.shared
+    @State private var showDeleteModelConfirm = false
+    @State private var showDownloadConfirm = false
+    @State private var showModelImporter = false
+    @State private var showResetMemoryConfirm = false
+    @State private var showModelPicker = false
 
     var body: some View {
         ScrollView {
@@ -105,6 +117,9 @@ struct InAppSettingsView: View {
                         }
                     }
 
+                    // AI Assistant
+                    aiSettingsCard
+
                     // Feedback
                     settingsCard(title: "Feedback", icon: "hand.tap.fill", iconColor: Color(hex: "F59E0B")) {
                         settingsRow {
@@ -150,6 +165,293 @@ struct InAppSettingsView: View {
                 Spacer(minLength: CentmondTheme.Spacing.xxxl)
             }
             .frame(maxWidth: .infinity)
+        }
+        .alert("Delete AI Model?", isPresented: $showDeleteModelConfirm) {
+            Button("Delete", role: .destructive) {
+                aiManager.deleteModel()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove the downloaded model file. You can re-download it later.")
+        }
+        .alert("Reset AI Memory?", isPresented: $showResetMemoryConfirm) {
+            Button("Reset", role: .destructive) {
+                AIMemoryStore.shared.clearAll()
+                AIMerchantMemory.shared.clearAll()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will erase all learned preferences, merchant memory, and approval history. This cannot be undone.")
+        }
+        .fileImporter(
+            isPresented: $showModelImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result,
+               let url = urls.first,
+               url.lastPathComponent.hasSuffix(".gguf") {
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                try? aiManager.importModel(from: url)
+                aiManager.loadModel()
+            }
+        }
+        .sheet(isPresented: $showModelPicker) {
+            AIModelPickerSheet()
+        }
+    }
+
+    // MARK: - AI Settings Card
+
+    private var aiSettingsCard: some View {
+        settingsCard(title: "AI Assistant", icon: "brain.head.profile.fill", iconColor: DS.Colors.accent) {
+
+            // ── Model Status ──
+            settingsRow {
+                Label("Model", systemImage: "cpu")
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(aiStatusColor)
+                        .frame(width: 7, height: 7)
+                    Text(aiStatusLabel)
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                }
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── Active Model ──
+            Button {
+                showModelPicker = true
+            } label: {
+                settingsRow {
+                    Label("Active Model", systemImage: "sparkle")
+                    Spacer()
+                    HStack(spacing: 6) {
+                        if let active = aiManager.availableModels.first(where: { $0.filename == AIManager.modelFilename }) {
+                            Text(active.quantization)
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            Text(active.formattedSize)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        } else {
+                            Text(AIManager.modelFilename.replacingOccurrences(of: ".gguf", with: ""))
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── Mode ──
+            settingsRow {
+                Label("Assistant Mode", systemImage: "dial.medium.fill")
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { modeManager.currentMode },
+                    set: { modeManager.currentMode = $0 }
+                )) {
+                    ForEach(AssistantMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 140)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── Notifications ──
+            settingsRow {
+                Label("Morning Insights", systemImage: "sun.max.fill")
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { insightEngine.isMorningNotificationEnabled },
+                    set: { insightEngine.isMorningNotificationEnabled = $0 }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                Label("Weekly Review", systemImage: "calendar.badge.clock")
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { insightEngine.isWeeklyReviewEnabled },
+                    set: { insightEngine.isWeeklyReviewEnabled = $0 }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── AI Chat Shortcut ──
+            settingsRow {
+                Label("AI Chat Shortcut", systemImage: "keyboard")
+                Spacer()
+                KeyboardShortcuts.Recorder("", name: .toggleAIChat)
+                    .frame(width: 160)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── Memory Info ──
+            settingsRow {
+                Label("AI Memory", systemImage: "brain")
+                Spacer()
+                Text("\(AIMemoryStore.shared.totalCount) items")
+                    .font(CentmondTheme.Typography.body)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            // ── Actions ──
+            VStack(spacing: 10) {
+                // Download / Import
+                if !aiManager.isModelDownloaded {
+                    HStack(spacing: 10) {
+                        Button {
+                            showModelPicker = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 14))
+                                Text("Download Model")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            showModelImporter = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 14))
+                                Text("Import .gguf")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundStyle(DS.Colors.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(DS.Colors.accent.opacity(0.3), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else if case .downloading(let progress, _) = aiManager.status {
+                    HStack(spacing: 12) {
+                        ProgressView(value: progress)
+                            .tint(DS.Colors.accent)
+                        Text("\(Int(progress * 100))%")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .frame(width: 40)
+                        Button("Cancel") {
+                            aiManager.cancelDownload()
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DS.Colors.danger)
+                    }
+                }
+
+                // Danger zone
+                if aiManager.isModelDownloaded {
+                    HStack(spacing: 10) {
+                        Button {
+                            showModelImporter = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 12))
+                                Text("Replace Model")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(CentmondTheme.Colors.bgTertiary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            showDeleteModelConfirm = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 12))
+                                Text("Delete Model")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(DS.Colors.danger)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(DS.Colors.danger.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            showResetMemoryConfirm = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "memories")
+                                    .font(.system(size: 12))
+                                Text("Reset Memory")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(DS.Colors.warning)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(DS.Colors.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.vertical, 10)
+        }
+    }
+
+    private var aiStatusColor: Color {
+        switch aiManager.status {
+        case .ready, .generating: return DS.Colors.positive
+        case .loading, .downloading: return DS.Colors.warning
+        case .error: return DS.Colors.danger
+        case .notLoaded: return CentmondTheme.Colors.textQuaternary
+        }
+    }
+
+    private var aiStatusLabel: String {
+        switch aiManager.status {
+        case .ready: return "Ready"
+        case .generating: return "Generating…"
+        case .loading: return "Loading…"
+        case .downloading(let p, _): return "Downloading \(Int(p * 100))%"
+        case .error(let msg): return msg
+        case .notLoaded: return aiManager.isModelDownloaded ? "Not loaded" : "No model"
         }
     }
 

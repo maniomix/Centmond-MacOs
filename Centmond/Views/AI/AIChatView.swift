@@ -28,12 +28,16 @@ struct AIChatView: View {
     @State private var input: String = ""
     @State private var isStreaming: Bool = false
     @State private var streamingText: String = ""
+    @State private var streamingPhase: StreamingPhase = .thinking
     @State private var showReceiptScanner: Bool = false
+    @State private var cursorVisible: Bool = false
+    @State private var glowPhase: Bool = false
 
     private let aiManager = AIManager.shared
     private let trustManager = AITrustManager.shared
     private let actionHistory = AIActionHistory.shared
     @State private var showDownloadConfirm = false
+    @State private var showModelPicker = false
     @State private var showModelImporter = false
     @FocusState private var isInputFocused: Bool
     @State private var showAIMenu: Bool = false
@@ -82,6 +86,12 @@ struct AIChatView: View {
                     aiNavigationTitle
                 }
                 ToolbarItem(placement: .automatic) {
+                    AIModeIndicator {
+                        showModeSettings = true
+                    }
+                    .padding(.leading, 10)
+                }
+                ToolbarItem(placement: .automatic) {
                     Button {
                         showAIMenu = true
                     } label: {
@@ -89,6 +99,7 @@ struct AIChatView: View {
                             .font(.system(size: 18))
                             .foregroundStyle(DS.Colors.subtext)
                     }
+                    .padding(.trailing, 4)
                 }
             }
             .overlay {
@@ -132,13 +143,8 @@ struct AIChatView: View {
             .sheet(isPresented: $showModeSettings) {
                 AIModeSettingsView()
             }
-            .alert("Download AI Model?", isPresented: $showDownloadConfirm) {
-                Button("Download (\(AIManager.modelDownloadSizeLabel))", role: .none) {
-                    aiManager.downloadModel()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This will download the AI model (\(AIManager.modelDownloadSizeLabel)).")
+            .sheet(isPresented: $showModelPicker) {
+                AIModelPickerSheet()
             }
             .fileImporter(
                 isPresented: $showModelImporter,
@@ -182,6 +188,10 @@ struct AIChatView: View {
                     ForEach(conversation.messages) { message in
                         messageBubble(message)
                             .id(message.id)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity
+                            ))
                     }
 
                     if isStreaming {
@@ -191,7 +201,9 @@ struct AIChatView: View {
 
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding()
+                .padding(.vertical, 8)
+                .frame(maxWidth: 680)
+                .frame(maxWidth: .infinity)
             }
             .onChange(of: conversation.messages.count) { _, _ in
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -199,10 +211,8 @@ struct AIChatView: View {
                 }
             }
             .onChange(of: isStreaming) { _, streaming in
-                if streaming {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        proxy.scrollTo("bottom", anchor: .bottom)
-                    }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
         }
@@ -219,19 +229,26 @@ struct AIChatView: View {
             } else if !aiManager.isModelDownloaded && aiManager.status != .ready {
                 modelNotAvailableCard
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 16) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 40))
+                        .font(.system(size: 44))
                         .foregroundStyle(DS.Colors.accent)
+                        .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.5))
+
                     Text("Centmond AI")
-                        .font(DS.Typography.title)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(DS.Colors.text)
-                    Text("Ask me anything about your finances, or tell me to add transactions, set budgets, and more.")
+
+                    Text("Your private, on-device finance assistant.")
                         .font(DS.Typography.body)
                         .foregroundStyle(DS.Colors.subtext)
                         .multilineTextAlignment(.center)
                 }
-                .padding(24)
+                .padding(28)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(DS.Colors.surfaceElevated.opacity(0.5))
+                )
             }
         }
     }
@@ -252,12 +269,12 @@ struct AIChatView: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                showDownloadConfirm = true
+                showModelPicker = true
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 18))
-                    Text("Download Model (\(AIManager.modelDownloadSizeLabel))")
+                    Text("Download Model")
                         .font(DS.Typography.body)
                         .fontWeight(.semibold)
                 }
@@ -378,6 +395,7 @@ struct AIChatView: View {
 
                 Button {
                     aiManager.deleteModel()
+                    showModelPicker = true
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.down.circle.fill")
@@ -415,76 +433,57 @@ struct AIChatView: View {
     // MARK: - Message Bubbles
 
     private func messageBubble(_ message: AIMessage) -> some View {
-        HStack {
-            if message.role == .user { Spacer(minLength: 60) }
-
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
-                Text(message.content)
-                    .font(DS.Typography.body)
-                    .foregroundStyle(message.role == .user ? .white : DS.Colors.text)
-                    .textSelection(.enabled)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(message.role == .user
-                                  ? DS.Colors.accent
-                                  : (colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface))
-                    )
-
-                if let actions = message.actions, !actions.isEmpty {
-                    let grouped = Self.groupActions(actions)
-                    ForEach(grouped, id: \.id) { group in
-                        if group.count > 1 {
-                            GroupedActionCard(
-                                actions: group.actions,
-                                onConfirmAll: {
-                                    for a in group.actions where a.status == .pending {
-                                        confirmAndExecute(a.id)
-                                    }
-                                },
-                                onRejectAll: {
-                                    for a in group.actions {
-                                        AIMemoryStore.shared.recordApproval(actionType: a.type.rawValue, approved: false)
-                                        conversation.rejectAction(a.id)
-                                    }
-                                }
-                            )
-                        } else if let action = group.actions.first {
-                            AIActionCard(action: action) { id in
-                                confirmAndExecute(id)
-                            } onReject: { id in
-                                if let a = conversation.pendingActions.first(where: { $0.id == id }) {
-                                    AIMemoryStore.shared.recordApproval(actionType: a.type.rawValue, approved: false)
-                                }
-                                conversation.rejectAction(id)
-                            }
-                        }
-                    }
+        ChatBubbleView(
+            message: message,
+            colorScheme: colorScheme,
+            groupActions: { Self.groupActions($0) },
+            onConfirm: { id in confirmAndExecute(id) },
+            onReject: { id in
+                if let a = conversation.pendingActions.first(where: { $0.id == id }) {
+                    AIMemoryStore.shared.recordApproval(actionType: a.type.rawValue, approved: false)
                 }
+                conversation.rejectAction(id)
             }
-
-            if message.role == .assistant { Spacer(minLength: 60) }
-        }
+        )
     }
 
     private var streamingBubble: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                HStack(spacing: 6) {
-                    TypingDotsView()
-                    Text(streamingText.isEmpty ? "Thinking…" : streamingText)
-                        .font(DS.Typography.body)
-                        .foregroundStyle(DS.Colors.text)
-                        .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 6) {
+            if streamingText.isEmpty {
+                TypingDotsView(streamingPhase: streamingPhase)
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.92))
+                    )
+            } else {
+                HStack(alignment: .lastTextBaseline, spacing: 0) {
+                    Text(streamingText)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled) // Disable during streaming to reduce layout cost
+
+                    Text("|")
+                        .font(.system(size: 13))
+                        .foregroundStyle(DS.Colors.accent)
+                        .opacity(cursorVisible ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)
+                        .onAppear { cursorVisible = true }
                 }
-                .padding(12)
+                .padding(16)
+                .frame(maxWidth: 500, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
+                        .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.92))
                 )
             }
-            Spacer(minLength: 60)
         }
+        .padding(.horizontal, 40)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 10)),
+            removal: .opacity
+        ))
     }
 
     // MARK: - Action Bar
@@ -535,6 +534,29 @@ struct AIChatView: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            isStreaming
+                                ? DS.Colors.accent.opacity(glowPhase ? 0.7 : 0.2)
+                                : (isInputFocused ? DS.Colors.accent.opacity(0.5) : Color.clear),
+                            lineWidth: isStreaming ? 2 : 1.5
+                        )
+                        .animation(.easeInOut(duration: 0.2), value: isInputFocused)
+                )
+                .shadow(
+                    color: isStreaming ? DS.Colors.accent.opacity(glowPhase ? 0.3 : 0.0) : .clear,
+                    radius: isStreaming ? 8 : 0
+                )
+                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: glowPhase)
+                .onChange(of: isStreaming) { _, streaming in
+                    if streaming {
+                        glowPhase = true
+                    } else {
+                        glowPhase = false
+                        cursorVisible = false
+                    }
+                }
                 .disabled(!isModelReady || isStreaming)
                 .onSubmit { sendMessage(input) }
 
@@ -559,54 +581,184 @@ struct AIChatView: View {
 
     private var modelLoadingOverlay: some View {
         ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-
-            VStack(spacing: 14) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(1.2)
-                    .tint(.white)
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 32))
+                    .foregroundStyle(DS.Colors.accent)
+                    .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.5))
 
                 Text("Loading AI Model…")
-                    .font(.subheadline.weight(.medium))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
+
+                ModelLoadingHintView()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    skeletonLoadingLine(width: 220)
+                    skeletonLoadingLine(width: 180)
+                    skeletonLoadingLine(width: 140)
+                    skeletonLoadingLine(width: 100)
+                }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 36)
+            .padding(.vertical, 28)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
         .transition(.opacity.animation(.easeInOut(duration: 0.25)))
     }
 
+    private func skeletonLoadingLine(width: CGFloat) -> some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let offset = CGFloat((t.truncatingRemainder(dividingBy: 1.5)) / 1.5)
+            let shimmerX = -width + (width * 2.5 * offset)
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.white.opacity(0.15))
+                .frame(width: width, height: 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [.clear, Color.white.opacity(0.2), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: width * 0.5)
+                        .offset(x: shimmerX)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        }
+    }
+
     // MARK: - Navigation Title with Status
 
+    @State private var showModelInfo = false
+
     private var aiNavigationTitle: some View {
-        VStack(spacing: 2) {
+        HStack(spacing: 10) {
             Text("Centmond AI")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(DS.Colors.text)
 
-            HStack(spacing: 8) {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(navStatusColor)
-                        .frame(width: 6, height: 6)
-                        .shadow(color: navStatusColor.opacity(0.6), radius: isModelReady ? 4 : 0)
-                        .animation(.easeInOut(duration: 0.5), value: navStatusColor)
-
-                    Text(navStatusText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(DS.Colors.subtext)
-                        .contentTransition(.interpolate)
+            if let active = aiManager.availableModels.first(where: { $0.filename == (aiManager.loadedModelFilename.isEmpty ? AIManager.modelFilename : aiManager.loadedModelFilename) }) {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showModelInfo.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(active.quantization)
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(DS.Colors.accent)
+                        Image(systemName: showModelInfo ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(DS.Colors.accent.opacity(0.6))
+                    }
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        DS.Colors.accent.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    )
                 }
-                .animation(.easeInOut(duration: 0.4), value: navStatusText)
-
-                AIModeIndicator {
-                    showModeSettings = true
+                .buttonStyle(.plain)
+                .popover(isPresented: $showModelInfo, arrowEdge: .bottom) {
+                    modelInfoPopover(active)
                 }
             }
+
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(navStatusColor)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: navStatusColor.opacity(0.6), radius: isModelReady ? 4 : 0)
+                    .scaleEffect(aiManager.status == .generating && glowPhase ? 1.4 : 1.0)
+                    .opacity(aiManager.status == .generating ? (glowPhase ? 1.0 : 0.5) : 1.0)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: glowPhase)
+                    .animation(.easeInOut(duration: 0.5), value: navStatusColor)
+
+                Text(navStatusText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DS.Colors.subtext)
+                    .contentTransition(.numericText())
+            }
+            .animation(.easeInOut(duration: 0.3), value: navStatusText)
         }
+        .padding(.horizontal, 15)
+    }
+
+    private func modelInfoPopover(_ model: AIModelFile) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Model name
+            HStack(spacing: 6) {
+                Text(model.displayName)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                if let rec = model.recommendation {
+                    Text(rec.rawValue)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1.5)
+                        .background(
+                            (rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
+                                .opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        )
+                }
+            }
+
+            // Description
+            Text(model.description)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            // Stats
+            HStack(spacing: 14) {
+                popoverStat(icon: "gauge.medium", label: "Speed", value: model.speedLabel, color: DS.Colors.positive)
+                popoverStat(icon: "star.fill", label: "Quality", value: model.qualityLabel, color: DS.Colors.accent)
+                popoverStat(icon: "memorychip", label: "RAM", value: estimatedRAM(model), color: DS.Colors.warning)
+            }
+
+            Divider()
+
+            Text("You can change the model from Settings → AI Assistant")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(12)
+        .frame(width: 280)
+    }
+
+    private func popoverStat(icon: String, label: String, value: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(color)
+            Text(value)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.quaternary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func estimatedRAM(_ model: AIModelFile) -> String {
+        guard let size = model.sizeBytes else { return "?" }
+        let ramBytes = Double(size) * 1.1 // ~10% overhead for context + buffers
+        let gb = ramBytes / 1_073_741_824
+        return String(format: "~%.1f GB", gb)
     }
 
     private var navStatusColor: Color {
@@ -621,8 +773,8 @@ struct AIChatView: View {
     private var navStatusText: String {
         switch aiManager.status {
         case .ready: return "Ready"
-        case .generating: return "Thinking..."
-        case .loading: return "Loading model..."
+        case .generating: return streamingPhase.label + "..."
+        case .loading: return "Loading \(AIManager.modelFilename.replacingOccurrences(of: ".gguf", with: ""))..."
         case .downloading(let p, _): return "Downloading \(Int(p * 100))%"
         case .error: return "Error"
         case .notLoaded: return aiManager.isModelDownloaded ? "Tap to load" : "No model"
@@ -794,8 +946,15 @@ struct AIChatView: View {
             defer {
                 isStreaming = false
                 streamingText = ""
+                streamingPhase = .thinking
             }
 
+            // Yield once so SwiftUI renders the TypingDotsView before we
+            // block for SwiftData queries.
+            streamingPhase = .thinking
+            try? await Task.sleep(for: .milliseconds(1))
+
+            // Build context (SwiftData requires MainActor)
             let financialContext: String
             switch classification.contextHint {
             case .budgetOnly:
@@ -836,7 +995,7 @@ struct AIChatView: View {
                 systemPrompt += "\n\nCLARIFICATION HINT: The user's message may be ambiguous. Missing: \(hint). Ask a short clarifying question if needed."
             }
 
-            let historyCount = classification.contextHint == .full ? 10 : 6
+            let historyCount = classification.contextHint == .full ? 6 : 4
             let history = conversation.messages.suffix(historyCount).map { msg -> AIMessage in
                 if msg.role == .assistant {
                     let textOnly: String
@@ -851,20 +1010,55 @@ struct AIChatView: View {
                 return msg
             }
 
-            var fullResponse = ""
+            // Switch to analyzing phase after context is built
+            streamingPhase = .analyzing
 
-            for await token in aiManager.stream(messages: history, systemPrompt: systemPrompt) {
-                fullResponse += token
-                let display: String
-                if let range = fullResponse.range(of: "---ACTIONS---") {
-                    display = String(fullResponse[fullResponse.startIndex..<range.lowerBound])
-                } else {
-                    display = fullResponse
+            // Consume tokens on a background task — only send batched
+            // snapshots to MainActor every ~100ms so the UI thread stays free.
+            let tokenStream = aiManager.stream(messages: history, systemPrompt: systemPrompt)
+
+            let batchedSnapshots = AsyncStream<String> { continuation in
+                Task.detached(priority: .background) {
+                    var accumulated = ""
+                    var lastYield = ContinuousClock.now
+                    let interval: Duration = .milliseconds(200)
+
+                    for await token in tokenStream {
+                        accumulated += token
+                        let now = ContinuousClock.now
+                        if now - lastYield >= interval {
+                            continuation.yield(accumulated)
+                            lastYield = now
+                        }
+                    }
+                    // Flush remaining tokens
+                    continuation.yield(accumulated)
+                    continuation.finish()
                 }
-                streamingText = Self.cleanModelResponse(display, userMessage: trimmed)
             }
 
-            fullResponse = Self.cleanModelResponse(fullResponse, userMessage: trimmed)
+            // MainActor loop — runs only ~10 times/sec instead of 100+
+            var rawResponse = ""
+            for await snapshot in batchedSnapshots {
+                rawResponse = snapshot
+                let cleaned = Self.cleanStreamingText(snapshot)
+                streamingText = cleaned
+
+                // Update streaming phase based on content
+                if cleaned.isEmpty {
+                    // Still in prompt processing
+                } else if cleaned.contains("---ACTIONS---") || cleaned.contains("\"type\"") {
+                    streamingPhase = .buildingActions
+                } else if cleaned.count > 20 {
+                    streamingPhase = .composing
+                }
+            }
+
+            // Brief review phase before finalizing
+            streamingPhase = .reviewing
+
+            // Final clean with full processing
+            var fullResponse = Self.cleanModelResponse(rawResponse, userMessage: trimmed)
 
             if fullResponse.isEmpty {
                 fullResponse = "Sorry, something went wrong. Please try again."
@@ -1342,6 +1536,23 @@ struct AIChatView: View {
         return nil
     }
 
+    /// Lightweight cleaner for streaming display — only strips control tokens.
+    /// Avoids expensive line filtering and regex during rapid token updates.
+    static func cleanStreamingText(_ raw: String) -> String {
+        var text = raw
+        // Strip Gemma 4/3 control tokens only
+        for marker in ["<|turn|>", "<|turn>model", "<|turn>user", "<|turn>system", "<|turn>",
+                        "<end_of_turn>", "<start_of_turn>model", "<start_of_turn>user",
+                        "<start_of_turn>system", "<start_of_turn>"] {
+            text = text.replacingOccurrences(of: marker, with: "")
+        }
+        // Strip actions block if it appears
+        if let range = text.range(of: "---ACTIONS---", options: .caseInsensitive) {
+            text = String(text[text.startIndex..<range.lowerBound])
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func cleanModelResponse(_ raw: String, userMessage: String) -> String {
         var text = raw
             // Gemma 4 tokens
@@ -1364,15 +1575,22 @@ struct AIChatView: View {
             text = String(trimmedText.dropFirst(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).count))
         }
 
+        // Remove ---ACTIONS--- and everything after (should have been split by parser, but clean up anyway)
+        if let actionsRange = text.range(of: "---ACTIONS---", options: .caseInsensitive) {
+            text = String(text[text.startIndex..<actionsRange.lowerBound])
+        }
+
         let lines = text.components(separatedBy: .newlines)
         let filtered = lines.filter { line in
             let stripped = line.trimmingCharacters(in: .whitespaces)
+            // Remove standalone punctuation/decoration lines
+            if stripped.isEmpty { return true }
             if stripped == "-" || stripped == "–" || stripped == "—" || stripped == "•" || stripped == "*" {
                 return false
             }
             if stripped.count >= 2 {
                 let unique = Set(stripped)
-                if unique.count == 1 && ["=", "-", "*", "─", "━", "·"].contains(stripped.first!) {
+                if unique.count == 1 && ["=", "-", "*", "─", "━", "·", "_"].contains(stripped.first!) {
                     return false
                 }
             }
@@ -1380,11 +1598,60 @@ struct AIChatView: View {
         }
         text = filtered.joined(separator: "\n")
 
+        // Trim trailing punctuation-only characters (leftover dashes, bullets)
+        while text.hasSuffix("-") || text.hasSuffix("–") || text.hasSuffix("—") || text.hasSuffix("•") || text.hasSuffix("*") {
+            text = String(text.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         while text.contains("\n\n\n") {
             text = text.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         }
 
+        text = enhanceMarkdown(text)
+
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Auto-enhance markdown: bold dollar amounts, bold bullet titles, ensure spacing
+    private static func enhanceMarkdown(_ text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+
+        for i in lines.indices {
+            var line = lines[i]
+
+            // Auto-bold dollar amounts that aren't already bold: $123.45 → **$123.45**
+            // Match $amount NOT preceded by ** and NOT followed by **
+            let dollarPattern = #"(?<!\*\*)\$[\d,]+\.?\d*(?!\*\*)"#
+            if let regex = try? NSRegularExpression(pattern: dollarPattern) {
+                let range = NSRange(line.startIndex..., in: line)
+                line = regex.stringByReplacingMatches(in: line, range: range, withTemplate: "**$0**")
+            }
+
+            // Auto-bold bullet titles: "• Word Word — rest" → "• **Word Word** — rest"
+            // Also handles "- Word Word:" pattern
+            let bulletPatterns = [
+                (#"^(\s*[•\-\*]\s+)([A-Z][A-Za-z\s]{1,30})\s*(—|–|-|:)\s*"#, "$1**$2** $3 "),
+            ]
+            for (pattern, replacement) in bulletPatterns {
+                if let regex = try? NSRegularExpression(pattern: pattern) {
+                    let range = NSRange(line.startIndex..., in: line)
+                    // Only apply if not already bold
+                    if !line.contains("**") || !line.hasPrefix("•") && !line.hasPrefix("-") && !line.hasPrefix("*") {
+                        let newLine = regex.stringByReplacingMatches(in: line, range: range, withTemplate: replacement)
+                        if newLine != line { line = newLine }
+                    }
+                }
+            }
+
+            // Fix double-bold: ****text**** → **text**
+            while line.contains("****") {
+                line = line.replacingOccurrences(of: "****", with: "**")
+            }
+
+            lines[i] = line
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     private static func buildActionSummary(_ actions: [AIAction]) -> String? {

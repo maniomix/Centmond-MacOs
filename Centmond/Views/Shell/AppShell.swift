@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import KeyboardShortcuts
 
 struct AppShell: View {
     @Environment(\.modelContext) private var modelContext
@@ -63,6 +64,12 @@ struct AppShell: View {
             guard !didMaterializeRecurring else { return }
             didMaterializeRecurring = true
             RecurringService.materializeDue(in: modelContext)
+        }
+        .task {
+            for await _ in KeyboardShortcuts.events(for: .toggleAIChat) {
+                router.navigate(to: .aiChat)
+                NSApp.activate(ignoringOtherApps: true)
+            }
         }
     }
 }
