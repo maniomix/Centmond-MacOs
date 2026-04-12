@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Flow
 
 struct ReviewQueueView: View {
     @Environment(AppRouter.self) private var router
@@ -237,7 +238,7 @@ struct ReviewQueueView: View {
                                 .tracking(0.5)
 
                             let displayCategories = Array(categories.prefix(8))
-                            FlowLayout(spacing: 6) {
+                            HFlow(spacing: 6) {
                                 ForEach(displayCategories) { cat in
                                     Button {
                                         tx.category = cat

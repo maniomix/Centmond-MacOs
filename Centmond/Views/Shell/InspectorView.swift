@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Flow
 
 struct InspectorView: View {
     let context: InspectorContext
@@ -537,7 +538,7 @@ struct TransactionInspectorView: View {
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     .padding(.leading, 32)
             } else {
-                FlowLayout(spacing: CentmondTheme.Spacing.xs) {
+                HFlow(spacing: CentmondTheme.Spacing.xs) {
                     ForEach(tx.tags) { tag in
                         Text("#\(tag.name)")
                             .font(CentmondTheme.Typography.caption)

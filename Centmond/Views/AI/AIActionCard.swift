@@ -174,6 +174,7 @@ struct AIActionCard: View {
         case .addSubscription: return "repeat.circle.fill"
         case .cancelSubscription: return "xmark.circle.fill"
         case .updateBalance: return "banknote.fill"
+        case .assignMember: return "person.badge.plus"
         case .analyze, .compare, .forecast, .advice: return "chart.bar.xaxis"
         }
     }
@@ -209,6 +210,7 @@ struct AIActionCard: View {
         case .addSubscription: return "Add Subscription"
         case .cancelSubscription: return "Cancel Subscription"
         case .updateBalance: return "Update Balance"
+        case .assignMember: return "Assign Member"
         case .analyze, .compare, .forecast, .advice: return "Analysis"
         }
     }

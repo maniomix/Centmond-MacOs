@@ -1,5 +1,5 @@
 {
-  "originHash" : "32b9daa0e3ab214cdfa9fdaefcb73fcc6db862f7abfe3abf6a384525141c16a2",
+  "originHash" : "704b1a0f7f6989b8e3eb19892f1b089d1ec9bc39a3b554ff845d92fb129120b9",
   "pins" : [
     {
       "identity" : "grid",
@@ -53,15 +53,6 @@
       "state" : {
         "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
         "version" : "6.0.1"
-      }
-    },
-    {
-      "identity" : "pow",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/movingparts-io/Pow",
-      "state" : {
-        "revision" : "a504eb6d144bcf49f4f33029a2795345cb39e6b4",
-        "version" : "1.0.5"
       }
     },
     {

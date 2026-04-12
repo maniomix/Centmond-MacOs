@@ -10,17 +10,13 @@
 		3C75BBC82F8B13B4002D5565 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBC72F8B13B4002D5565 /* MarkdownUI */; };
 		3C75BBCB2F8B13C7002D5565 /* Splash in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCA2F8B13C7002D5565 /* Splash */; };
 		3C75BBCD2F8B13C7002D5565 /* SplashHTMLGen in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCC2F8B13C7002D5565 /* SplashHTMLGen */; };
-		3C75BBCF2F8B13C7002D5565 /* SplashImageGen in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBCE2F8B13C7002D5565 /* SplashImageGen */; };
 		3C75BBD12F8B13C7002D5565 /* SplashMarkdown in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD02F8B13C7002D5565 /* SplashMarkdown */; };
 		3C75BBD32F8B13C7002D5565 /* SplashTokenizer in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD22F8B13C7002D5565 /* SplashTokenizer */; };
-		3C75BBDA2F8B13DB002D5565 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBD92F8B13DB002D5565 /* Pow */; };
 		3C75BBDF2F8B13FD002D5565 /* SkeletonUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBDE2F8B13FD002D5565 /* SkeletonUI */; };
 		3C75BBE82F8B1420002D5565 /* Shiny in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBE72F8B1420002D5565 /* Shiny */; };
 		3C75BBED2F8B1456002D5565 /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBEC2F8B1456002D5565 /* RiveRuntime */; };
 		3C75BBF22F8B147D002D5565 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF12F8B147D002D5565 /* Lottie */; };
-		3C75BBF42F8B147D002D5565 /* Lottie-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */; };
 		3C75BBF72F8B15A1002D5565 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */; };
-		3C75BBF92F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */; };
 		3C75BBFB2F8B15A1002D5565 /* SwiftUIIntrospect-Static in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */; };
 		3C75BBFE2F8B15C4002D5565 /* Flow in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BBFD2F8B15C4002D5565 /* Flow */; };
 		3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC002F8B15DC002D5565 /* ExyteGrid */; };
@@ -48,10 +44,8 @@
 			files = (
 				3C75BBFE2F8B15C4002D5565 /* Flow in Frameworks */,
 				3C75BBD32F8B13C7002D5565 /* SplashTokenizer in Frameworks */,
-				3C75BBF42F8B147D002D5565 /* Lottie-Dynamic in Frameworks */,
 				3C75BBDF2F8B13FD002D5565 /* SkeletonUI in Frameworks */,
 				3C75BBFB2F8B15A1002D5565 /* SwiftUIIntrospect-Static in Frameworks */,
-				3C75BBDA2F8B13DB002D5565 /* Pow in Frameworks */,
 				3C75BBED2F8B1456002D5565 /* RiveRuntime in Frameworks */,
 				3C9D0B372F8ADC9400797BB1 /* LlamaSwift in Frameworks */,
 				3C75BBC82F8B13B4002D5565 /* MarkdownUI in Frameworks */,
@@ -62,10 +56,8 @@
 				3C75BBD12F8B13C7002D5565 /* SplashMarkdown in Frameworks */,
 				3C75BBE82F8B1420002D5565 /* Shiny in Frameworks */,
 				3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */,
-				3C75BBCF2F8B13C7002D5565 /* SplashImageGen in Frameworks */,
 				3C75BBF22F8B147D002D5565 /* Lottie in Frameworks */,
 				3C75BC072F8B1620002D5565 /* LaunchAtLogin in Frameworks */,
-				3C75BBF92F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,17 +104,13 @@
 				3C75BBC72F8B13B4002D5565 /* MarkdownUI */,
 				3C75BBCA2F8B13C7002D5565 /* Splash */,
 				3C75BBCC2F8B13C7002D5565 /* SplashHTMLGen */,
-				3C75BBCE2F8B13C7002D5565 /* SplashImageGen */,
 				3C75BBD02F8B13C7002D5565 /* SplashMarkdown */,
 				3C75BBD22F8B13C7002D5565 /* SplashTokenizer */,
-				3C75BBD92F8B13DB002D5565 /* Pow */,
 				3C75BBDE2F8B13FD002D5565 /* SkeletonUI */,
 				3C75BBE72F8B1420002D5565 /* Shiny */,
 				3C75BBEC2F8B1456002D5565 /* RiveRuntime */,
 				3C75BBF12F8B147D002D5565 /* Lottie */,
-				3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */,
 				3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */,
-				3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */,
 				3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */,
 				3C75BBFD2F8B15C4002D5565 /* Flow */,
 				3C75BC002F8B15DC002D5565 /* ExyteGrid */,
@@ -161,7 +149,6 @@
 				3C9D0B352F8ADC9400797BB1 /* XCRemoteSwiftPackageReference "llama" */,
 				3C75BBC62F8B13B4002D5565 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */,
-				3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */,
 				3C75BBDD2F8B13FD002D5565 /* XCRemoteSwiftPackageReference "SkeletonUI" */,
 				3C75BBE62F8B1420002D5565 /* XCRemoteSwiftPackageReference "shiny" */,
 				3C75BBEB2F8B1456002D5565 /* XCRemoteSwiftPackageReference "rive-ios" */,
@@ -171,6 +158,7 @@
 				3C75BBFF2F8B15DC002D5565 /* XCRemoteSwiftPackageReference "Grid" */,
 				3C75BC022F8B15ED002D5565 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
+				3CA6E8882F8B1C8E00088A28 /* XCLocalSwiftPackageReference "../Pow-local" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3C1AA5D92F71F03600958A72 /* Products */;
@@ -332,6 +320,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -365,6 +354,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -416,6 +406,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		3CA6E8882F8B1C8E00088A28 /* XCLocalSwiftPackageReference "../Pow-local" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../Pow-local";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		3C75BBC62F8B13B4002D5565 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -431,14 +428,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 0.16.0;
-			};
-		};
-		3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/movingparts-io/Pow";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.5;
 			};
 		};
 		3C75BBDD2F8B13FD002D5565 /* XCRemoteSwiftPackageReference "SkeletonUI" */ = {
@@ -539,11 +528,6 @@
 			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
 			productName = SplashHTMLGen;
 		};
-		3C75BBCE2F8B13C7002D5565 /* SplashImageGen */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
-			productName = SplashImageGen;
-		};
 		3C75BBD02F8B13C7002D5565 /* SplashMarkdown */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
@@ -553,11 +537,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3C75BBC92F8B13C7002D5565 /* XCRemoteSwiftPackageReference "Splash" */;
 			productName = SplashTokenizer;
-		};
-		3C75BBD92F8B13DB002D5565 /* Pow */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3C75BBD82F8B13DB002D5565 /* XCRemoteSwiftPackageReference "Pow" */;
-			productName = Pow;
 		};
 		3C75BBDE2F8B13FD002D5565 /* SkeletonUI */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -579,20 +558,10 @@
 			package = 3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */;
 			productName = Lottie;
 		};
-		3C75BBF32F8B147D002D5565 /* Lottie-Dynamic */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3C75BBF02F8B147D002D5565 /* XCRemoteSwiftPackageReference "lottie-ios" */;
-			productName = "Lottie-Dynamic";
-		};
 		3C75BBF62F8B15A1002D5565 /* SwiftUIIntrospect */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = SwiftUIIntrospect;
-		};
-		3C75BBF82F8B15A1002D5565 /* SwiftUIIntrospect-Dynamic */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3C75BBF52F8B15A1002D5565 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
-			productName = "SwiftUIIntrospect-Dynamic";
 		};
 		3C75BBFA2F8B15A1002D5565 /* SwiftUIIntrospect-Static */ = {
 			isa = XCSwiftPackageProductDependency;

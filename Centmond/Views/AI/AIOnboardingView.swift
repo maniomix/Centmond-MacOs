@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Flow
 
 // ============================================================
 // MARK: - AI Onboarding View
@@ -21,7 +22,7 @@ struct AIOnboardingView: View {
     @Environment(\.modelContext) private var context
     let onComplete: () -> Void
 
-    private let engine = AIOnboardingEngine.shared
+    @Bindable private var engine = AIOnboardingEngine.shared
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -364,7 +365,7 @@ struct AIOnboardingView: View {
                 .foregroundStyle(DS.Colors.subtext)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            FlowLayout(spacing: 8) {
+            HFlow(spacing: 8) {
                 ForEach(commonBills, id: \.self) { name in
                     quickAddChip(name: name, category: name == "Rent" ? "rent" : "bills", isRecurring: true)
                 }
@@ -375,7 +376,7 @@ struct AIOnboardingView: View {
                 .foregroundStyle(DS.Colors.subtext)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            FlowLayout(spacing: 8) {
+            HFlow(spacing: 8) {
                 ForEach(commonSubs, id: \.self) { name in
                     quickAddChip(name: name, category: "bills", isRecurring: false)
                 }
@@ -1022,8 +1023,6 @@ struct AIOnboardingView: View {
         return isNeg ? "-\(str)" : str
     }
 }
-
-// FlowLayout is defined in AISuggestedPrompts.swift -- reused here.
 
 // ======================================================
 // MARK: - Binding Helpers

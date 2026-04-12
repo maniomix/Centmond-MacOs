@@ -103,7 +103,7 @@ struct AIChatView: View {
                 }
             }
             .sheet(isPresented: $showOnboarding) {
-                AIOnboardingView()
+                AIOnboardingView { showOnboarding = false }
             }
             .sheet(isPresented: $showReceiptScanner) {
                 AIReceiptScannerView()
@@ -1344,6 +1344,13 @@ struct AIChatView: View {
 
     static func cleanModelResponse(_ raw: String, userMessage: String) -> String {
         var text = raw
+            // Gemma 4 tokens
+            .replacingOccurrences(of: "<|turn|>", with: "")
+            .replacingOccurrences(of: "<|turn>model", with: "")
+            .replacingOccurrences(of: "<|turn>user", with: "")
+            .replacingOccurrences(of: "<|turn>system", with: "")
+            .replacingOccurrences(of: "<|turn>", with: "")
+            // Gemma 3 fallback
             .replacingOccurrences(of: "<end_of_turn>", with: "")
             .replacingOccurrences(of: "<start_of_turn>model", with: "")
             .replacingOccurrences(of: "<start_of_turn>user", with: "")
@@ -1436,6 +1443,7 @@ struct AIChatView: View {
             case .editRecurring: return "I'll update recurring \"\(p.recurringName ?? p.subscriptionName ?? "")\"."
             case .cancelRecurring: return "I'll cancel recurring \"\(p.recurringName ?? p.subscriptionName ?? "")\"."
             case .updateBalance: return "I'll update \(p.accountName ?? "account") balance."
+            case .assignMember: return "I'll assign \(p.memberName ?? "member") to that transaction."
             case .analyze, .compare, .forecast, .advice: return nil
             }
         }

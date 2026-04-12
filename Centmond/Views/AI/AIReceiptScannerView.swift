@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 // ============================================================
 // MARK: - AI Receipt Scanner View

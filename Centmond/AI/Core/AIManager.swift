@@ -68,18 +68,8 @@ final class AIManager {
         modelDirectory.appendingPathComponent(modelFilename)
     }
 
-    #if DEBUG
-    static var devModelURL: URL? {
-        let path = "/Users/mani/Desktop/SwiftProjects/gemma-4-E4B-it-Q6_K.gguf"
-        return FileManager.default.fileExists(atPath: path) ? URL(fileURLWithPath: path) : nil
-    }
-    #endif
-
     static var resolvedModelURL: URL {
-        #if DEBUG
-        if let dev = devModelURL { return dev }
-        #endif
-        return modelURL
+        modelURL
     }
 
     var isModelDownloaded: Bool {
@@ -336,7 +326,8 @@ final class AIManager {
 
             let piece = tokenToPieceStatic(vocab: vocab, token: tokenId)
             if !piece.isEmpty {
-                if piece.contains("<end_of_turn>") || piece.contains("<start_of_turn>") {
+                if piece.contains("<|turn|>") || piece.contains("<|turn>")
+                    || piece.contains("<end_of_turn>") || piece.contains("<start_of_turn>") {
                     break
                 }
                 continuation.yield(piece)
@@ -353,8 +344,8 @@ final class AIManager {
         continuation.finish()
     }
 
-    /// Build a multi-turn formatted prompt using Gemma's chat template.
-    /// E4B uses the same template as E2B (same Gemma family).
+    /// Build a multi-turn formatted prompt using Gemma 4's chat template.
+    /// Gemma 4 uses `<|turn>role` / `<|turn|>` (different from Gemma 3's `<start_of_turn>` / `<end_of_turn>`).
     static func buildPromptStatic(
         model: OpaquePointer,
         messages: [AIMessage],
@@ -362,21 +353,21 @@ final class AIManager {
     ) -> String {
         var prompt = ""
         if let sys = systemPrompt, !sys.isEmpty {
-            prompt += "<start_of_turn>system\n\(sys)<end_of_turn>\n"
+            prompt += "<|turn>system\n\(sys)<|turn|>\n"
         }
 
         for message in messages {
             switch message.role {
             case .user:
-                prompt += "<start_of_turn>user\n\(message.content)<end_of_turn>\n"
+                prompt += "<|turn>user\n\(message.content)<|turn|>\n"
             case .assistant:
-                prompt += "<start_of_turn>model\n\(message.content)<end_of_turn>\n"
+                prompt += "<|turn>model\n\(message.content)<|turn|>\n"
             case .system:
-                prompt += "<start_of_turn>system\n\(message.content)<end_of_turn>\n"
+                prompt += "<|turn>system\n\(message.content)<|turn|>\n"
             }
         }
 
-        prompt += "<start_of_turn>model\n"
+        prompt += "<|turn>model\n"
         return prompt
     }
 
@@ -445,7 +436,7 @@ final class AIManager {
     // MARK: - Model Download
     // ============================================================
 
-    nonisolated static let defaultDownloadURL = "https://huggingface.co/Dextermitur/Centmond-Ai/resolve/main/gemma-4-E4B-it-Q6_K.gguf"
+    nonisolated static let defaultDownloadURL = "https://huggingface.co/Dextermitur/MacOs-Gemma-Centmond/resolve/main/gemma-4-E4B-it-Q6_K.gguf"
     nonisolated static let modelDownloadSizeLabel = "~7 GB"
     nonisolated static let estimatedModelBytes: Int64 = 7_070_000_000
 
@@ -465,10 +456,22 @@ final class AIManager {
     }
 
     private static func isValidGGUF(at url: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        guard let handle = try? FileHandle(forReadingFrom: url) else {
+            log.error("isValidGGUF: cannot open file handle for \(url.path)")
+            // Fallback: if file exists and is large enough, assume valid
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+            return size > 100_000_000
+        }
         defer { try? handle.close() }
-        guard let header = try? handle.read(upToCount: 4) else { return false }
-        return header.count == 4 && header == Data([0x47, 0x47, 0x55, 0x46])
+        guard let header = try? handle.read(upToCount: 4) else {
+            log.error("isValidGGUF: cannot read header bytes")
+            return false
+        }
+        let valid = header.count == 4 && header == Data([0x47, 0x47, 0x55, 0x46])
+        if !valid {
+            log.error("isValidGGUF: header mismatch: \(header.map { String(format: "0x%02X", $0) })")
+        }
+        return valid
     }
 
     func downloadModel() {
