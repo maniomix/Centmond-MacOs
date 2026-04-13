@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import MarkdownUI
 import UniformTypeIdentifiers
 import os
 
@@ -448,37 +449,111 @@ struct AIChatView: View {
     }
 
     private var streamingBubble: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             if streamingText.isEmpty {
                 TypingDotsView(streamingPhase: streamingPhase)
                     .padding(16)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.92))
+                            .fill(.ultraThinMaterial)
                     )
             } else {
-                HStack(alignment: .lastTextBaseline, spacing: 0) {
-                    Text(streamingText)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.disabled) // Disable during streaming to reduce layout cost
-
-                    Text("|")
-                        .font(.system(size: 13))
+                // Header strip (matches ChatBubbleView)
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(DS.Colors.accent)
-                        .opacity(cursorVisible ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)
+                        .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.3))
+                    Text("Generating…")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(DS.Colors.accent.opacity(0.7))
+                    Spacer()
+
+                    // Blinking cursor
+                    Circle()
+                        .fill(DS.Colors.accent)
+                        .frame(width: 6, height: 6)
+                        .opacity(cursorVisible ? 1 : 0.2)
+                        .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: cursorVisible)
                         .onAppear { cursorVisible = true }
                 }
-                .padding(16)
-                .frame(maxWidth: 500, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.92))
-                )
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                Divider()
+                    .opacity(0.3)
+                    .padding(.horizontal, 12)
+
+                // Markdown with inline capsules — sanitizer closes dangling markers
+                CapsuleMarkdownView(text: StreamingMarkdownSanitizer.sanitize(streamingText))
+                    .textSelection(.disabled)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, streamingPhase == .buildingInsights || streamingPhase == .buildingActions ? 8 : 14)
+
+                // Show building indicator when model is generating JSON blocks
+                if streamingPhase == .buildingInsights || streamingPhase == .buildingActions {
+                    Divider()
+                        .opacity(0.2)
+                        .padding(.horizontal, 12)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: streamingPhase.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(DS.Colors.accent)
+                            .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.5))
+
+                        Text(streamingPhase.label + "…")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(DS.Colors.accent.opacity(0.7))
+
+                        Spacer()
+
+                        // Animated dots
+                        HStack(spacing: 3) {
+                            ForEach(0..<3, id: \.self) { i in
+                                Circle()
+                                    .fill(DS.Colors.accent.opacity(0.5))
+                                    .frame(width: 4, height: 4)
+                                    .scaleEffect(glowPhase ? 1.2 : 0.6)
+                                    .opacity(glowPhase ? 1.0 : 0.3)
+                                    .animation(
+                                        .easeInOut(duration: 0.5)
+                                            .repeatForever(autoreverses: true)
+                                            .delay(Double(i) * 0.15),
+                                        value: glowPhase
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
         }
-        .padding(.horizontal, 40)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            DS.Colors.accent.opacity(0.25),
+                            Color.white.opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+        .padding(.horizontal, 28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .transition(.asymmetric(
             insertion: .opacity.combined(with: .offset(y: 10)),
@@ -955,8 +1030,15 @@ struct AIChatView: View {
             try? await Task.sleep(for: .milliseconds(1))
 
             // Build context (SwiftData requires MainActor)
+            // For follow-up messages in an ongoing conversation, always include
+            // financial context so the model can answer questions about spending.
+            let isFollowUp = conversation.messages.count > 2
+            let effectiveHint = (isFollowUp && (classification.contextHint == .minimal || classification.contextHint == .none))
+                ? .full
+                : classification.contextHint
+
             let financialContext: String
-            switch classification.contextHint {
+            switch effectiveHint {
             case .budgetOnly:
                 financialContext = AIContextBuilder.buildBudgetOnly(context: context)
             case .transactionsOnly:
@@ -980,7 +1062,7 @@ struct AIChatView: View {
                 systemPrompt += "\n\n" + merchantContext
             }
 
-            if classification.contextHint == .full || classification.contextHint == .budgetOnly {
+            if effectiveHint == .full || effectiveHint == .budgetOnly {
                 let sts = AISafeToSpend.shared.calculate(context: context)
                 systemPrompt += "\n\nSAFE-TO-SPEND\n=============\n\(sts.summary())"
             }
@@ -995,17 +1077,29 @@ struct AIChatView: View {
                 systemPrompt += "\n\nCLARIFICATION HINT: The user's message may be ambiguous. Missing: \(hint). Ask a short clarifying question if needed."
             }
 
-            let historyCount = classification.contextHint == .full ? 6 : 4
+            // Always send enough history so the model keeps conversational context.
+            // Compact assistant messages: strip ---ACTIONS--- and ---INSIGHTS--- blocks
+            // to save tokens but keep the readable text.
+            let historyCount = 10
             let history = conversation.messages.suffix(historyCount).map { msg -> AIMessage in
                 if msg.role == .assistant {
-                    let textOnly: String
-                    if let range = msg.content.range(of: "---ACTIONS---") {
-                        textOnly = String(msg.content[msg.content.startIndex..<range.lowerBound])
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                    } else {
-                        textOnly = msg.content
+                    var textOnly = msg.content
+                    // Strip ---INSIGHTS--- block
+                    if let r = textOnly.range(of: "---INSIGHTS---", options: .caseInsensitive) {
+                        let before = String(textOnly[textOnly.startIndex..<r.lowerBound])
+                        // Find end of JSON array
+                        let after = String(textOnly[r.upperBound...])
+                        if let jsonEnd = after.range(of: "]") {
+                            textOnly = before + String(after[jsonEnd.upperBound...])
+                        } else {
+                            textOnly = before
+                        }
                     }
-                    return AIMessage(role: .assistant, content: textOnly)
+                    // Strip ---ACTIONS--- block
+                    if let r = textOnly.range(of: "---ACTIONS---", options: .caseInsensitive) {
+                        textOnly = String(textOnly[textOnly.startIndex..<r.lowerBound])
+                    }
+                    return AIMessage(role: .assistant, content: textOnly.trimmingCharacters(in: .whitespacesAndNewlines))
                 }
                 return msg
             }
@@ -1044,11 +1138,13 @@ struct AIChatView: View {
                 let cleaned = Self.cleanStreamingText(snapshot)
                 streamingText = cleaned
 
-                // Update streaming phase based on content
+                // Update streaming phase based on raw content (before cleaning strips blocks)
                 if cleaned.isEmpty {
                     // Still in prompt processing
-                } else if cleaned.contains("---ACTIONS---") || cleaned.contains("\"type\"") {
+                } else if snapshot.contains("---ACTION") {
                     streamingPhase = .buildingActions
+                } else if snapshot.contains("---INSIGHT") {
+                    streamingPhase = .buildingInsights
                 } else if cleaned.count > 20 {
                     streamingPhase = .composing
                 }
@@ -1546,8 +1642,18 @@ struct AIChatView: View {
                         "<start_of_turn>system", "<start_of_turn>"] {
             text = text.replacingOccurrences(of: marker, with: "")
         }
-        // Strip actions block if it appears
-        if let range = text.range(of: "---ACTIONS---", options: .caseInsensitive) {
+        // Strip insights block — partial match for streaming (tokens may split the separator)
+        if let range = text.range(of: "---INSIGHT", options: .caseInsensitive) {
+            text = String(text[text.startIndex..<range.lowerBound])
+        }
+        // Strip actions block — partial match
+        if let range = text.range(of: "---ACTION", options: .caseInsensitive) {
+            text = String(text[text.startIndex..<range.lowerBound])
+        }
+        // Fallback: strip raw JSON that leaked through (e.g. [{"category" or {"category")
+        if let range = text.range(of: "[{\"") {
+            text = String(text[text.startIndex..<range.lowerBound])
+        } else if let range = text.range(of: "{\"category\"") {
             text = String(text[text.startIndex..<range.lowerBound])
         }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)

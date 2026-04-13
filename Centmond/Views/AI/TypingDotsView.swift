@@ -89,26 +89,29 @@ enum StreamingPhase: String, CaseIterable {
     case thinking
     case analyzing
     case composing
+    case buildingInsights
     case buildingActions
     case reviewing
 
     var label: String {
         switch self {
-        case .thinking:       return "Thinking"
-        case .analyzing:      return "Analyzing data"
-        case .composing:      return "Writing response"
-        case .buildingActions: return "Preparing actions"
-        case .reviewing:      return "Reviewing"
+        case .thinking:         return "Thinking"
+        case .analyzing:        return "Analyzing data"
+        case .composing:        return "Writing response"
+        case .buildingInsights: return "Building insights"
+        case .buildingActions:  return "Preparing actions"
+        case .reviewing:        return "Reviewing"
         }
     }
 
     var icon: String {
         switch self {
-        case .thinking:       return "brain.head.profile"
-        case .analyzing:      return "chart.bar.xaxis"
-        case .composing:      return "text.cursor"
-        case .buildingActions: return "hammer.fill"
-        case .reviewing:      return "checkmark.shield.fill"
+        case .thinking:         return "brain.head.profile"
+        case .analyzing:        return "chart.bar.xaxis"
+        case .composing:        return "text.cursor"
+        case .buildingInsights: return "chart.bar.fill"
+        case .buildingActions:  return "hammer.fill"
+        case .reviewing:        return "checkmark.shield.fill"
         }
     }
 }

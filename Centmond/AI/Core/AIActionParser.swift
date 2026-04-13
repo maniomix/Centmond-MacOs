@@ -76,11 +76,10 @@ enum AIActionParser {
     // MARK: - Text Cleaning
 
     /// Clean up the text portion of the response.
+    /// Preserves Markdown formatting AND the ---INSIGHTS--- block
+    /// (ChatBubbleView needs it to render dashboard cards).
     private static func cleanText(_ raw: String) -> String {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Remove markdown artifacts the LLM might add
-        text = text.replacingOccurrences(of: "**", with: "")
-        text = text.replacingOccurrences(of: "```", with: "")
         // Remove leading "Text:" or "Response:" labels
         if let range = text.range(of: "^(Text|Response):\\s*", options: .regularExpression) {
             text = String(text[range.upperBound...])

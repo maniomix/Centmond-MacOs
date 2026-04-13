@@ -32,7 +32,7 @@ actor LlamaBackend {
     // MARK: - Parameters
 
     private let maxTokens: Int32 = 512
-    private let contextSize: UInt32 = 2048
+    private let contextSize: UInt32 = 3072
     private let gpuLayers: Int32 = 99
     private let batchSize: UInt32 = 256
 
