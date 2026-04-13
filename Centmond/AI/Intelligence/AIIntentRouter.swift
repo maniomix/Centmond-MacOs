@@ -57,7 +57,9 @@ enum AIIntentRouter {
             clarification = buildAmbiguityClarification(
                 input: normalized, interpretations: topInterpretations, entities: entities
             )
-        } else if primary.confidence < 0.4 {
+        } else if primary.confidence < 0.15 {
+            // Only flag as needing clarification when truly nothing matched.
+            // The AI model handles typos and vague requests much better than regex.
             clarification = ClarificationResult(
                 question: "I'm not sure what you'd like to do. Could you be more specific?",
                 interpretations: Array(interpretations.prefix(3)),
@@ -833,9 +835,10 @@ enum AIIntentRouter {
     ]
 
     private static let cancelSubscriptionPatterns = [
-        "\\b(cancel|stop|لغو|کنسل)\\b.*\\b(subscription|اشتراک)\\b",
+        "\\b(cancel+|cancell|stop|لغو|کنسل)\\b.*\\b(subscription|subscriptions|اشتراک)\\b",
         "\\b(unsubscribe|remove subscription)\\b",
-        "\\b(لغو.*اشتراک|کنسل.*اشتراک|اشتراک.*لغو|اشتراک.*کنسل)\\b"
+        "\\b(لغو.*اشتراک|کنسل.*اشتراک|اشتراک.*لغو|اشتراک.*کنسل)\\b",
+        "\\b(cancel+|cancell)\\b.*\\b(my|all|the)\\b",
     ]
 
     // ── Accounts ──

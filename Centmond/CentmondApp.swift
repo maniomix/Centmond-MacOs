@@ -23,6 +23,8 @@ struct CentmondApp: App {
             HouseholdMember.self,
             Tag.self,
             SmartFolder.self,
+            ChatSession.self,
+            ChatMessageRecord.self,
         ])
         let config = ModelConfiguration(schema: schema)
         do {

@@ -3,6 +3,7 @@ import SwiftUI
 enum Screen: String, CaseIterable, Identifiable {
     // AI
     case aiChat
+    case aiPredictions
 
     // Core
     case dashboard
@@ -33,6 +34,7 @@ enum Screen: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .aiChat: "AI Chat"
+        case .aiPredictions: "AI Predictions"
         case .dashboard: "Dashboard"
         case .transactions: "Transactions"
         case .budget: "Budget"
@@ -53,6 +55,7 @@ enum Screen: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .aiChat: "brain.head.profile.fill"
+        case .aiPredictions: "chart.line.text.clipboard.fill"
         case .dashboard: "house.fill"
         case .transactions: "list.bullet.rectangle.fill"
         case .budget: "chart.pie.fill"
@@ -72,7 +75,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var section: SidebarSection {
         switch self {
-        case .aiChat:
+        case .aiChat, .aiPredictions:
             return .ai
         case .dashboard, .transactions, .budget, .accounts:
             return .core
@@ -89,7 +92,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
     var requiresPro: Bool {
         switch self {
-        case .goals, .forecasting, .netWorth, .reports, .household, .aiChat:
+        case .goals, .forecasting, .netWorth, .reports, .household, .aiChat, .aiPredictions:
             true
         default:
             false
@@ -212,7 +215,7 @@ final class AppRouter {
     var shouldShowInspector: Bool {
         guard isInspectorVisible else { return false }
         switch selectedScreen {
-        case .dashboard, .settings, .aiChat:
+        case .dashboard, .settings, .aiChat, .aiPredictions:
             return false
         default:
             return true

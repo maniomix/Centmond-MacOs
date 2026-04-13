@@ -31,8 +31,8 @@ actor LlamaBackend {
 
     // MARK: - Parameters
 
-    private let maxTokens: Int32 = 512
-    private let contextSize: UInt32 = 3072
+    private let maxTokens: Int32 = 768
+    private let contextSize: UInt32 = 8192
     private let gpuLayers: Int32 = 99
     private let batchSize: UInt32 = 256
 
@@ -54,7 +54,12 @@ actor LlamaBackend {
     // ============================================================
 
     func loadModel(path: String) -> Bool {
-        if model != nil { return true }
+        if model != nil && context != nil { return true }
+
+        // Clean up any partial state from a previous failed load
+        if model != nil || context != nil || sampler != nil {
+            cleanup()
+        }
 
         log.info("LlamaBackend: loading model from \(path)")
 
@@ -68,6 +73,14 @@ actor LlamaBackend {
 
         model = mdl
         setupContext()
+
+        // Validate context was created — if not, the model is unusable
+        guard context != nil else {
+            log.error("LlamaBackend: context creation failed, cleaning up model")
+            cleanup()
+            return false
+        }
+
         setupSampler()
 
         log.info("LlamaBackend: model loaded successfully")
@@ -97,7 +110,9 @@ actor LlamaBackend {
         cparams.n_batch = batchSize
         // 2 threads — leave CPU headroom for UI & window server
         cparams.n_threads = 2
-        cparams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO
+        // Disable flash attention — AUTO causes EXC_BREAKPOINT crash
+        // during Metal kernel compilation on some hardware configs
+        cparams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED
 
         context = llama_init_from_model(model, cparams)
 

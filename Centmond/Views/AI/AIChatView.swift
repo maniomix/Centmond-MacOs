@@ -26,9 +26,12 @@ struct AIChatView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var conversation = AIConversation()
+    @State private var currentSession: ChatSession?
     @State private var input: String = ""
     @State private var isStreaming: Bool = false
+    @State private var streamingSessionId: UUID? = nil  // Which session owns the active stream
     @State private var streamingText: String = ""
+    @State private var streamingInsights: [FinancialInsight]? = nil
     @State private var streamingPhase: StreamingPhase = .thinking
     @State private var showReceiptScanner: Bool = false
     @State private var cursorVisible: Bool = false
@@ -52,6 +55,10 @@ struct AIChatView: View {
     @State private var showOnboarding: Bool = false
 
     @State private var pendingTrustContext: PendingTrustContext? = nil
+    @State private var chatSessions: [ChatSession] = []
+    @State private var isChatSidebarVisible: Bool = true
+    @State private var renamingSession: ChatSession? = nil
+    @State private var renameText: String = ""
 
     private var isModelLoading: Bool {
         if case .loading = aiManager.status { return true }
@@ -63,57 +70,91 @@ struct AIChatView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            messageList
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    VStack(spacing: 0) {
-                        if !conversation.pendingActions.isEmpty {
-                            actionBar
+        HStack(spacing: 0) {
+            // MARK: - Chat History Sidebar
+            if isChatSidebarVisible {
+                chatHistorySidebar
+                    .frame(width: 220)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            // MARK: - Main Chat Area
+            NavigationStack {
+                messageList
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        VStack(spacing: 0) {
+                            if !conversation.pendingActions.isEmpty {
+                                actionBar
+                            }
+                            if isModelReady && !isStreaming && !conversation.messages.isEmpty {
+                                suggestionsStrip
+                            }
+                            inputBar
                         }
-                        inputBar
                     }
-                }
-            .background(DS.Colors.bg)
-            .toolbar {
-                if !isEmbedded {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark.circle.fill")
+                .background(DS.Colors.bg)
+                .toolbar {
+                    if !isEmbedded {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button { dismiss() } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(DS.Colors.subtext)
+                            }
+                        }
+                    }
+                    ToolbarItem(placement: .principal) {
+                        aiNavigationTitle
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            isChatSidebarVisible.toggle()
+                        } label: {
+                            Image(systemName: "sidebar.left")
+                                .font(.system(size: 15))
+                                .foregroundStyle(isChatSidebarVisible ? DS.Colors.accent : DS.Colors.subtext)
+                        }
+                        .help("Toggle Chat History")
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        AIModeIndicator {
+                            showModeSettings = true
+                        }
+                        .padding(.leading, 10)
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            startNewChat()
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 16))
                                 .foregroundStyle(DS.Colors.subtext)
                         }
+                        .help("New Chat")
+                        .disabled(conversation.messages.isEmpty || isStreaming)
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            showAIMenu = true
+                        } label: {
+                            Image(systemName: "line.3.horizontal.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(DS.Colors.subtext)
+                        }
+                        .padding(.trailing, 4)
                     }
                 }
-                ToolbarItem(placement: .principal) {
-                    aiNavigationTitle
-                }
-                ToolbarItem(placement: .automatic) {
-                    AIModeIndicator {
-                        showModeSettings = true
+                .overlay {
+                    if isModelLoading {
+                        modelLoadingOverlay
                     }
-                    .padding(.leading, 10)
                 }
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showAIMenu = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(DS.Colors.subtext)
+                .onAppear {
+                    loadModelIfNeeded()
+                    loadChatHistory()
+                    if !AIOnboardingEngine.shared.hasCompletedAIOnboarding {
+                        showOnboarding = true
                     }
-                    .padding(.trailing, 4)
                 }
-            }
-            .overlay {
-                if isModelLoading {
-                    modelLoadingOverlay
-                }
-            }
-            .onAppear {
-                loadModelIfNeeded()
-                if !AIOnboardingEngine.shared.hasCompletedAIOnboarding {
-                    showOnboarding = true
-                }
-            }
             .sheet(isPresented: $showOnboarding) {
                 AIOnboardingView { showOnboarding = false }
             }
@@ -167,7 +208,195 @@ struct AIChatView: View {
                 case .failure: break
                 }
             }
+        } // NavigationStack
+        } // HStack
+        .animation(.easeInOut(duration: 0.25), value: isChatSidebarVisible)
+    }
+
+    // MARK: - Chat History Sidebar
+
+    private var chatHistorySidebar: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Chat History")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DS.Colors.subtext)
+                Spacer()
+                Button {
+                    startNewChat()
+                    refreshSessions()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(isStreaming ? DS.Colors.subtext : DS.Colors.accent)
+                }
+                .buttonStyle(.plain)
+                .help("New Chat")
+                .disabled(isStreaming)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            Divider().opacity(0.3)
+
+            // Session list
+            if chatSessions.isEmpty {
+                VStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.system(size: 28))
+                        .foregroundStyle(DS.Colors.subtext.opacity(0.4))
+                    Text("No conversations yet")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Colors.subtext.opacity(0.5))
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(chatSessions, id: \.id) { session in
+                            chatSessionRow(session)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
         }
+        .background(DS.Colors.bg.opacity(0.6))
+    }
+
+    private func chatSessionRow(_ session: ChatSession) -> some View {
+        let isSelected = currentSession?.id == session.id
+        let isRenaming = renamingSession?.id == session.id
+        let isSessionStreaming = isStreaming && streamingSessionId == session.id
+
+        return Button {
+            if !isRenaming {
+                switchToSession(session)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                if isRenaming {
+                    HStack(spacing: 4) {
+                        TextField("Chat name", text: $renameText)
+                            .font(.system(size: 12))
+                            .textFieldStyle(.plain)
+                            .onSubmit {
+                                commitRename(session)
+                            }
+
+                        Button {
+                            commitRename(session)
+                        } label: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(DS.Colors.accent)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            renamingSession = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(DS.Colors.subtext)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    Text(session.title)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? DS.Colors.accent : DS.Colors.text)
+                        .lineLimit(2)
+                }
+
+                HStack(spacing: 4) {
+                    Text(relativeDate(session.updatedAt))
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Colors.subtext.opacity(0.6))
+
+                    Text("\(session.messages.count) messages")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Colors.subtext.opacity(0.4))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? DS.Colors.accent.opacity(0.12) : Color.clear)
+            )
+            .overlay {
+                if isSessionStreaming {
+                    ShimmerOverlay()
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .contextMenu {
+            Button {
+                renameText = session.title
+                renamingSession = session
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                deleteSession(session)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .opacity(isStreaming && !isSessionStreaming ? 0.45 : 1)
+    }
+
+    private func commitRename(_ session: ChatSession) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            session.title = trimmed
+            try? context.save()
+        }
+        renamingSession = nil
+        refreshSessions()
+    }
+
+    private func switchToSession(_ session: ChatSession) {
+        guard session.id != currentSession?.id else { return }
+        // Block switching while AI is generating — prevents state corruption
+        guard !isStreaming else { return }
+
+        currentSession = session
+        conversation = ChatPersistenceManager.shared.loadConversation(from: session)
+    }
+
+    private func deleteSession(_ session: ChatSession) {
+        ChatPersistenceManager.shared.deleteSession(session, context: context)
+        if session.id == currentSession?.id {
+            // Switch to the latest remaining session or create new
+            let remaining = ChatPersistenceManager.shared.fetchSessions(context: context)
+            if let first = remaining.first {
+                switchToSession(first)
+            } else {
+                startNewChat()
+            }
+        }
+        refreshSessions()
+    }
+
+    private func refreshSessions() {
+        chatSessions = ChatPersistenceManager.shared.fetchSessions(context: context)
+    }
+
+    private func relativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     // MARK: - Message List
@@ -444,6 +673,9 @@ struct AIChatView: View {
                     AIMemoryStore.shared.recordApproval(actionType: a.type.rawValue, approved: false)
                 }
                 conversation.rejectAction(id)
+            },
+            onEditMessage: { id, newText in
+                editAndResend(messageId: id, newText: newText)
             }
         )
     }
@@ -486,7 +718,7 @@ struct AIChatView: View {
                     .padding(.horizontal, 12)
 
                 // Markdown with inline capsules — sanitizer closes dangling markers
-                CapsuleMarkdownView(text: StreamingMarkdownSanitizer.sanitize(streamingText))
+                CapsuleMarkdownView(text: StreamingMarkdownSanitizer.sanitize(streamingText), insights: streamingInsights)
                     .textSelection(.disabled)
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
@@ -583,6 +815,54 @@ struct AIChatView: View {
                 .background(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
             }
         }
+    }
+
+    // MARK: - Suggestions Strip
+
+    private let suggestions: [(icon: String, text: String)] = [
+        ("cart", "Add a $15 lunch expense"),
+        ("chart.pie", "How much did I spend on dining this month?"),
+        ("target", "Create a vacation savings goal for $2000"),
+        ("arrow.triangle.branch", "Split a $80 dinner with Sara"),
+        ("chart.bar", "Show me my spending breakdown"),
+        ("banknote", "Set my monthly budget to $3000"),
+        ("lightbulb", "Any tips to save more money?"),
+        ("repeat.circle", "What subscriptions do I have?"),
+    ]
+
+    private var suggestionsStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(suggestions, id: \.text) { suggestion in
+                    Button {
+                        sendMessage(suggestion.text)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: suggestion.icon)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(DS.Colors.accent)
+                            Text(suggestion.text)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DS.Colors.text)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(DS.Colors.surface2)
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(DS.Colors.accent.opacity(0.1), lineWidth: 0.5)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 6)
     }
 
     // MARK: - Input Bar
@@ -956,11 +1236,90 @@ struct AIChatView: View {
         aiManager.loadModel()
     }
 
-    private func sendMessage(_ text: String) {
+    // MARK: - Chat Persistence
+
+    private func loadChatHistory() {
+        let pm = ChatPersistenceManager.shared
+        let session = pm.currentSession(context: context)
+        currentSession = session
+
+        // Load previous messages into conversation
+        if !session.messages.isEmpty {
+            conversation = pm.loadConversation(from: session)
+        }
+
+        // Populate sidebar
+        refreshSessions()
+    }
+
+    private func persistUserMessage(_ text: String) {
+        let pm = ChatPersistenceManager.shared
+        if currentSession == nil {
+            currentSession = pm.createSession(context: context)
+        }
+        guard let session = currentSession else { return }
+        pm.saveUserMessage(text, session: session, context: context)
+    }
+
+    private func persistAssistantMessage(_ text: String, actions: [AIAction]?) {
+        let pm = ChatPersistenceManager.shared
+        if currentSession == nil {
+            currentSession = pm.createSession(context: context)
+        }
+        guard let session = currentSession else { return }
+        pm.saveAssistantMessage(text, actions: actions, session: session, context: context)
+    }
+
+    private func startNewChat() {
+        conversation.clear()
+        currentSession = ChatPersistenceManager.shared.createSession(context: context)
+        refreshSessions()
+    }
+
+    /// Wrapper: adds assistant message to conversation AND persists to SwiftData
+    private func addAndPersistAssistantMessage(_ text: String, actions: [AIAction]? = nil) {
+        conversation.addAssistantMessage(text, actions: actions)
+        persistAssistantMessage(text, actions: actions)
+        refreshSessions()
+    }
+
+    /// Edit a user message: update text, remove subsequent messages, re-send to AI
+    private func editAndResend(messageId: UUID, newText: String) {
+        // Update in-memory conversation (removes all messages after the edited one)
+        conversation.editUserMessage(messageId, newContent: newText)
+
+        // Update persistence: delete messages after the edited one and update its text
+        if let session = currentSession {
+            let sorted = session.sortedMessages
+            if let recordIdx = sorted.firstIndex(where: { $0.id == messageId }) {
+                // Update the record text
+                sorted[recordIdx].content = newText
+
+                // Delete all records after it
+                let toDelete = sorted.suffix(from: sorted.index(after: recordIdx))
+                for record in toDelete {
+                    context.delete(record)
+                }
+                session.messages.removeAll { record in
+                    toDelete.contains(where: { $0.id == record.id })
+                }
+                try? context.save()
+            }
+        }
+        refreshSessions()
+
+        // Re-send the edited message to AI (message already exists, skip adding)
+        sendMessage(newText, isResend: true)
+    }
+
+    private func sendMessage(_ text: String, isResend: Bool = false) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        conversation.addUserMessage(trimmed)
+        if !isResend {
+            conversation.addUserMessage(trimmed)
+            persistUserMessage(trimmed)
+        }
         input = ""
         isInputFocused = false
 
@@ -971,7 +1330,7 @@ struct AIChatView: View {
         let versionManager = AIPromptVersionManager.shared
         versionManager.updateHealth(from: aiManager.status)
         if let fallback = versionManager.fallbackResponse(intentType: classification.intentType) {
-            conversation.addAssistantMessage(fallback, actions: nil)
+            addAndPersistAssistantMessage(fallback, actions: nil)
             return
         }
 
@@ -988,40 +1347,40 @@ struct AIChatView: View {
         )
 
         if let shortCircuit = AIIntentRouter.shortCircuitResponse(for: classification) {
-            conversation.addAssistantMessage(shortCircuit, actions: nil)
+            addAndPersistAssistantMessage(shortCircuit, actions: nil)
             AIAuditLog.shared.recordResponse(entryId: auditId, responseText: shortCircuit, actions: [])
             return
         }
 
-        let clarificationThreshold = modeManager.currentMode.clarificationThreshold
-        if let clarification, classification.confidence < clarificationThreshold {
-            conversation.addAssistantMessage(clarification.question, actions: nil)
-            AIAuditLog.shared.recordResponse(entryId: auditId, responseText: clarification.question, actions: [])
-            versionManager.recordClarification()
-            return
-        }
+        // Don't short-circuit with canned clarification — let the AI model handle it.
+        // The model understands typos, context, and nuance far better than regex.
+        // Clarification is passed as a HINT to the system prompt, not shown directly.
 
         if aiManager.isDownloading {
-            conversation.addAssistantMessage("The AI model is still downloading. Please wait.", actions: nil)
+            addAndPersistAssistantMessage("The AI model is still downloading. Please wait.", actions: nil)
             return
         }
         if !aiManager.isModelDownloaded {
-            conversation.addAssistantMessage("The AI model needs to be downloaded first. Scroll up and click Download.", actions: nil)
+            addAndPersistAssistantMessage("The AI model needs to be downloaded first. Scroll up and click Download.", actions: nil)
             return
         }
         if case .error(let msg) = aiManager.status {
-            conversation.addAssistantMessage("Model error: \(msg). Scroll up to retry or re-download.", actions: nil)
+            addAndPersistAssistantMessage("Model error: \(msg). Scroll up to retry or re-download.", actions: nil)
             return
         }
 
         isStreaming = true
         streamingText = ""
+        streamingInsights = nil
+        streamingSessionId = currentSession?.id
 
         Task { @MainActor in
             defer {
                 isStreaming = false
                 streamingText = ""
+                streamingInsights = nil
                 streamingPhase = .thinking
+                streamingSessionId = nil
             }
 
             // Yield once so SwiftUI renders the TypingDotsView before we
@@ -1080,7 +1439,7 @@ struct AIChatView: View {
             // Always send enough history so the model keeps conversational context.
             // Compact assistant messages: strip ---ACTIONS--- and ---INSIGHTS--- blocks
             // to save tokens but keep the readable text.
-            let historyCount = 10
+            let historyCount = 15
             let history = conversation.messages.suffix(historyCount).map { msg -> AIMessage in
                 if msg.role == .assistant {
                     var textOnly = msg.content
@@ -1145,6 +1504,8 @@ struct AIChatView: View {
                     streamingPhase = .buildingActions
                 } else if snapshot.contains("---INSIGHT") {
                     streamingPhase = .buildingInsights
+                    // Try to parse partial insights from raw snapshot for live capsules
+                    streamingInsights = Self.parsePartialInsights(from: snapshot)
                 } else if cleaned.count > 20 {
                     streamingPhase = .composing
                 }
@@ -1153,14 +1514,28 @@ struct AIChatView: View {
             // Brief review phase before finalizing
             streamingPhase = .reviewing
 
-            // Final clean with full processing
+            // Parse actions FIRST from the raw response (before cleaning strips ---ACTIONS---)
+            let rawCleaned = rawResponse
+                .replacingOccurrences(of: "<|turn|>", with: "")
+                .replacingOccurrences(of: "<|turn>model", with: "")
+                .replacingOccurrences(of: "<|turn>user", with: "")
+                .replacingOccurrences(of: "<|turn>system", with: "")
+                .replacingOccurrences(of: "<|turn>", with: "")
+                .replacingOccurrences(of: "<end_of_turn>", with: "")
+                .replacingOccurrences(of: "<start_of_turn>model", with: "")
+                .replacingOccurrences(of: "<start_of_turn>user", with: "")
+                .replacingOccurrences(of: "<start_of_turn>system", with: "")
+                .replacingOccurrences(of: "<start_of_turn>", with: "")
+            let parsed = AIActionParser.parse(rawCleaned)
+
+            // Now clean the text portion for display
             var fullResponse = Self.cleanModelResponse(rawResponse, userMessage: trimmed)
 
             if fullResponse.isEmpty {
-                fullResponse = "Sorry, something went wrong. Please try again."
+                fullResponse = parsed.text.isEmpty
+                    ? "Sorry, something went wrong. Please try again."
+                    : parsed.text
             }
-
-            let parsed = AIActionParser.parse(fullResponse)
 
             if parsed.actions.isEmpty && parsed.text.contains("---ACTIONS---") == false {
                 versionManager.recordParseFailure()
@@ -1172,7 +1547,7 @@ struct AIChatView: View {
 
             if let failure = AIClarificationEngine.validateActions(parsed.actions) {
                 let errorMsg = failure.userMessage
-                conversation.addAssistantMessage(errorMsg, actions: nil)
+                addAndPersistAssistantMessage(errorMsg, actions: nil)
                 AIAuditLog.shared.recordError(entryId: auditId, error: errorMsg)
                 return
             }
@@ -1198,13 +1573,10 @@ struct AIChatView: View {
             if !finalActions.isEmpty {
                 let analysisTypes: Set<AIAction.ActionType> = [.analyze, .compare, .forecast, .advice]
 
-                for i in finalActions.indices {
-                    if analysisTypes.contains(finalActions[i].type) {
-                        finalActions[i].status = .executed
-                    }
-                }
+                // Remove analysis actions — insight cards already display this data
+                finalActions.removeAll { analysisTypes.contains($0.type) }
 
-                let mutationActions = finalActions.filter { !analysisTypes.contains($0.type) }
+                let mutationActions = finalActions
 
                 if !mutationActions.isEmpty {
                     let classified = trustManager.classify(
@@ -1233,11 +1605,11 @@ struct AIChatView: View {
                         )
                     }
 
-                    var displayText = Self.buildActionSummary(mutationActions) ?? parsed.text
+                    var displayText = Self.buildActionSummary(mutationActions) ?? fullResponse
                     if !blockMessages.isEmpty {
                         displayText += "\n\n" + blockMessages.joined(separator: "\n")
                     }
-                    conversation.addAssistantMessage(displayText, actions: finalActions)
+                    addAndPersistAssistantMessage(displayText, actions: finalActions)
 
                     let trustDecisions = classified.allDecisions.map { decision in
                         AuditTrustDecision(
@@ -1267,8 +1639,19 @@ struct AIChatView: View {
                         groupLabel: groupLabel
                     )
 
-                    // Auto-execute trusted actions (synchronous on macOS)
+                    // Never auto-execute mutations — always require user confirmation
+                    // Action cards will be shown for the user to approve/reject
                     if !classified.auto.isEmpty {
+                        // Move auto-approved actions to pending (show action card)
+                        for (action, _) in classified.auto {
+                            if let idx = finalActions.firstIndex(where: { $0.id == action.id }) {
+                                finalActions[idx].status = .pending
+                            }
+                        }
+                    }
+
+                    // Keep this block disabled — no auto-execution
+                    if false, !classified.auto.isEmpty {
                         var execResults: [AuditExecutionResult] = []
                         for (action, decision) in classified.auto {
                             conversation.confirmAction(action.id)
@@ -1314,10 +1697,10 @@ struct AIChatView: View {
                         AIAuditLog.shared.recordExecution(entryId: auditId, results: execResults)
                     }
                 } else {
-                    conversation.addAssistantMessage(parsed.text, actions: finalActions)
+                    addAndPersistAssistantMessage(fullResponse, actions: finalActions)
                 }
             } else {
-                conversation.addAssistantMessage(parsed.text, actions: nil)
+                addAndPersistAssistantMessage(fullResponse, actions: nil)
             }
         }
     }
@@ -1345,7 +1728,7 @@ struct AIChatView: View {
                 isAutoExecuted: false
             )
 
-            conversation.addAssistantMessage("Done: \(result.summary)", actions: nil)
+            addAndPersistAssistantMessage("Done: \(result.summary)", actions: nil)
 
             if action.type == .addTransaction {
                 AIEventBus.shared.postTransactionAdded(
@@ -1364,7 +1747,7 @@ struct AIChatView: View {
                 )
             }
         } else {
-            conversation.addAssistantMessage("Failed: \(result.summary)", actions: nil)
+            addAndPersistAssistantMessage("Failed: \(result.summary)", actions: nil)
         }
     }
 
@@ -1392,7 +1775,7 @@ struct AIChatView: View {
             summaries.append("Done: \(result.summary)")
         }
         if !summaries.isEmpty {
-            conversation.addAssistantMessage(summaries.joined(separator: "\n"), actions: nil)
+            addAndPersistAssistantMessage(summaries.joined(separator: "\n"), actions: nil)
         }
     }
 
@@ -1659,6 +2042,68 @@ struct AIChatView: View {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Try to parse insights from raw streaming snapshot (may be incomplete JSON).
+    /// Extracts whatever complete JSON objects are available so far.
+    static func parsePartialInsights(from raw: String) -> [FinancialInsight]? {
+        // Find the insights JSON block
+        guard let separatorRange = raw.range(of: "---INSIGHT", options: .caseInsensitive) else {
+            return nil
+        }
+
+        var jsonPart = String(raw[separatorRange.upperBound...])
+
+        // Strip the rest of the separator (e.g. "S---" from "---INSIGHTS---")
+        if let endDashes = jsonPart.range(of: "---") {
+            jsonPart = String(jsonPart[endDashes.upperBound...])
+        } else if let newline = jsonPart.firstIndex(of: "\n") {
+            jsonPart = String(jsonPart[newline...])
+        }
+
+        // Strip ---ACTIONS--- and everything after
+        if let actionsRange = jsonPart.range(of: "---ACTION", options: .caseInsensitive) {
+            jsonPart = String(jsonPart[jsonPart.startIndex..<actionsRange.lowerBound])
+        }
+
+        jsonPart = jsonPart
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !jsonPart.isEmpty else { return nil }
+
+        // Try parsing as-is first (complete JSON)
+        if let data = jsonPart.data(using: .utf8),
+           let insights = try? JSONDecoder().decode([FinancialInsight].self, from: data),
+           !insights.isEmpty {
+            return insights
+        }
+
+        // Incomplete JSON — try to close it
+        // Find all complete objects by looking for }
+        var fixedJSON = jsonPart
+        // Remove trailing incomplete object (after last })
+        if let lastBrace = fixedJSON.range(of: "}", options: .backwards) {
+            fixedJSON = String(fixedJSON[fixedJSON.startIndex..<lastBrace.upperBound])
+        }
+        // Close the array if needed
+        if !fixedJSON.hasSuffix("]") {
+            // Remove trailing comma if present
+            fixedJSON = fixedJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+            if fixedJSON.hasSuffix(",") {
+                fixedJSON = String(fixedJSON.dropLast())
+            }
+            fixedJSON += "]"
+        }
+
+        if let data = fixedJSON.data(using: .utf8),
+           let insights = try? JSONDecoder().decode([FinancialInsight].self, from: data),
+           !insights.isEmpty {
+            return insights
+        }
+
+        return nil
+    }
+
     static func cleanModelResponse(_ raw: String, userMessage: String) -> String {
         var text = raw
             // Gemma 4 tokens
@@ -1826,5 +2271,40 @@ struct AIChatView: View {
     private static func fmtDollarsStatic(_ dollars: Double?) -> String {
         guard let dollars else { return "$0.00" }
         return String(format: "$%.2f", dollars)
+    }
+}
+
+// ============================================================
+// MARK: - Shimmer Overlay (Skeleton Loading Effect)
+// ============================================================
+
+private struct ShimmerOverlay: View {
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        GeometryReader { geo in
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    DS.Colors.accent.opacity(0.12),
+                    DS.Colors.accent.opacity(0.2),
+                    DS.Colors.accent.opacity(0.12),
+                    Color.clear,
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: geo.size.width * 1.5)
+            .offset(x: phase * geo.size.width)
+            .onAppear {
+                withAnimation(
+                    .easeInOut(duration: 1.5)
+                    .repeatForever(autoreverses: false)
+                ) {
+                    phase = 1.5
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

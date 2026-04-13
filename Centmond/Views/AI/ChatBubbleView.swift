@@ -92,8 +92,11 @@ struct ChatBubbleView: View {
     let groupActions: ([AIAction]) -> [AIChatView.ActionGroup]
     let onConfirm: (UUID) -> Void
     let onReject: (UUID) -> Void
+    var onEditMessage: ((UUID, String) -> Void)? = nil
 
     @State private var appeared = false
+    @State private var isEditing = false
+    @State private var editText = ""
 
     /// Parsed insights (if the response contains structured financial data)
     private var parsedInsights: (text: String, insights: [FinancialInsight]?) {
@@ -179,16 +182,82 @@ struct ChatBubbleView: View {
     // MARK: - User Bubble
 
     private var userBubble: some View {
-        Text(message.content)
-            .font(.system(size: 13.5, weight: .medium))
-            .foregroundStyle(.white)
-            .textSelection(.enabled)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(DS.Colors.accent.gradient)
-            )
+        VStack(alignment: .trailing, spacing: 6) {
+            if isEditing {
+                // Edit mode
+                VStack(alignment: .trailing, spacing: 8) {
+                    TextEditor(text: $editText)
+                        .font(.system(size: 13.5, weight: .medium))
+                        .foregroundStyle(.white)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 36, maxHeight: 120)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(DS.Colors.accent.opacity(0.8))
+                        )
+
+                    HStack(spacing: 8) {
+                        Button {
+                            isEditing = false
+                        } label: {
+                            Text("Cancel")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DS.Colors.subtext)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(DS.Colors.surface2))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            isEditing = false
+                            onEditMessage?(message.id, trimmed)
+                        } label: {
+                            Text("Send")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(DS.Colors.accent))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } else {
+                // Normal display
+                Text(message.content)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(DS.Colors.accent.gradient)
+                    )
+                    .contextMenu {
+                        if onEditMessage != nil {
+                            Button {
+                                editText = message.content
+                                isEditing = true
+                            } label: {
+                                Label("Edit Message", systemImage: "pencil")
+                            }
+
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(message.content, forType: .string)
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Assistant Bubble (Premium Card)
@@ -423,6 +492,7 @@ struct CapsuleMarkdownView: View {
 
     var body: some View {
         let segments = parseSegments()
+        let hasBullets = segments.contains { if case .bullet = $0 { return true } else { return false } }
 
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
@@ -436,6 +506,24 @@ struct CapsuleMarkdownView: View {
                     }
                 case .bullet(let category, let description):
                     bulletView(category: category, description: description)
+                }
+            }
+
+            // Fallback: if insights available but model didn't write bullets
+            if let insights, !insights.isEmpty, !hasBullets {
+                ForEach(insights) { insight in
+                    let spentStr = "**$\(String(format: "%.2f", insight.spent))**"
+                    let budgetStr = insight.budget > 0 ? " / $\(String(format: "%.0f", insight.budget))" : ""
+                    let amountPrefix = "\(spentStr)\(budgetStr) — "
+                    let adviceText = insight.advice.isEmpty
+                        ? "Spent this month."
+                        : insight.advice
+                            .replacingOccurrences(of: "**", with: "")
+                            .replacingOccurrences(of: "*", with: "")
+                    bulletView(
+                        category: insight.category,
+                        description: amountPrefix + adviceText
+                    )
                 }
             }
         }

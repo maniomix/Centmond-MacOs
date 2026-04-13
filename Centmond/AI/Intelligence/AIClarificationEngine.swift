@@ -124,8 +124,9 @@ enum AIClarificationEngine {
             break
         }
 
-        // 4. Very low confidence
-        if classification.confidence < 0.3 {
+        // 4. Very low confidence — only for truly empty/meaningless input.
+        // The AI model should handle ambiguous requests, not canned responses.
+        if classification.confidence < 0.1 {
             return ClarificationResult(
                 question: "I'm not sure what you'd like me to do. Could you be more specific?",
                 interpretations: classification.allInterpretations,

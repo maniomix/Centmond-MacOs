@@ -121,15 +121,23 @@ enum AIContextBuilder {
 
         guard !txns.isEmpty else { return "" }
 
-        let recent = txns.prefix(15)
+        let recent = txns.prefix(50)
+        let timeFmt = DateFormatter()
+        timeFmt.dateFormat = "HH:mm"
+        let dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
         var lines = ["RECENT TRANSACTIONS (showing \(recent.count) of \(txns.count) this month)"]
         for t in recent {
             let typeTag = t.isIncome ? "+" : "-"
             let dateStr = shortDate(t.date)
+            let timeStr = timeFmt.string(from: t.date)
+            let weekday = Calendar.current.component(.weekday, from: t.date)
+            let dayName = dayNames[weekday - 1]
             let cat = t.category?.name ?? "uncategorized"
+            let payee = t.payee.isEmpty ? "" : " \(t.payee)"
             let note = (t.notes ?? "").isEmpty ? "" : " — \(t.notes!)"
             let member = t.householdMember.map { " [\($0.name)]" } ?? ""
-            lines.append("  \(dateStr) \(typeTag)\(dollars(t.amount)) [\(cat)]\(note)\(member) id:\(t.id.uuidString)")
+            lines.append("  \(dayName) \(dateStr) \(timeStr) \(typeTag)\(dollars(t.amount)) [\(cat)]\(payee)\(note)\(member) id:\(t.id.uuidString)")
         }
         return lines.joined(separator: "\n")
     }

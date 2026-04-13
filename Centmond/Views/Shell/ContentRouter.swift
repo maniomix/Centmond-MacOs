@@ -9,6 +9,8 @@ struct ContentRouter: View {
             switch screen {
             case .aiChat:
                 AIChatView(isEmbedded: true)
+            case .aiPredictions:
+                AIPredictionView()
             case .dashboard:
                 DashboardView()
             case .transactions:
@@ -88,6 +90,11 @@ struct ContentRouter: View {
 
         case .forecasting:
             Text("Projection")
+                .font(subtitleStyle)
+                .foregroundStyle(subtitleColor)
+
+        case .aiPredictions:
+            Text("AI-Powered")
                 .font(subtitleStyle)
                 .foregroundStyle(subtitleColor)
 

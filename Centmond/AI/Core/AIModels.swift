@@ -17,7 +17,7 @@ import Foundation
 struct AIMessage: Identifiable, Equatable {
     let id: UUID
     let role: Role
-    let content: String
+    var content: String
     let timestamp: Date
     var actions: [AIAction]?
 
@@ -302,6 +302,17 @@ final class AIConversation {
                 messages[mi].actions = actions
             }
         }
+    }
+
+    /// Edit a user message and remove all messages after it (for re-generation)
+    func editUserMessage(_ id: UUID, newContent: String) {
+        guard let idx = messages.firstIndex(where: { $0.id == id && $0.role == .user }) else { return }
+        messages[idx].content = newContent
+        // Remove all messages after the edited one
+        if idx + 1 < messages.count {
+            messages.removeSubrange((idx + 1)...)
+        }
+        pendingActions.removeAll()
     }
 
     func clear() {
