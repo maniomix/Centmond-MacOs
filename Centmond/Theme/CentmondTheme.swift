@@ -32,6 +32,9 @@ enum CentmondTheme {
         static let warning = Color(hex: "F59E0B")
         static let warningMuted = Color(hex: "451A03")
         static let info = Color(hex: "3B82F6")
+        // Forecast / projection hue — violet, distinct from accent/warning/negative
+        static let projected = Color(hex: "8B5CF6")
+        static let projectedMuted = Color(hex: "2E1065")
 
         // Strokes and borders
         static let strokeSubtle = Color(hex: "1C1C1F")

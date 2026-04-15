@@ -12,6 +12,7 @@ enum CurrencyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currencyCode
+        formatter.locale = Locale(identifier: "en_US")
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
         return formatter.string(from: value as NSDecimalNumber) ?? "$0.00"
@@ -25,6 +26,7 @@ enum CurrencyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
+        formatter.locale = Locale(identifier: "en_US")
         formatter.maximumFractionDigits = 0
         return formatter.string(from: value as NSDecimalNumber) ?? "$0"
     }

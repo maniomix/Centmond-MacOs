@@ -41,8 +41,9 @@ struct TypingDotsView: View {
                 dotPhase = (dotPhase + 1) % 3
             }
 
-            // Shimmer skeleton lines
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            // Shimmer skeleton lines — 12 fps; was 60 fps which alone burned
+            // measurable CPU while the model was generating.
+            TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let offset = CGFloat((time.truncatingRemainder(dividingBy: 1.8)) / 1.8)
 

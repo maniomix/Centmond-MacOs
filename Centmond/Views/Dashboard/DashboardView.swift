@@ -16,9 +16,14 @@ struct DashboardView: View {
     // MARK: - State
 
     @State private var chartStyle: ChartStyle = .bar
-    @State private var hoveredDay: Int?
-    @State private var hoverLocation: CGPoint = .zero
-    @State private var hoveredDonutAngle: Double?
+    // Cash-flow chart hover state lives inside `CashFlowChartSurface` (nested
+    // struct) so 60 Hz `onContinuousHover` updates don't invalidate the
+    // entire DashboardView — which includes 6+ other expensive cards
+    // (spending breakdown, subscriptions, recents, budget, goals, accounts).
+    // Matches the same fix we did for the AI prediction trajectory chart.
+    // `hoveredDonutAngle` lives inside `SpendingBreakdownCard` (nested below)
+    // so donut-hover updates don't invalidate the entire dashboard body.
+    // Same fix pattern as the cash-flow chart and the trajectory chart.
     @State private var hoveredTxID: UUID?
     @State private var hoveredAccountID: UUID?
     @State private var hoveredGoalID: UUID?
@@ -270,7 +275,6 @@ struct DashboardView: View {
                             Button {
                                 Haptics.tap()
                                 withAnimation(CentmondTheme.Motion.layout) {
-                                    hoveredDay = nil
                                     chartStyle = style
                                 }
                             } label: {
@@ -299,25 +303,15 @@ struct DashboardView: View {
                         .frame(minHeight: 200)
                         .transition(.opacity)
                 } else {
-                    cashFlowChart
-                        .frame(minHeight: 200)
-                        .transition(.opacity)
-                        .animation(CentmondTheme.Motion.layout, value: chartStyle)
-                        .overlay {
-                            GeometryReader { geo in
-                                if let day = hoveredDay,
-                                   let data = computeDailyData().first(where: { $0.id == day }) {
-                                    let tooltipW: CGFloat = 190
-                                    let clampedX = min(max(hoverLocation.x, tooltipW / 2 + 8), geo.size.width - tooltipW / 2 - 8)
-
-                                    chartTooltip(data: data)
-                                        .frame(width: tooltipW)
-                                        .position(x: clampedX, y: max(hoverLocation.y - 46, 24))
-                                        .allowsHitTesting(false)
-                                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                                }
-                            }
-                        }
+                    // Hover state is OWNED by this sub-view — parent dashboard
+                    // is untouched on every hover tick.
+                    CashFlowChartSurface(
+                        chartStyle: chartStyle,
+                        dailyData: computeDailyData()
+                    )
+                    .frame(minHeight: 200)
+                    .transition(.opacity)
+                    .animation(CentmondTheme.Motion.layout, value: chartStyle)
                 }
             }
         }
@@ -326,101 +320,11 @@ struct DashboardView: View {
     // MARK: - Spending Breakdown Card
 
     private var spendingBreakdownCard: some View {
-        CardContainer {
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-                Text("Spending by Category")
-                    .font(CentmondTheme.Typography.heading3)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-
-                if monthlyExpenses.isEmpty {
-                    emptyChartPlaceholder("No expenses this month")
-                } else {
-                    VStack(spacing: CentmondTheme.Spacing.md) {
-                        // Donut chart centered
-                        ZStack {
-                            spendingDonut
-                                .frame(width: 110, height: 110)
-                            donutCenterLabel
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 110)
-
-                        // Legend — full width rows, no horizontal squeeze
-                        VStack(spacing: 0) {
-                            ForEach(Array(computeCategorySpending().prefix(5).enumerated()), id: \.element.name) { index, item in
-                                HStack(spacing: CentmondTheme.Spacing.sm) {
-                                    Circle()
-                                        .fill(item.color)
-                                        .frame(width: 7, height: 7)
-
-                                    Text(item.name)
-                                        .font(CentmondTheme.Typography.caption)
-                                        .foregroundStyle(
-                                            selectedDonutCategory == item.name
-                                                ? CentmondTheme.Colors.textPrimary
-                                                : CentmondTheme.Colors.textSecondary
-                                        )
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    Text(CurrencyFormat.abbreviated(item.amount))
-                                        .font(CentmondTheme.Typography.captionMedium)
-                                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                        .monospacedDigit()
-                                        .lineLimit(1)
-                                }
-                                .padding(.vertical, CentmondTheme.Spacing.xs)
-
-                                if index < computeCategorySpending().prefix(5).count - 1 {
-                                    Divider()
-                                        .background(CentmondTheme.Colors.strokeSubtle)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Donut center label
-    private var donutCenterLabel: some View {
-        VStack(spacing: 1) {
-            if let name = selectedDonutCategory,
-               let item = computeCategorySpending().first(where: { $0.name == name }) {
-                Text(name)
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                    .lineLimit(1)
-                Text(CurrencyFormat.standard(Decimal(item.amount)))
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    .monospacedDigit()
-            } else {
-                Text("Total")
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                Text(CurrencyFormat.standard(monthlySpending))
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    .monospacedDigit()
-            }
-        }
-        .animation(CentmondTheme.Motion.micro, value: selectedDonutCategory)
-    }
-
-    private var selectedDonutCategory: String? {
-        guard let angle = hoveredDonutAngle else { return nil }
-        let items = computeCategorySpending()
-        guard !items.isEmpty else { return nil }
-        // chartAngleSelection returns cumulative data value, not a fraction
-        var cumulative = 0.0
-        for item in items {
-            cumulative += item.amount
-            if angle <= cumulative { return item.name }
-        }
-        return items.last?.name
+        SpendingBreakdownCard(
+            categorySpending: computeCategorySpending(),
+            monthlySpending: monthlySpending,
+            isEmpty: monthlyExpenses.isEmpty
+        )
     }
 
     // MARK: - Subscriptions Summary
@@ -979,13 +883,11 @@ struct DashboardView: View {
 
     // MARK: - Charts
 
-    @ViewBuilder
-    private var cashFlowChart: some View {
-        switch chartStyle {
-        case .bar:        groupedBarChart
-        case .net:        netCashFlowChart
-        }
-    }
+    // `cashFlowChart` / `groupedBarChart` / `netCashFlowChart` / `chartTooltip`
+    // / `BarEntry` / `CashFlowHoverModifier` / `CashFlowChartStyle` have all
+    // been moved into `CashFlowChartSurface` (nested below). That struct
+    // owns the hover state so every hover tick re-renders ONLY the chart
+    // surface — not the entire dashboard.
 
     @ViewBuilder
     private var chartLegend: some View {
@@ -1003,233 +905,258 @@ struct DashboardView: View {
         }
     }
 
-    private struct BarEntry: Identifiable {
-        let id: String
-        let day: Int
-        let amount: Double
-        let type: String // "Income" or "Expenses"
-    }
-
-    // MARK: Grouped Bar Chart
-
-    private var groupedBarChart: some View {
-        let dailyData = computeDailyData()
-        let dayCount = max(dailyData.count, 1)
-
-        // Flat array: one entry per (day, type) — required for correct grouped bars in Swift Charts
-        let entries: [BarEntry] = dailyData.flatMap { dp in [
-            BarEntry(id: "\(dp.id)-E", day: dp.id, amount: dp.expenses, type: "Expenses"),
-            BarEntry(id: "\(dp.id)-I", day: dp.id, amount: dp.income,   type: "Income")
-        ]}
-
-        return Chart(entries) { entry in
-            BarMark(
-                x: .value("Day", entry.day),
-                y: .value("Amount", entry.amount)
-            )
-            .foregroundStyle(by: .value("Type", entry.type))
-            .position(by: .value("Type", entry.type), axis: .horizontal, span: .ratio(0.8))
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .opacity(hoveredDay == nil || hoveredDay == entry.day ? 1.0 : 0.35)
-        }
-        .chartForegroundStyleScale([
-            "Income":   CentmondTheme.Colors.positive,
-            "Expenses": CentmondTheme.Colors.accent
-        ])
-        .chartYScale(domain: .automatic(includesZero: true))
-        .modifier(CashFlowChartStyle())
-        .modifier(CashFlowHoverModifier(dailyData: dailyData, dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
-    }
-
-    // MARK: Net Cash Flow Chart
-
-    private var netCashFlowChart: some View {
-        let dailyData = computeDailyData()
-        let dayCount = max(dailyData.count, 1)
-
-        return Chart {
-            ForEach(dailyData) { dp in
-                let net = dp.income - dp.expenses
-                BarMark(
-                    x: .value("Day", dp.id),
-                    y: .value("Net", net)
-                )
-                .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive.gradient : CentmondTheme.Colors.negative.gradient)
-                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-                .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
-            }
-
-            RuleMark(y: .value("Zero", 0))
-                .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.5))
-                .lineStyle(StrokeStyle(lineWidth: 0.5))
-        }
-        .chartYScale(domain: .automatic(includesZero: true))
-        .modifier(CashFlowChartStyle())
-        .modifier(CashFlowHoverModifier(dailyData: dailyData, dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
-    }
-
-    // MARK: Shared Chart Modifiers
-
-    private struct CashFlowChartStyle: ViewModifier {
-        func body(content: Content) -> some View {
-            content
-                .chartPlotStyle { plot in
-                    plot.frame(minHeight: 160).padding(.horizontal, 4).clipped()
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                            .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
-                        AxisValueLabel {
-                            if let val = value.as(Double.self) {
-                                Text(CurrencyFormat.abbreviated(val))
-                                    .font(CentmondTheme.Typography.caption)
-                                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                            }
-                        }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: 5)) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
-                            .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.15))
-                        AxisValueLabel {
-                            if let day = value.as(Int.self) {
-                                Text("\(day)")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            }
-                        }
-                    }
-                }
-                .chartLegend(.hidden)
-        }
-    }
-
-    private struct CashFlowHoverModifier: ViewModifier {
+    // MARK: - Cash Flow Chart Surface (owns hover state)
+    //
+    // Extracted from DashboardView to isolate 60 Hz `onContinuousHover`
+    // updates: hover state changes re-render only this sub-view, leaving
+    // the dashboard's other cards untouched. Mirrors the same fix applied
+    // to the AI prediction trajectory chart.
+    private struct CashFlowChartSurface: View {
+        let chartStyle: ChartStyle
         let dailyData: [DailyDataPoint]
-        let dayCount: Int
-        @Binding var hoveredDay: Int?
-        @Binding var hoverLocation: CGPoint
 
-        func body(content: Content) -> some View {
-            content
-                .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .onContinuousHover { phase in
-                                switch phase {
-                                case .active(let location):
-                                    hoverLocation = location
-                                    let plotFrame = geometry[proxy.plotFrame!]
-                                    let xInPlot = location.x - plotFrame.origin.x
-                                    guard xInPlot >= 0, xInPlot <= plotFrame.width else {
-                                        withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
-                                        return
-                                    }
-                                    if let day: Int = proxy.value(atX: xInPlot) {
-                                        let clamped = max(1, min(day, dayCount))
-                                        if hoveredDay != clamped {
-                                            Haptics.tick()
-                                        }
-                                        withAnimation(CentmondTheme.Motion.micro) { hoveredDay = clamped }
-                                    }
-                                case .ended:
-                                    withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+        @State private var hoveredDay: Int?
+        @State private var hoverLocation: CGPoint = .zero
+
+        private struct BarEntry: Identifiable {
+            let id: String
+            let day: Int
+            let amount: Double
+            let type: String // "Income" or "Expenses"
+        }
+
+        var body: some View {
+            chartView
+                .overlay { tooltipOverlay }
+        }
+
+        @ViewBuilder
+        private var chartView: some View {
+            switch chartStyle {
+            case .bar: groupedBarChart
+            case .net: netCashFlowChart
+            }
+        }
+
+        @ViewBuilder
+        private var tooltipOverlay: some View {
+            GeometryReader { geo in
+                if let day = hoveredDay,
+                   let data = dailyData.first(where: { $0.id == day }) {
+                    let tooltipW: CGFloat = 190
+                    let clampedX = min(max(hoverLocation.x, tooltipW / 2 + 8), geo.size.width - tooltipW / 2 - 8)
+
+                    chartTooltip(data: data)
+                        .frame(width: tooltipW)
+                        .position(x: clampedX, y: max(hoverLocation.y - 46, 24))
+                        .allowsHitTesting(false)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+        }
+
+        // MARK: Grouped Bar Chart
+
+        private var groupedBarChart: some View {
+            let dayCount = max(dailyData.count, 1)
+            let entries: [BarEntry] = dailyData.flatMap { dp in [
+                BarEntry(id: "\(dp.id)-E", day: dp.id, amount: dp.expenses, type: "Expenses"),
+                BarEntry(id: "\(dp.id)-I", day: dp.id, amount: dp.income,   type: "Income")
+            ]}
+
+            return Chart(entries) { entry in
+                BarMark(
+                    x: .value("Day", entry.day),
+                    y: .value("Amount", entry.amount)
+                )
+                .foregroundStyle(by: .value("Type", entry.type))
+                .position(by: .value("Type", entry.type), axis: .horizontal, span: .ratio(0.8))
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .opacity(hoveredDay == nil || hoveredDay == entry.day ? 1.0 : 0.35)
+            }
+            .chartForegroundStyleScale([
+                "Income":   CentmondTheme.Colors.positive,
+                "Expenses": CentmondTheme.Colors.accent
+            ])
+            .chartYScale(domain: .automatic(includesZero: true))
+            .modifier(CashFlowChartStyle())
+            .modifier(CashFlowHoverModifier(dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
+        }
+
+        // MARK: Net Cash Flow Chart
+
+        private var netCashFlowChart: some View {
+            let dayCount = max(dailyData.count, 1)
+
+            return Chart {
+                ForEach(dailyData) { dp in
+                    let net = dp.income - dp.expenses
+                    BarMark(
+                        x: .value("Day", dp.id),
+                        y: .value("Net", net)
+                    )
+                    .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive.gradient : CentmondTheme.Colors.negative.gradient)
+                    .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                    .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
+                }
+
+                RuleMark(y: .value("Zero", 0))
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 0.5))
+            }
+            .chartYScale(domain: .automatic(includesZero: true))
+            .modifier(CashFlowChartStyle())
+            .modifier(CashFlowHoverModifier(dayCount: dayCount, hoveredDay: $hoveredDay, hoverLocation: $hoverLocation))
+        }
+
+        // MARK: Shared Chart Modifiers
+
+        private struct CashFlowChartStyle: ViewModifier {
+            func body(content: Content) -> some View {
+                content
+                    .chartPlotStyle { plot in
+                        plot.frame(minHeight: 160).padding(.horizontal, 4).clipped()
+                    }
+                    .chartYAxis {
+                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.4))
+                            AxisValueLabel {
+                                if let val = value.as(Double.self) {
+                                    Text(CurrencyFormat.abbreviated(val))
+                                        .font(CentmondTheme.Typography.caption)
+                                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                                 }
                             }
+                        }
                     }
-                }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: 5)) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
+                                .foregroundStyle(CentmondTheme.Colors.strokeSubtle.opacity(0.15))
+                            AxisValueLabel {
+                                if let day = value.as(Int.self) {
+                                    Text("\(day)")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                }
+                            }
+                        }
+                    }
+                    .chartLegend(.hidden)
+            }
         }
-    }
 
-    private func chartTooltip(data: DailyDataPoint) -> some View {
-        let net = data.income - data.expenses
-        return VStack(alignment: .leading, spacing: 6) {
-            // Date header
-            Text(data.date.formatted(.dateTime.month(.abbreviated).day()))
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+        private struct CashFlowHoverModifier: ViewModifier {
+            let dayCount: Int
+            @Binding var hoveredDay: Int?
+            @Binding var hoverLocation: CGPoint
 
-            Divider().opacity(0.25)
-
-            // Income row
-            HStack(spacing: CentmondTheme.Spacing.xs) {
-                Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
-                Text("Income")
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                Spacer()
-                Text(CurrencyFormat.standard(Decimal(data.income)))
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.positive)
-                    .monospacedDigit()
+            func body(content: Content) -> some View {
+                content
+                    .chartOverlay { proxy in
+                        GeometryReader { geometry in
+                            Rectangle()
+                                .fill(.clear)
+                                .contentShape(Rectangle())
+                                .onContinuousHover { phase in
+                                    switch phase {
+                                    case .active(let location):
+                                        guard let plotFrameKey = proxy.plotFrame else {
+                                            if hoveredDay != nil {
+                                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+                                            }
+                                            return
+                                        }
+                                        let plotFrame = geometry[plotFrameKey]
+                                        let xInPlot = location.x - plotFrame.origin.x
+                                        guard xInPlot >= 0, xInPlot <= plotFrame.width else {
+                                            if hoveredDay != nil {
+                                                withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+                                            }
+                                            return
+                                        }
+                                        if let day: Int = proxy.value(atX: xInPlot) {
+                                            let clamped = max(1, min(day, dayCount))
+                                            // Only update state when day changes — no per-pixel churn.
+                                            if hoveredDay != clamped {
+                                                Haptics.tick()
+                                                hoveredDay = clamped
+                                            }
+                                            hoverLocation = location
+                                        }
+                                    case .ended:
+                                        if hoveredDay != nil {
+                                            withAnimation(CentmondTheme.Motion.micro) { hoveredDay = nil }
+                                        }
+                                    }
+                                }
+                        }
+                    }
             }
+        }
 
-            // Expenses row
-            HStack(spacing: CentmondTheme.Spacing.xs) {
-                Circle().fill(CentmondTheme.Colors.accent).frame(width: 6, height: 6)
-                Text("Expenses")
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                Spacer()
-                Text(CurrencyFormat.standard(Decimal(data.expenses)))
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(CentmondTheme.Colors.accent)
-                    .monospacedDigit()
-            }
-
-            Divider().opacity(0.25)
-
-            // Net row
-            HStack(spacing: CentmondTheme.Spacing.xs) {
-                Text("Net")
+        private func chartTooltip(data: DailyDataPoint) -> some View {
+            let net = data.income - data.expenses
+            return VStack(alignment: .leading, spacing: 6) {
+                Text(data.date.formatted(.dateTime.month(.abbreviated).day()))
                     .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                Spacer()
-                Text(CurrencyFormat.standard(Decimal(net)))
-                    .font(CentmondTheme.Typography.captionMedium)
-                    .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
-                    .monospacedDigit()
+
+                Divider().opacity(0.25)
+
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Circle().fill(CentmondTheme.Colors.positive).frame(width: 6, height: 6)
+                    Text("Income")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Spacer()
+                    Text(CurrencyFormat.standard(Decimal(data.income)))
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.positive)
+                        .monospacedDigit()
+                }
+
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Circle().fill(CentmondTheme.Colors.accent).frame(width: 6, height: 6)
+                    Text("Expenses")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Spacer()
+                    Text(CurrencyFormat.standard(Decimal(data.expenses)))
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                        .monospacedDigit()
+                }
+
+                Divider().opacity(0.25)
+
+                HStack(spacing: CentmondTheme.Spacing.xs) {
+                    Text("Net")
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    Spacer()
+                    Text(CurrencyFormat.standard(Decimal(net)))
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+                        .monospacedDigit()
+                }
             }
+            .padding(.horizontal, CentmondTheme.Spacing.md)
+            .padding(.vertical, CentmondTheme.Spacing.sm)
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                    .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
         }
-        .padding(.horizontal, CentmondTheme.Spacing.md)
-        .padding(.vertical, CentmondTheme.Spacing.sm)
-        .background(CentmondTheme.Colors.bgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
-                .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
     }
 
-    @ViewBuilder
-    private var spendingDonut: some View {
-        let categorySpending = computeCategorySpending()
-
-        if categorySpending.isEmpty {
-            Circle()
-                .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 16)
-        } else {
-            Chart(categorySpending, id: \.name) { item in
-                SectorMark(
-                    angle: .value("Spending", item.amount),
-                    innerRadius: .ratio(0.85),
-                    angularInset: 1
-                )
-                .foregroundStyle(item.color)
-                .cornerRadius(2)
-                .opacity(selectedDonutCategory == nil || selectedDonutCategory == item.name ? 1.0 : 0.3)
-            }
-            .chartLegend(.hidden)
-            .chartAngleSelection(value: $hoveredDonutAngle)
-            .onChange(of: selectedDonutCategory) { _, _ in Haptics.tick() }
-            .animation(CentmondTheme.Motion.default, value: selectedDonutCategory)
-        }
-    }
+    // `spendingDonut` was moved into the `SpendingBreakdownCard` nested struct
+    // (below) so `hoveredDonutAngle` state lives on the donut sub-view — donut
+    // hover doesn't invalidate the whole DashboardView body anymore.
 
     // MARK: - Helpers
 
@@ -1333,6 +1260,142 @@ struct DashboardView: View {
         let endOfMonth = calendar.date(byAdding: DateComponents(month: 1, day: -1),
                                        to: router.selectedMonthStart)!
         return max(0, calendar.dateComponents([.day], from: Date.now, to: endOfMonth).day ?? 0)
+    }
+
+    // MARK: - SpendingBreakdownCard (nested)
+    //
+    // Donut-chart hover state (`hoveredDonutAngle`) lives here so
+    // `chartAngleSelection` updates at 60 Hz only invalidate THIS sub-view —
+    // not the entire DashboardView body (which owns 6+ heavy cards and several
+    // SwiftData @Query results). Mirrors the CashFlowChartSurface pattern.
+    private struct SpendingBreakdownCard: View {
+        let categorySpending: [CategorySpendingItem]
+        let monthlySpending: Decimal
+        let isEmpty: Bool
+
+        @State private var hoveredDonutAngle: Double?
+
+        private var selectedDonutCategory: String? {
+            guard let angle = hoveredDonutAngle else { return nil }
+            guard !categorySpending.isEmpty else { return nil }
+            // chartAngleSelection returns cumulative data value, not a fraction
+            var cumulative = 0.0
+            for item in categorySpending {
+                cumulative += item.amount
+                if angle <= cumulative { return item.name }
+            }
+            return categorySpending.last?.name
+        }
+
+        var body: some View {
+            CardContainer {
+                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+                    Text("Spending by Category")
+                        .font(CentmondTheme.Typography.heading3)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+
+                    if isEmpty {
+                        Text("No expenses this month")
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                    } else {
+                        VStack(spacing: CentmondTheme.Spacing.md) {
+                            // Donut chart centered
+                            ZStack {
+                                spendingDonut
+                                    .frame(width: 110, height: 110)
+                                donutCenterLabel
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 110)
+
+                            // Legend — full width rows
+                            VStack(spacing: 0) {
+                                ForEach(Array(categorySpending.prefix(5).enumerated()), id: \.element.name) { index, item in
+                                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                                        Circle()
+                                            .fill(item.color)
+                                            .frame(width: 7, height: 7)
+
+                                        Text(item.name)
+                                            .font(CentmondTheme.Typography.caption)
+                                            .foregroundStyle(
+                                                selectedDonutCategory == item.name
+                                                    ? CentmondTheme.Colors.textPrimary
+                                                    : CentmondTheme.Colors.textSecondary
+                                            )
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        Text(CurrencyFormat.abbreviated(item.amount))
+                                            .font(CentmondTheme.Typography.captionMedium)
+                                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                                            .monospacedDigit()
+                                            .lineLimit(1)
+                                    }
+                                    .padding(.vertical, CentmondTheme.Spacing.xs)
+
+                                    if index < categorySpending.prefix(5).count - 1 {
+                                        Divider()
+                                            .background(CentmondTheme.Colors.strokeSubtle)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        @ViewBuilder
+        private var spendingDonut: some View {
+            if categorySpending.isEmpty {
+                Circle()
+                    .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 16)
+            } else {
+                Chart(categorySpending, id: \.name) { item in
+                    SectorMark(
+                        angle: .value("Spending", item.amount),
+                        innerRadius: .ratio(0.85),
+                        angularInset: 1
+                    )
+                    .foregroundStyle(item.color)
+                    .cornerRadius(2)
+                    .opacity(selectedDonutCategory == nil || selectedDonutCategory == item.name ? 1.0 : 0.3)
+                }
+                .chartLegend(.hidden)
+                .chartAngleSelection(value: $hoveredDonutAngle)
+                .onChange(of: selectedDonutCategory) { _, _ in Haptics.tick() }
+                .animation(CentmondTheme.Motion.default, value: selectedDonutCategory)
+            }
+        }
+
+        private var donutCenterLabel: some View {
+            VStack(spacing: 1) {
+                if let name = selectedDonutCategory,
+                   let item = categorySpending.first(where: { $0.name == name }) {
+                    Text(name)
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        .lineLimit(1)
+                    Text(CurrencyFormat.standard(Decimal(item.amount)))
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                } else {
+                    Text("Total")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Text(CurrencyFormat.standard(monthlySpending))
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        .monospacedDigit()
+                }
+            }
+            .animation(CentmondTheme.Motion.micro, value: selectedDonutCategory)
+        }
     }
 }
 

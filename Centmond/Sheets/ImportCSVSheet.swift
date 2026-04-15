@@ -264,6 +264,11 @@ extension ImportCSVSheet {
             if let url = selectedFileURL {
                 let income = parsedRows.filter { $0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
                 let expense = parsedRows.filter { !$0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
+                let budgetMonthCount = Set(parsedRows.compactMap { row -> String? in
+                    guard let d = row.parsedDate, row.monthlyBudget != nil else { return nil }
+                    let c = Calendar.current
+                    return "\(c.component(.year, from: d))-\(c.component(.month, from: d))"
+                }).count
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
@@ -275,6 +280,19 @@ extension ImportCSVSheet {
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                             .lineLimit(1)
                         Spacer()
+                        if budgetMonthCount > 0 {
+                            HStack(spacing: 3) {
+                                Image(systemName: "target")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text("\(budgetMonthCount) monthly budget\(budgetMonthCount == 1 ? "" : "s")")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundStyle(CentmondTheme.Colors.projected)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(CentmondTheme.Colors.projected.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
                         Text("\(parsedRows.count) rows")
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
@@ -719,6 +737,7 @@ extension ImportCSVSheet {
         let isIncome: Bool
         let category: String?
         let parsedDate: Date?
+        let monthlyBudget: Decimal?   // Whole-month budget override pulled from "Monthly Budget" column
     }
 
     private struct ColumnMap {
@@ -728,6 +747,7 @@ extension ImportCSVSheet {
         var categoryIndex: Int?
         var typeIndex: Int?
         var noteIndex: Int?
+        var monthlyBudgetIndex: Int?
 
         var isValid: Bool { dateIndex != nil && amountIndex != nil }
         var descriptionIndex: Int? { payeeIndex ?? noteIndex }
@@ -802,6 +822,21 @@ extension ImportCSVSheet {
             let formatted = prefix + (currencyFormatter.string(from: absAmount as NSDecimalNumber) ?? "\(absAmount)")
             let displayDate = parsedDate.map { displayFormatter.string(from: $0) } ?? dateString
 
+            // Monthly budget column — only non-empty values produce a value.
+            var monthlyBudget: Decimal? = nil
+            if let bIdx = columnMap.monthlyBudgetIndex, bIdx < fields.count {
+                let rawBudget = fields[bIdx]
+                    .trimmingCharacters(in: .whitespaces)
+                    .replacingOccurrences(of: "$", with: "")
+                    .replacingOccurrences(of: "€", with: "")
+                    .replacingOccurrences(of: "£", with: "")
+                    .replacingOccurrences(of: ",", with: "")
+                    .replacingOccurrences(of: " ", with: "")
+                if !rawBudget.isEmpty, let b = Decimal(string: rawBudget), b > 0 {
+                    monthlyBudget = b
+                }
+            }
+
             rows.append(CSVRow(
                 dateString: dateString,
                 displayDate: displayDate,
@@ -810,7 +845,8 @@ extension ImportCSVSheet {
                 amountString: formatted,
                 isIncome: isIncome,
                 category: category,
-                parsedDate: parsedDate
+                parsedDate: parsedDate,
+                monthlyBudget: monthlyBudget
             ))
         }
 
@@ -826,6 +862,7 @@ extension ImportCSVSheet {
         let categoryAliases:Set<String> = ["category","group","classification","tag","label"]
         let typeAliases:    Set<String> = ["type","kind","transaction_type","trans_type","direction"]
         let noteAliases:    Set<String> = ["note","notes","memo","comment","remarks","details"]
+        let budgetAliases:  Set<String> = ["monthly budget","monthly_budget","month budget","month_budget","budget"]
 
         for (index, h) in headers.enumerated() {
             if map.dateIndex == nil    && dateAliases.contains(h)    { map.dateIndex = index }
@@ -837,6 +874,7 @@ extension ImportCSVSheet {
             if map.typeIndex == nil     && typeAliases.contains(h)     { map.typeIndex = index }
             else if map.categoryIndex == nil && categoryAliases.contains(h) { map.categoryIndex = index }
             else if map.noteIndex == nil     && noteAliases.contains(h)     { map.noteIndex = index }
+            else if map.monthlyBudgetIndex == nil && budgetAliases.contains(h) { map.monthlyBudgetIndex = index }
         }
 
         return map
@@ -1113,19 +1151,56 @@ extension ImportCSVSheet {
             count += 1
         }
 
-        // Single atomic save — delete + insert happen together
+        // Single atomic save — delete + insert happen together.
+        // NOTE: Monthly-budget upsert is deliberately deferred until after this
+        // save. Issuing a FetchDescriptor against a different entity while a
+        // large Transaction delete+insert is still pending was wiping the
+        // pending transactions in practice (SwiftData flush behavior) and
+        // also triggered AppKit layout recursion via @Query re-fires.
         do {
             try modelContext.save()
-            // Replace mode wipes transactions across every account, and
-            // append mode may have inserted transactions tied to existing
-            // accounts (when CSV importer learns to map them). Either way,
-            // resync stored balances after the bulk write.
-            BalanceService.recalculateAll(in: modelContext)
-            importedCount = count
-            withAnimation(CentmondTheme.Motion.default) { step = .success }
         } catch {
             importError = "Failed to save: \(error.localizedDescription)"
             withAnimation(CentmondTheme.Motion.default) { step = .preview }
+            return
         }
+
+        // Now that transactions are durably saved, upsert whole-month budgets
+        // from the "Monthly Budget" column. One value per (year, month) —
+        // first non-empty wins. Runs in its own save so a budget conflict
+        // never rolls back the imported transactions.
+        var monthlyBudgetsByKey: [String: (year: Int, month: Int, amount: Decimal)] = [:]
+        let cal = Calendar.current
+        for row in parsedRows {
+            guard let date = row.parsedDate, let amt = row.monthlyBudget else { continue }
+            let y = cal.component(.year, from: date)
+            let m = cal.component(.month, from: date)
+            let key = "\(y)-\(m)"
+            if monthlyBudgetsByKey[key] == nil {
+                monthlyBudgetsByKey[key] = (y, m, amt)
+            }
+        }
+        if !monthlyBudgetsByKey.isEmpty {
+            for (_, entry) in monthlyBudgetsByKey {
+                let y = entry.year
+                let m = entry.month
+                let descriptor = FetchDescriptor<MonthlyTotalBudget>(
+                    predicate: #Predicate { $0.year == y && $0.month == m }
+                )
+                if let existing = try? modelContext.fetch(descriptor).first {
+                    existing.amount = entry.amount
+                } else {
+                    modelContext.insert(MonthlyTotalBudget(year: y, month: m, amount: entry.amount))
+                }
+            }
+            try? modelContext.save()
+        }
+
+        // Replace mode wipes transactions across every account, and
+        // append mode may have inserted transactions tied to existing
+        // accounts. Either way, resync stored balances after the bulk write.
+        BalanceService.recalculateAll(in: modelContext)
+        importedCount = count
+        withAnimation(CentmondTheme.Motion.default) { step = .success }
     }
 }

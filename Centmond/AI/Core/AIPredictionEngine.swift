@@ -299,6 +299,21 @@ struct EmotionalSpendingProfile {
     let peakSpendingHour: Int        // Hour with highest total spend
     let peakSpendingDay: String      // Day of week with highest total spend
     let avgTransactionSize: Double
+    let hourlySpending: [Int: Double] // Hour (0-23) → total spending amount
+}
+
+/// Monthly spending for the year overview chart
+struct MonthlySpendingData: Identifiable {
+    let id = UUID()
+    let month: Int              // 1-12
+    let year: Int               // calendar year (so multi-year windows render unique budgets per Jan '25 vs Jan '26)
+    let monthLabel: String      // "Jan", "Feb", etc.
+    let actual: Double          // Actual spending (0 for future months)
+    let forecast: Double        // Forecast/projected spending
+    let income: Double          // Income received that month (or expected, for future)
+    let budget: Double          // Per-month MonthlyTotalBudget (0 if none set for that month)
+    let isCurrent: Bool         // Is this the current month?
+    let isFuture: Bool          // Is this a future month?
 }
 
 struct PredictionData {
@@ -316,39 +331,108 @@ struct PredictionData {
     let topInsights: [String]
     let recentTransactions: [RecentTransaction]  // Last 50 transactions for AI context
     let emotionalProfile: EmotionalSpendingProfile
+    let monthlyOverview: [MonthlySpendingData]   // 12-month actual vs forecast
+}
+
+// MARK: - Analysis Window
+
+/// User-selectable historical window that widens the dataset the engine
+/// feeds to the AI (transactions, emotional profile, monthly overview).
+/// The current month is ALWAYS included, even when the window is `.thisMonth`
+/// and there is no data for it yet — the forecast/trajectory section always
+/// centres on the current month regardless of this value.
+enum PredictionTimeRange: String, CaseIterable, Identifiable {
+    case thisMonth = "This Month"
+    case lastMonth = "Last Month"
+    case last3Months = "Last 3 Months"
+    case last6Months = "Last 6 Months"
+    case lastYear = "Last Year"
+
+    var id: String { rawValue }
+
+    /// How many whole months of history to include BEFORE the current month.
+    /// Current month is always included on top of this, so the rendered
+    /// window is exactly `monthsBack + 1` calendar months — matching the
+    /// short label (1M / 2M / 3M / 6M / 1Y). Previously `last3Months`
+    /// returned 3 which produced 4 months on screen (Jan + Feb + Mar + Apr
+    /// when today is Apr 15) — user reported "i can see 4 months in 3 month
+    /// timeline".
+    var monthsBack: Int {
+        switch self {
+        case .thisMonth:    return 0
+        case .lastMonth:    return 1
+        case .last3Months:  return 2
+        case .last6Months:  return 5
+        case .lastYear:     return 11
+        }
+    }
+
+    /// Short SF-Symbol-free label for compact picker chips.
+    var shortLabel: String {
+        switch self {
+        case .thisMonth:    return "1M"
+        case .lastMonth:    return "2M"
+        case .last3Months:  return "3M"
+        case .last6Months:  return "6M"
+        case .lastYear:     return "1Y"
+        }
+    }
 }
 
 // MARK: - Engine
 
 enum AIPredictionEngine {
 
-    static func compute(context: ModelContext) -> PredictionData {
+    static func compute(
+        context: ModelContext,
+        range: PredictionTimeRange = .thisMonth
+    ) -> PredictionData {
         let cal = Calendar.current
         let now = Date()
         let comps = cal.dateComponents([.year, .month], from: now)
         let startOfMonth = cal.date(from: comps)!
-        let endOfMonth = cal.date(byAdding: DateComponents(month: 1, day: -1), to: startOfMonth)!
-        let totalDays = cal.dateComponents([.day], from: startOfMonth, to: endOfMonth).day! + 1
-        let daysPassed = max(1, cal.dateComponents([.day], from: startOfMonth, to: now).day! + 1)
+        // Window math: span from `monthsBack` months ago up to and including
+        // the current month. For .thisMonth this collapses to the current
+        // calendar month and the original behaviour is preserved.
+        let windowStart = cal.date(byAdding: .month, value: -range.monthsBack, to: startOfMonth)!
+        let nextMonthStart = cal.date(byAdding: .month, value: 1, to: startOfMonth)!
+        let windowEnd = cal.date(byAdding: .day, value: -1, to: nextMonthStart)!
+        let totalDays = cal.dateComponents([.day], from: windowStart, to: windowEnd).day! + 1
+        let daysPassed = max(1, cal.dateComponents([.day], from: windowStart, to: now).day! + 1)
         let daysLeft = max(0, totalDays - daysPassed)
+        // Aliases retained so the rest of compute reads naturally — they are
+        // the *window* anchors, not the calendar-month anchors any more.
+        let rangeStart = windowStart
+        let rangeEnd = nextMonthStart
 
         let (year, month) = (comps.year!, comps.month!)
 
-        // Fetch all transactions this month
-        let txns = fetchTransactions(context: context, from: startOfMonth, to: cal.date(byAdding: .day, value: 1, to: now)!)
+        // Fetch all transactions in the window (start..<today+1)
+        let fetchUpper = min(rangeEnd, cal.date(byAdding: .day, value: 1, to: now)!)
+        let txns = fetchTransactions(context: context, from: windowStart, to: fetchUpper)
         let expenses = txns.filter { !$0.isIncome && BalanceService.isSpendingExpense($0) }
         let income = txns.filter { $0.isIncome }.reduce(0.0) { $0 + nsDecToDouble($1.amount) }
 
-        // Expected income from recurring
-        let expectedIncome = fetchExpectedIncome(context: context, after: now, before: cal.date(byAdding: .month, value: 1, to: startOfMonth)!)
+        // Expected income from recurring (from now until window end)
+        let expectedIncome = fetchExpectedIncome(context: context, after: now, before: rangeEnd)
 
-        // Total budget
-        let totalBudget = nsDecToDouble(fetchTotalBudget(context: context, year: year, month: month))
+        // Total budget — sum of MonthlyTotalBudget across every month in the
+        // window. For .thisMonth this is identical to the single-month budget.
+        var totalBudget: Double = 0
+        do {
+            var cursor = windowStart
+            while cursor < rangeEnd {
+                let y = cal.component(.year, from: cursor)
+                let m = cal.component(.month, from: cursor)
+                totalBudget += nsDecToDouble(fetchTotalBudget(context: context, year: y, month: m))
+                cursor = cal.date(byAdding: .month, value: 1, to: cursor) ?? rangeEnd
+            }
+        }
 
-        // Build daily totals map
+        // Build daily totals map indexed by day-offset from window start.
         var dailyTotals: [Int: Double] = [:]
         for tx in expenses {
-            let dayIdx = cal.dateComponents([.day], from: startOfMonth, to: tx.date).day ?? 0
+            let dayIdx = cal.dateComponents([.day], from: windowStart, to: tx.date).day ?? 0
             dailyTotals[dayIdx, default: 0] += nsDecToDouble(tx.amount)
         }
 
@@ -359,29 +443,31 @@ enum AIPredictionEngine {
         let dailyAmounts = (0..<daysPassed).map { dailyTotals[$0] ?? 0 }
         let stdDev = standardDeviation(dailyAmounts)
 
-        // Build trajectory: actual days + projected days
+        // Build trajectory across the window: actual days + projected days.
+        // Helper accepts `startOfMonth` arg name but treats it as a generic
+        // window anchor (it just adds dayIdx to whatever Date you pass).
         let trajectory = buildTrajectory(
             dailyTotals: dailyTotals,
-            startOfMonth: startOfMonth,
+            startOfMonth: windowStart,
             daysPassed: daysPassed,
             totalDays: totalDays,
             dailyAvg: dailyAvg,
             cal: cal
         )
 
-        // Build daily bars (actual + projected)
+        // Build daily bars across the window
         let bars = buildDailyBars(
             dailyTotals: dailyTotals,
-            startOfMonth: startOfMonth,
+            startOfMonth: windowStart,
             daysPassed: daysPassed,
             totalDays: totalDays,
             dailyAvg: dailyAvg,
             cal: cal
         )
 
-        // Build confidence band for projected portion
+        // Build confidence band for projected portion (today → window end)
         let band = buildConfidenceBand(
-            startOfMonth: startOfMonth,
+            startOfMonth: windowStart,
             daysPassed: daysPassed,
             totalDays: totalDays,
             cumulativeAtToday: spentSoFar,
@@ -402,14 +488,19 @@ enum AIPredictionEngine {
             daysPassed: daysPassed
         )
 
-        // Category projections
+        // Category projections — uses window expenses + window day ratio.
+        // Budget lookup still pulls current-month per-category targets; for
+        // multi-month windows we scale them by the number of months covered
+        // so the breach math stays meaningful.
+        let monthsInWindow = max(1, range.monthsBack + 1)
         let catProjections = buildCategoryProjections(
             context: context,
             expenses: expenses,
             year: year,
             month: month,
             daysPassed: daysPassed,
-            totalDays: totalDays
+            totalDays: totalDays,
+            budgetMultiplier: monthsInWindow
         )
 
         // Top merchants
@@ -438,11 +529,27 @@ enum AIPredictionEngine {
         // Quick rule-based insights (AI signals added separately via streaming)
         let insights = generateInsights(forecast: forecast, categories: catProjections)
 
-        // Recent transactions with full detail for AI context injection (last 50)
+        // Recent transactions with full detail for AI context injection.
+        // Fetch across the user-selected historical window (rangeStart..<rangeEnd)
+        // so the AI sees multi-month patterns when asked for wider analysis.
+        // Cap the sample so the prompt stays within the model context window.
         let dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        let recentTxns: [RecentTransaction] = expenses
+        let rangeTxns = fetchTransactions(context: context, from: rangeStart, to: rangeEnd)
+        let rangeExpenses = rangeTxns.filter { !$0.isIncome && BalanceService.isSpendingExpense($0) }
+        // Sample ceiling scales with the range so wider windows carry more signal
+        // without blowing up the prompt — 50 (1M) → 200 (12M).
+        let sampleCap: Int = {
+            switch range {
+            case .thisMonth:    return 50
+            case .lastMonth:    return 80
+            case .last3Months:  return 120
+            case .last6Months:  return 160
+            case .lastYear:     return 200
+            }
+        }()
+        let recentTxns: [RecentTransaction] = rangeExpenses
             .sorted(by: { $0.date > $1.date })
-            .prefix(50)
+            .prefix(sampleCap)
             .map { tx in
                 let hour = cal.component(.hour, from: tx.date)
                 let weekday = cal.component(.weekday, from: tx.date)
@@ -460,6 +567,20 @@ enum AIPredictionEngine {
         // Emotional Spending Detector — pre-computed behavioral signals
         let emotionalProfile = buildEmotionalProfile(transactions: recentTxns)
 
+        // Monthly overview — spans the selected range and always ends on the
+        // current month (even when the current month has zero data yet).
+        let monthlyOverview = buildMonthlyOverview(
+            context: context,
+            rangeStart: rangeStart,
+            currentMonthStart: startOfMonth,
+            currentMonthSpent: spentSoFar,
+            currentMonthProjected: projectedSpending,
+            currentMonthIncome: income,
+            expectedMonthIncome: expectedIncome,
+            dailyAvg: dailyAvg,
+            cal: cal
+        )
+
         return PredictionData(
             spendingTrajectory: trajectory,
             dailyBars: bars,
@@ -474,7 +595,8 @@ enum AIPredictionEngine {
             lastMonthSpending: lastMonthSpending,
             topInsights: insights,
             recentTransactions: recentTxns,
-            emotionalProfile: emotionalProfile
+            emotionalProfile: emotionalProfile,
+            monthlyOverview: monthlyOverview
         )
     }
 
@@ -518,7 +640,7 @@ enum AIPredictionEngine {
 
         // Section 3: Categories
         lines.append("=== CATEGORY PROJECTIONS ===")
-        for cat in data.categoryProjections.prefix(10) {
+        for cat in data.categoryProjections.prefix(8) {
             let budgetStr = cat.budget > 0 ? " / budget $\(fmt(cat.budget))" : ""
             let overStr = cat.budget > 0 && cat.projected > cat.budget
                 ? " [OVER by $\(fmt(cat.projected - cat.budget))]" : ""
@@ -529,7 +651,7 @@ enum AIPredictionEngine {
         // Section 4: Top merchants
         if !data.topMerchants.isEmpty {
             lines.append("=== TOP MERCHANTS ===")
-            for m in data.topMerchants.prefix(8) {
+            for m in data.topMerchants.prefix(5) {
                 lines.append("  \(m.name): $\(fmt(m.amount)) (\(m.txCount) transactions)")
             }
             lines.append("")
@@ -539,9 +661,13 @@ enum AIPredictionEngine {
         if !data.recentTransactions.isEmpty {
             let dateFmt = DateFormatter()
             dateFmt.dateFormat = "MMM d, h:mm a"
-            lines.append("=== RAW TRANSACTION HISTORY (last 50, newest first) ===")
-            lines.append("INSTRUCTIONS: Scan for time-based triggers, anomalous amounts, and merchant clustering.")
-            for tx in data.recentTransactions {
+            // Cap at 25 — was 50. Halves the largest section of the prompt
+            // without losing anomaly-detection signal (newest-first ordering
+            // means the most relevant txns are kept).
+            let txCap = 25
+            lines.append("=== RAW TRANSACTION HISTORY (last \(txCap), newest first) ===")
+            lines.append("Scan for time-based triggers, anomalous amounts, merchant clustering.")
+            for tx in data.recentTransactions.prefix(txCap) {
                 let timeLabel = tx.hourOfDay >= 22 || tx.hourOfDay < 5 ? " [LATE NIGHT]" : ""
                 let weekendLabel = tx.isWeekend ? " [WEEKEND]" : ""
                 lines.append("  \(tx.dayOfWeek) \(dateFmt.string(from: tx.date))\(weekendLabel)\(timeLabel) — \(tx.payee) — $\(fmt(tx.amount)) [\(tx.categoryName)]")
@@ -633,6 +759,122 @@ enum AIPredictionEngine {
         return lines.joined(separator: "\n")
     }
 
+    // ============================================================
+    // MARK: - Multi-Range Analysis Prompt
+    // ============================================================
+    //
+    // Single prompt that covers ALL 5 time windows. Instructs Gemma to
+    // tag every claim with `[This Month]` / `[Last Month]` / etc. so the
+    // resulting markdown is meaningful when shown on any range view.
+    // The prediction page uses ONE generation for all ranges (llama.cpp
+    // can't truly parallelise on a single context); this prompt makes the
+    // shared output explicit and informative instead of monthly-only.
+    //
+    // ============================================================
+
+    static func buildMultiRangeAnalysisPrompt(
+        allData: [PredictionTimeRange: PredictionData]
+    ) -> String {
+        var lines: [String] = []
+
+        lines.append("You are a Financial Strategist analyzing this user's spending across 5 time windows.")
+        lines.append("Find HIDDEN patterns. Every paragraph must reference a specific window via a bracketed tag.")
+        lines.append("")
+        lines.append("VALID WINDOW TAGS — use these EXACT strings (with brackets):")
+        lines.append("[This Month] [Last Month] [Last 3 Months] [Last 6 Months] [Last Year]")
+        lines.append("")
+        lines.append("Every paragraph in the report MUST start with one of those tags.")
+        lines.append("Do NOT write a paragraph without a tag. Compare windows where it strengthens the insight.")
+        lines.append("")
+
+        // Per-window summary blocks
+        let order: [PredictionTimeRange] = [.thisMonth, .lastMonth, .last3Months, .last6Months, .lastYear]
+        for range in order {
+            guard let data = allData[range] else { continue }
+            let f = data.forecast
+            lines.append("=== \(range.rawValue.uppercased()) ===")
+            lines.append("Spent: $\(fmt(f.spentSoFar)) / Budget $\(fmt(f.totalBudget)) / Projected $\(fmt(f.projectedSpending))")
+            lines.append("Daily avg: $\(fmt(f.dailyAverage))/day  Days passed: \(f.daysPassed)  Days left in current month: \(f.daysLeft)")
+            lines.append("Income: $\(fmt(f.incomeReceived))  Savings rate: \(String(format: "%.0f", data.savingsRate * 100))%")
+            if !data.categoryProjections.isEmpty {
+                let topCats = data.categoryProjections.prefix(5).map { "\($0.name) $\(fmt($0.spent))" }.joined(separator: ", ")
+                lines.append("Top categories: \(topCats)")
+            }
+            if !data.topMerchants.isEmpty {
+                let topMerch = data.topMerchants.prefix(4).map { "\($0.name) $\(fmt($0.amount)) (\($0.txCount)x)" }.joined(separator: ", ")
+                lines.append("Top merchants: \(topMerch)")
+            }
+            let ep = data.emotionalProfile
+            lines.append("Behavioral: late-night \(ep.lateNightCount) txns ($\(fmt(ep.lateNightTotal))), weekend \(ep.weekendCount) txns ($\(fmt(ep.weekendTotal))), impulse \(ep.impulseCount) txns ($\(fmt(ep.impulseTotal)))")
+            lines.append("")
+        }
+
+        // Shared raw transaction history — pull from the widest available window
+        // so the AI can reason across periods. Cap at 30 to keep prompt tight.
+        let widest = allData[.lastYear] ?? allData[.last6Months] ?? allData[.last3Months] ?? allData[.thisMonth]
+        if let data = widest, !data.recentTransactions.isEmpty {
+            let dateFmt = DateFormatter()
+            dateFmt.dateFormat = "MMM d, h:mm a"
+            lines.append("=== RAW TRANSACTION HISTORY (last 30 across widest window, newest first) ===")
+            for tx in data.recentTransactions.prefix(30) {
+                let timeLabel = tx.hourOfDay >= 22 || tx.hourOfDay < 5 ? " [LATE]" : ""
+                let weekendLabel = tx.isWeekend ? " [WKND]" : ""
+                lines.append("  \(tx.dayOfWeek) \(dateFmt.string(from: tx.date))\(weekendLabel)\(timeLabel) — \(tx.payee) — $\(fmt(tx.amount)) [\(tx.categoryName)]")
+            }
+            lines.append("")
+        }
+
+        // Output spec
+        lines.append("=== OUTPUT FORMAT ===")
+        lines.append("Start with a JSON block between ---PREDICTIONS--- markers.")
+        lines.append("The numerics in the JSON describe THIS MONTH (the focal forecast period):")
+        lines.append("")
+        lines.append("---PREDICTIONS---")
+        lines.append("{")
+        lines.append("  \"projectedSpending\": <number>,")
+        lines.append("  \"savingsRate\": <0-100>,")
+        lines.append("  \"riskLevel\": \"<low/medium/high>\",")
+        lines.append("  \"weeklyTrend\": \"<accelerating/decelerating/stable>\",")
+        lines.append("  \"breakEvenDay\": <day or null>,")
+        lines.append("  \"categories\": [{\"name\": \"<cat>\", \"projected\": <amount>}],")
+        lines.append("  \"triggers\": [{\"pattern\": \"<name>\", \"description\": \"<detail>\", \"amount\": <$>}],")
+        lines.append("  \"anomalies\": [{\"merchant\": \"<name>\", \"amount\": <$>, \"description\": \"<why>\"}],")
+        lines.append("  \"combatPlan\": [{\"action\": \"<cut>\", \"savings\": <$>, \"reason\": \"<why>\"}]")
+        lines.append("}")
+        lines.append("---PREDICTIONS---")
+        lines.append("")
+        lines.append("Then write the full report. EVERY paragraph MUST begin with one of the window tags.")
+        lines.append("Use these ## headers in this order:")
+        lines.append("")
+        lines.append("## Monthly Outlook")
+        lines.append("2-4 paragraphs comparing windows. Example: '[This Month] You are on pace to spend $X...' '[Last 3 Months] The trend has been accelerating: $Y/mo average vs $Z six months ago.'")
+        lines.append("")
+        lines.append("## Trigger Analysis")
+        lines.append("Time-based patterns. One paragraph per relevant window. Tag each.")
+        lines.append("Example: '[This Month] 6 late-night DoorDash orders totaling $87.' '[Last Year] Late-night ordering accounts for 14% of restaurant spend across the year.'")
+        lines.append("")
+        lines.append("## Anomaly Detection")
+        lines.append("Budget killers. One tagged paragraph per window where anomalies appear.")
+        lines.append("")
+        lines.append("## Spending Psychology")
+        lines.append("1-2 paragraphs. Each tagged. Use the longest window available for the strongest signal.")
+        lines.append("")
+        lines.append("## Combat Plan")
+        lines.append("3 specific actions. Each action prefixed with the window the data came from.")
+        lines.append("Example: '[Last 3 Months] Cancel Hulu — 0 logins, $15.99/mo = $192/yr saved.'")
+        lines.append("")
+        lines.append("## Category Risks")
+        lines.append("Tag each: which window, which categories, by how much.")
+        lines.append("")
+        lines.append("RULES:")
+        lines.append("- EVERY paragraph starts with a [Window] tag.")
+        lines.append("- Every sentence contains a dollar amount, percentage, or date.")
+        lines.append("- Compare windows where it strengthens the insight.")
+        lines.append("- BANNED phrases: 'cook at home', 'make a budget', 'track spending', 'save more'.")
+
+        return lines.joined(separator: "\n")
+    }
+
     private static func fmt(_ v: Double) -> String { String(format: "%.0f", v) }
     private static func shortDate(_ d: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: d)
@@ -657,17 +899,69 @@ enum AIPredictionEngine {
             points.append(SpendingDataPoint(date: date, amount: cumulative, isProjected: false))
         }
 
-        // Projected days — add slight daily variance for realistic feel
-        let seed = daysPassed + totalDays
+        // Projection: per-day amount = trailing7DayAvg × weekday multiplier.
+        // Multipliers come from this user's own weekday spending pattern, so
+        // weekends spike, quiet weekdays dip — the line has honest ups and downs.
+        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: daysPassed, fallback: dailyAvg)
+        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: daysPassed, cal: cal)
         for day in daysPassed..<totalDays {
-            // Deterministic pseudo-variance based on day
-            let noise = sin(Double(day * 7 + seed)) * dailyAvg * 0.15
-            cumulative += max(0, dailyAvg + noise)
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
+            let wd = cal.component(.weekday, from: date) // 1...7
+            let mult = weekdayMult[wd] ?? 1.0
+            cumulative += max(0, trailingAvg * mult)
             points.append(SpendingDataPoint(date: date, amount: cumulative, isProjected: true))
         }
 
         return points
+    }
+
+    /// Build per-weekday multipliers from historical daily spend (mean-weekday / mean-all).
+    /// Returns multipliers keyed by Calendar weekday (1=Sunday...7=Saturday).
+    /// Capped to [0.5, 1.6] so one anomaly day can't warp the projection.
+    private static func weekdayMultipliers(
+        dailyTotals: [Int: Double],
+        startOfMonth: Date,
+        daysPassed: Int,
+        cal: Calendar
+    ) -> [Int: Double] {
+        guard daysPassed >= 7 else { return [:] }
+        var perWeekday: [Int: [Double]] = [:]
+        for day in 0..<daysPassed {
+            let amt = dailyTotals[day] ?? 0
+            guard let date = cal.date(byAdding: .day, value: day, to: startOfMonth) else { continue }
+            let wd = cal.component(.weekday, from: date)
+            perWeekday[wd, default: []].append(amt)
+        }
+        let allAmounts = perWeekday.values.flatMap { $0 }
+        guard !allAmounts.isEmpty else { return [:] }
+        let overallMean = allAmounts.reduce(0, +) / Double(allAmounts.count)
+        guard overallMean > 0 else { return [:] }
+        var result: [Int: Double] = [:]
+        for (wd, amounts) in perWeekday where !amounts.isEmpty {
+            let mean = amounts.reduce(0, +) / Double(amounts.count)
+            let raw = mean / overallMean
+            // Blend 70% observed pattern / 30% flat, then clamp — avoids wild swings on thin data
+            let blended = raw * 0.7 + 0.3
+            result[wd] = min(max(blended, 0.5), 1.6)
+        }
+        return result
+    }
+
+    /// Trailing 7-day weighted mean (most recent day weighted most). Deterministic, no noise.
+    private static func trailing7DayWeightedAvg(dailyTotals: [Int: Double], daysPassed: Int, fallback: Double) -> Double {
+        guard daysPassed > 0 else { return fallback }
+        let window = min(7, daysPassed)
+        var weightedSum = 0.0
+        var weightTotal = 0.0
+        for i in 0..<window {
+            let dayIdx = daysPassed - 1 - i
+            let w = Double(window - i) // 7, 6, 5, ... 1
+            weightedSum += (dailyTotals[dayIdx] ?? 0) * w
+            weightTotal += w
+        }
+        let avg = weightTotal > 0 ? weightedSum / weightTotal : fallback
+        // Blend 70% recent / 30% month-average so a single spike day doesn't dominate
+        return avg * 0.7 + fallback * 0.3
     }
 
     // MARK: - Daily Bars Builder
@@ -692,14 +986,18 @@ enum AIPredictionEngine {
             ))
         }
 
-        let seed = daysPassed + totalDays
+        // Projected bars mirror the trajectory: trailing avg × weekday multiplier.
+        // Bars and the cumulative line now agree, and both show natural weekly rhythm.
+        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: daysPassed, fallback: dailyAvg)
+        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: daysPassed, cal: cal)
         for day in daysPassed..<totalDays {
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
-            let noise = sin(Double(day * 7 + seed)) * dailyAvg * 0.25
+            let wd = cal.component(.weekday, from: date)
+            let mult = weekdayMult[wd] ?? 1.0
             bars.append(DailySpendingBar(
                 dayOfMonth: day + 1,
                 date: date,
-                amount: max(0, dailyAvg + noise),
+                amount: max(0, trailingAvg * mult),
                 isProjected: true
             ))
         }
@@ -719,20 +1017,23 @@ enum AIPredictionEngine {
         cal: Calendar
     ) -> [ConfidenceBandPoint] {
         var points: [ConfidenceBandPoint] = []
-        let spread = max(stdDev * 1.5, dailyAvg * 0.15)  // At least 15% of daily avg
+        let spread = max(stdDev, dailyAvg * 0.1)
 
-        // Start from today
-        var cumLow = cumulativeAtToday
-        var cumHigh = cumulativeAtToday
+        // Build a thin ribbon around the projected cumulative line
+        var cumCenter = cumulativeAtToday
+        let totalProjectedDays = Double(totalDays - daysPassed)
 
         for day in daysPassed..<totalDays {
             let daysOut = Double(day - daysPassed + 1)
-            // Spread widens the further out we project
-            let widening = sqrt(daysOut) * spread
-            cumLow += max(0, dailyAvg - widening * 0.6)
-            cumHigh += dailyAvg + widening * 0.6
+            cumCenter += dailyAvg
+            // Band width grows with sqrt but stays narrow (±percentage of center)
+            let bandWidth = min(sqrt(daysOut) * spread, cumCenter * 0.08)
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
-            points.append(ConfidenceBandPoint(date: date, low: cumLow, high: cumHigh))
+            points.append(ConfidenceBandPoint(
+                date: date,
+                low: max(0, cumCenter - bandWidth),
+                high: cumCenter + bandWidth
+            ))
         }
 
         return points
@@ -747,6 +1048,83 @@ enum AIPredictionEngine {
         return sqrt(variance)
     }
 
+    // MARK: - Monthly Overview (range-aware)
+
+    /// Build a month-by-month actual/forecast series from `rangeStart` up to
+    /// and INCLUDING the current month. The current month is always the last
+    /// entry regardless of whether it has any data. Months without
+    /// transactions still appear with `actual = 0` so the user can see the
+    /// gap in history.
+    private static func buildMonthlyOverview(
+        context: ModelContext,
+        rangeStart: Date,
+        currentMonthStart: Date,
+        currentMonthSpent: Double,
+        currentMonthProjected: Double,
+        currentMonthIncome: Double,
+        expectedMonthIncome: Double,
+        dailyAvg: Double,
+        cal: Calendar
+    ) -> [MonthlySpendingData] {
+        let monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        var result: [MonthlySpendingData] = []
+
+        var cursor = rangeStart
+        while cursor <= currentMonthStart {
+            let m = cal.component(.month, from: cursor)
+            let y = cal.component(.year, from: cursor)
+            let isCurrent = cal.isDate(cursor, equalTo: currentMonthStart, toGranularity: .month)
+            // Label: "Apr" normally; "Apr '25" across year boundaries so the
+            // axis stays legible on 6M/1Y windows.
+            let currentYear = cal.component(.year, from: currentMonthStart)
+            let label = (y == currentYear)
+                ? monthNames[m - 1]
+                : "\(monthNames[m - 1]) '\(String(format: "%02d", y % 100))"
+
+            // Per-month budget (MonthlyTotalBudget keyed by year+month). The
+            // chart renders one budget rule PER bar so the user can see how
+            // each month's actual stacks up against the budget that applied
+            // that month — different months can have different budgets.
+            let monthBudget = nsDecToDouble(fetchTotalBudget(context: context, year: y, month: m))
+
+            if isCurrent {
+                result.append(MonthlySpendingData(
+                    month: m,
+                    year: y,
+                    monthLabel: label,
+                    actual: currentMonthSpent,
+                    forecast: max(0, currentMonthProjected - currentMonthSpent),
+                    income: max(currentMonthIncome, expectedMonthIncome),
+                    budget: monthBudget,
+                    isCurrent: true,
+                    isFuture: false
+                ))
+            } else {
+                let monthEnd = cal.date(byAdding: .month, value: 1, to: cursor) ?? cursor
+                let txns = fetchTransactions(context: context, from: cursor, to: monthEnd)
+                let total = txns
+                    .filter { !$0.isIncome && BalanceService.isSpendingExpense($0) }
+                    .reduce(0.0) { $0 + nsDecToDouble($1.amount) }
+                let incomeTotal = txns
+                    .filter { $0.isIncome }
+                    .reduce(0.0) { $0 + nsDecToDouble($1.amount) }
+                result.append(MonthlySpendingData(
+                    month: m,
+                    year: y,
+                    monthLabel: label,
+                    actual: total,
+                    forecast: 0,
+                    income: incomeTotal,
+                    budget: monthBudget,
+                    isCurrent: false,
+                    isFuture: false
+                ))
+            }
+            cursor = cal.date(byAdding: .month, value: 1, to: cursor) ?? cursor.addingTimeInterval(31 * 86400)
+        }
+        return result
+    }
+
     // MARK: - Category Projections
 
     private static func buildCategoryProjections(
@@ -755,7 +1133,8 @@ enum AIPredictionEngine {
         year: Int,
         month: Int,
         daysPassed: Int,
-        totalDays: Int
+        totalDays: Int,
+        budgetMultiplier: Int = 1
     ) -> [CategoryProjection] {
         // Group expenses by category
         var catSpending: [String: (spent: Double, icon: String, colorHex: String)] = [:]
@@ -766,7 +1145,8 @@ enum AIPredictionEngine {
             catSpending[name, default: (0, icon, color)].spent += nsDecToDouble(tx.amount)
         }
 
-        // Get budgets per category
+        // Get budgets per category. Scaled by `budgetMultiplier` so a 6-month
+        // window compares window-spend against 6 × per-month-budget.
         let catBudgets = fetchCategoryBudgets(context: context, year: year, month: month)
 
         let ratio = Double(totalDays) / Double(daysPassed)
@@ -774,7 +1154,7 @@ enum AIPredictionEngine {
         var projections: [CategoryProjection] = []
         for (name, data) in catSpending {
             let projected = data.spent * ratio
-            let budget = catBudgets[name] ?? 0
+            let budget = (catBudgets[name] ?? 0) * Double(budgetMultiplier)
 
             // Determine trend from daily pattern
             let trend: CategoryProjection.Trend
@@ -949,7 +1329,8 @@ enum AIPredictionEngine {
                 impulseCount: 0, impulseTotal: 0,
                 highFrequencyMerchants: [],
                 peakSpendingHour: 12, peakSpendingDay: "Mon",
-                avgTransactionSize: 0
+                avgTransactionSize: 0,
+                hourlySpending: [:]
             )
         }
 
@@ -1001,7 +1382,8 @@ enum AIPredictionEngine {
             highFrequencyMerchants: highFreq,
             peakSpendingHour: peakHour,
             peakSpendingDay: peakDay,
-            avgTransactionSize: avgSize
+            avgTransactionSize: avgSize,
+            hourlySpending: hourTotals
         )
     }
 

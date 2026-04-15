@@ -155,6 +155,13 @@ struct AIChatView: View {
                         showOnboarding = true
                     }
                 }
+                .onDisappear {
+                    // User navigated away from chat — schedule a fast unload
+                    // so Gemma's ~5 GB residency doesn't sit around. Cancelled
+                    // automatically by `cancelIdleUnload` if they come back
+                    // and start a new message before the timer fires.
+                    aiManager.requestUnloadSoon()
+                }
             .sheet(isPresented: $showOnboarding) {
                 AIOnboardingView { showOnboarding = false }
             }
@@ -964,7 +971,9 @@ struct AIChatView: View {
     }
 
     private func skeletonLoadingLine(width: CGFloat) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        // CPU note: 30 fps shimmer × N skeleton lines = expensive while llama
+        // is also running. 12 fps still reads as a smooth shimmer.
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let offset = CGFloat((t.truncatingRemainder(dividingBy: 1.5)) / 1.5)
             let shimmerX = -width + (width * 2.5 * offset)
@@ -1239,16 +1248,23 @@ struct AIChatView: View {
     // MARK: - Chat Persistence
 
     private func loadChatHistory() {
+        // Always start a new, empty chat when the AI view opens — the user
+        // explicitly does NOT want to land on a half-finished prior thread.
+        // Past conversations remain accessible via the sidebar (populated by
+        // `refreshSessions`); clicking one calls `switchToSession` which
+        // hydrates that thread on demand.
+        //
+        // Optimization: if the most-recent session is already empty (e.g. the
+        // user opened the chat last time but never sent a message), reuse it
+        // rather than spawning a fresh "New Chat" record every appearance.
         let pm = ChatPersistenceManager.shared
-        let session = pm.currentSession(context: context)
-        currentSession = session
-
-        // Load previous messages into conversation
-        if !session.messages.isEmpty {
-            conversation = pm.loadConversation(from: session)
+        conversation.clear()
+        let sessions = pm.fetchSessions(context: context)
+        if let latest = sessions.first, latest.messages.isEmpty {
+            currentSession = latest
+        } else {
+            currentSession = pm.createSession(context: context)
         }
-
-        // Populate sidebar
         refreshSessions()
     }
 

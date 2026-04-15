@@ -34,7 +34,10 @@ actor LlamaBackend {
     private let maxTokens: Int32 = 768
     private let contextSize: UInt32 = 8192
     private let gpuLayers: Int32 = 99
-    private let batchSize: UInt32 = 256
+    // Larger batch = far fewer GPU dispatches during prompt ingestion.
+    // Prediction prompts are ~3-5k tokens; bumping 256 → 512 roughly
+    // halves the prompt-eval wall time.
+    private let batchSize: UInt32 = 512
 
     var isLoaded: Bool { model != nil && context != nil }
 
@@ -125,7 +128,9 @@ actor LlamaBackend {
         let sparams = llama_sampler_chain_default_params()
         let chain = llama_sampler_chain_init(sparams)
 
-        llama_sampler_chain_add(chain, llama_sampler_init_top_k(40))
+        // top_k=20 instead of 40 — smaller candidate pool, faster sampling
+        // at every token. Quality difference is negligible for our use case.
+        llama_sampler_chain_add(chain, llama_sampler_init_top_k(20))
         llama_sampler_chain_add(chain, llama_sampler_init_top_p(0.9, 1))
         llama_sampler_chain_add(chain, llama_sampler_init_temp(0.7))
         llama_sampler_chain_add(chain, llama_sampler_init_dist(UInt32.random(in: 0...UInt32.max)))
@@ -218,9 +223,10 @@ actor LlamaBackend {
             }
             offset += chunkSize
 
-            // Yield between batches — gives GPU compositor breathing room
+            // Yield between batches — gives the compositor breathing room.
+            // No sleep: prompt ingestion is the bottleneck for prediction
+            // (3-5k tokens), and the cooperative yield is enough.
             await Task.yield()
-            try? await Task.sleep(for: .milliseconds(2))
         }
 
         // ── Token generation ──
@@ -248,10 +254,11 @@ actor LlamaBackend {
                 break
             }
 
-            // Every 3 tokens, yield so the window server can composite frames
-            if i % 3 == 2 {
+            // Every 6 tokens, yield so the window server can composite frames.
+            // Was every 3 with a 1ms sleep — this halves the cooperative
+            // overhead during generation without starving the UI.
+            if i % 6 == 5 {
                 await Task.yield()
-                try? await Task.sleep(for: .milliseconds(1))
             }
         }
 

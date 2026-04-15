@@ -1,6 +1,9 @@
 import Foundation
 import os
 import LlamaSwift
+#if os(macOS)
+import AppKit
+#endif
 
 // ============================================================
 // MARK: - AI Manager
@@ -45,6 +48,16 @@ final class AIManager {
     private let backend = LlamaBackend.shared
     @ObservationIgnored private var generationTask: Task<Void, Never>?
 
+    // ── Idle auto-unload ──────────────────────────────────────
+    // Gemma 4 holds ~4-6 GB resident once loaded. After a generation
+    // finishes we schedule an idle timer; if no new generation arrives
+    // within `idleTimeoutSeconds`, the model is unloaded and RAM is
+    // reclaimed. The next inference re-loads it transparently.
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+    @ObservationIgnored private static let idleTimeoutSeconds: UInt64 = 60          // 1 min after generation finishes
+    @ObservationIgnored private static let backgroundTimeoutSeconds: UInt64 = 20    // 20 s when app is inactive
+    @ObservationIgnored private static let leftViewTimeoutSeconds: UInt64 = 15      // 15 s after user leaves an AI view
+
     // MARK: - Model Paths
 
     static var modelDirectory: URL {
@@ -78,6 +91,69 @@ final class AIManager {
 
     private init() {
         refreshAvailableModels()
+        installLifecycleObservers()
+    }
+
+    // MARK: - Idle / Lifecycle Auto-Unload
+
+    private func installLifecycleObservers() {
+        #if os(macOS)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willResignActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.scheduleIdleUnload(seconds: Self.backgroundTimeoutSeconds, reason: "app inactive") }
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                // App is active again — if model is still loaded, restore the
+                // longer foreground idle window instead of the aggressive 30s one.
+                guard let self else { return }
+                if case .ready = self.status {
+                    self.scheduleIdleUnload(seconds: Self.idleTimeoutSeconds, reason: "app active")
+                }
+            }
+        }
+        #endif
+    }
+
+    private func scheduleIdleUnload(seconds: UInt64, reason: String) {
+        idleTask?.cancel()
+        // Don't auto-unload while a generation is in flight.
+        guard !isGenerating else { return }
+        // No point scheduling if model isn't loaded.
+        if case .notLoaded = status { return }
+        if case .loading  = status { return }
+        if case .error    = status { return }
+
+        log.info("AI auto-unload scheduled in \(seconds)s (\(reason))")
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if self.isGenerating { return }
+                guard case .ready = self.status else { return }
+                log.info("AI model auto-unloaded after \(seconds)s idle (\(reason))")
+                self.unloadModel()
+            }
+        }
+    }
+
+    private func cancelIdleUnload() {
+        idleTask?.cancel()
+        idleTask = nil
+    }
+
+    /// Public hook for views to request an aggressive unload — call from
+    /// `.onDisappear` of any AI-using view so the model frees its RAM
+    /// shortly after the user navigates away. Cancelled automatically if
+    /// a new generation begins (since `stream(...)` calls `cancelIdleUnload`).
+    func requestUnloadSoon() {
+        scheduleIdleUnload(seconds: Self.leftViewTimeoutSeconds, reason: "left AI view")
     }
 
     // MARK: - Available Models
@@ -143,6 +219,9 @@ final class AIManager {
                 self.status = .ready
                 self.loadedModelFilename = filename
                 log.info("AI model loaded successfully: \(filename)")
+                // Start the idle timer immediately — if the user loads but
+                // never generates, reclaim RAM after the timeout.
+                self.scheduleIdleUnload(seconds: Self.idleTimeoutSeconds, reason: "loaded, awaiting use")
             } else {
                 self.status = .error("Failed to load model -- not enough memory or incompatible format")
                 log.error("LlamaBackend failed to load model at \(path)")
@@ -152,6 +231,7 @@ final class AIManager {
 
     func unloadModel() {
         cancelGeneration()
+        cancelIdleUnload()
         Task { await backend.unload() }
         status = .notLoaded
     }
@@ -174,6 +254,10 @@ final class AIManager {
     }
 
     func stream(messages: [AIMessage], systemPrompt: String? = nil) -> AsyncStream<String> {
+        // A new inference cancels any pending auto-unload — the model will
+        // re-arm its idle timer when this generation completes.
+        cancelIdleUnload()
+
         self.isGenerating = true
         self.status = .generating
 
@@ -195,8 +279,12 @@ final class AIManager {
             uiContinuation.finish()
 
             await MainActor.run { [weak self] in
-                self?.isGenerating = false
-                self?.status = .ready
+                guard let self else { return }
+                self.isGenerating = false
+                self.status = .ready
+                // Generation done — arm the idle timer so the model frees
+                // its KV cache + weights if the user walks away.
+                self.scheduleIdleUnload(seconds: Self.idleTimeoutSeconds, reason: "generation finished")
             }
         }
 
@@ -212,7 +300,13 @@ final class AIManager {
         generationTask?.cancel()
         generationTask = nil
         isGenerating = false
-        if case .generating = status { status = .ready }
+        if case .generating = status {
+            status = .ready
+            // Cancelled mid-stream still counts as "done using AI" — arm the
+            // idle timer so an aborted generation doesn't leave the model
+            // resident forever.
+            scheduleIdleUnload(seconds: Self.idleTimeoutSeconds, reason: "generation cancelled")
+        }
     }
 
     // ============================================================
