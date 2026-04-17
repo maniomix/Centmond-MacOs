@@ -143,8 +143,10 @@ struct TransactionsView: View {
                     .transition(.opacity)
             }
 
-            // Bulk action bar
-            if selectedTransactions.count >= 2 {
+            // Bulk action bar — visible as soon as ANY row is selected so
+            // the single-row case still has one-click delete / categorize
+            // without forcing the user to pick a second row first.
+            if !selectedTransactions.isEmpty {
                 bulkActionBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -462,9 +464,27 @@ struct TransactionsView: View {
                             TransactionRowView(
                                 transaction: transaction,
                                 isSelected: selectedTransactions.contains(transaction.id),
+                                // When ANY row is selected, keep every row's
+                                // checkbox permanently visible so users can
+                                // keep clicking to add more to the selection
+                                // without having to hover each one first.
+                                hasAnySelection: !selectedTransactions.isEmpty,
                                 categories: categories,
                                 onSelect: {
-                                    router.inspectTransaction(transaction.id)
+                                    // Click-to-inspect switches to click-to-toggle
+                                    // while selection mode is active. Mirrors Finder /
+                                    // Mail: once you've started selecting, every click
+                                    // adds or removes from the selection; you have to
+                                    // deselect everything to get back to single-open.
+                                    if !selectedTransactions.isEmpty {
+                                        if selectedTransactions.contains(transaction.id) {
+                                            selectedTransactions.remove(transaction.id)
+                                        } else {
+                                            selectedTransactions.insert(transaction.id)
+                                        }
+                                    } else {
+                                        router.inspectTransaction(transaction.id)
+                                    }
                                 },
                                 onToggleSelect: { selected in
                                     if selected {
@@ -547,6 +567,19 @@ struct TransactionsView: View {
             Text("\(selectedTransactions.count) selected")
                 .font(CentmondTheme.Typography.bodyMedium)
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
+
+            // "Select All" picks up every row currently visible after
+            // filters — not the full ledger — so users can confirm with
+            // their eyes what's about to be actioned. Idempotent: if
+            // they're all already selected, the button re-inserts the
+            // same ids (cheap Set op) and the count doesn't change.
+            Button("Select All") {
+                for tx in filteredTransactions {
+                    selectedTransactions.insert(tx.id)
+                }
+            }
+            .buttonStyle(GhostButtonStyle())
+            .help("Select all \(filteredTransactions.count) visible transactions")
 
             Button("Deselect All") {
                 selectedTransactions.removeAll()
@@ -637,42 +670,91 @@ struct TransactionsView: View {
     }
 
     private func bulkDelete() {
-        // Collect every account that will need a balance recalc *before*
-        // we start deleting, since the relationships disappear with the
-        // rows. Transfer legs route through TransferService.deletePair so
-        // both halves go together — and that helper recalculates its own
-        // pair, but we still resync any plain-transaction accounts here.
-        var accountsToRecalc: Set<UUID> = []
-        var accountLookup: [UUID: Account] = [:]
+        // Bulk-delete bug history (2026-04-17):
+        // v1 — called TransferService.deletePair in-loop, which does
+        //      context.fetch + BalanceService.recalculate (reads the
+        //      `account.transactions` relationship). Both mid-loop context
+        //      ops forced SwiftData to flush pending changes, invalidating
+        //      Transaction refs we were still iterating. Result: "select
+        //      6, only 2–3 delete."
+        // v2 — moved to a snapshot→delete→save→recalc three-phase pattern
+        //      but still called TransferService.pairedLeg (a context.fetch)
+        //      in Phase 1. For a selection of non-transfer rows this is
+        //      harmless, but subsequent reports ("select 3, only 1 deletes")
+        //      suggested the @Query lookup was still unreliable under load.
+        // v3 (current) — single explicit FetchDescriptor<Transaction> in
+        //      Phase 1 using an IN-set predicate, matched against the
+        //      selected UUIDs. The fetch doesn't depend on the @Query
+        //      array's freshness, can't be mid-loop-invalidated, and gives
+        //      us context-attached live refs in one round trip. Transfer
+        //      legs are discovered from `transferGroupID` after the fetch
+        //      (no mid-loop context ops), then both legs go into one flat
+        //      delete list. Save once, recalc once. If save fails we log
+        //      rather than swallow silently — makes future partial-delete
+        //      reports actually debuggable.
 
-        for tx in selectedLiveTransactions {
-            // A previous iteration may have deleted this row already if it
-            // was the paired leg of an earlier transfer in the selection.
+        // Snapshot the selected UUIDs up-front so any concurrent UI
+        // mutation of `selectedTransactions` during the deletion run
+        // cannot shrink the working set.
+        let ids = Array(selectedTransactions)
+        guard !ids.isEmpty else { return }
+        let idSet = Set(ids)
+
+        // Phase 1: fetch every selected transaction in ONE query. Using
+        // the context directly (not the @Query `transactions` array)
+        // avoids any staleness in the reactive query's state.
+        let descriptor = FetchDescriptor<Transaction>(
+            predicate: #Predicate<Transaction> { idSet.contains($0.id) }
+        )
+        let primary: [Transaction] = (try? modelContext.fetch(descriptor)) ?? []
+
+        // For each transfer leg among the selection, its paired leg must
+        // also go so we never leave a half-transfer orphan. Pair lookups
+        // go through `TransferService.pairedLeg`, which does a `fetch`
+        // — safe here because we're still in Phase 1 (no deletes issued
+        // yet, so there's nothing pending for SwiftData to flush).
+        //
+        // #Predicate bodies must be single expressions, so we can't
+        // compose the "transferGroupID ∈ groups && id ∉ selection" filter
+        // as one fetch. Iterating primary and calling `pairedLeg` per
+        // leg is both simpler and equivalent.
+        var pairedLegs: [Transaction] = []
+        for tx in primary where tx.isTransfer {
+            if let pair = TransferService.pairedLeg(of: tx, in: modelContext),
+               !idSet.contains(pair.id) {
+                pairedLegs.append(pair)
+            }
+        }
+
+        // Capture all accounts touched by the delete so we can recalc
+        // balances after the save. Dedup by id.
+        var accountsToRecalc: [UUID: Account] = [:]
+        for tx in primary + pairedLegs {
+            if let acc = tx.account { accountsToRecalc[acc.id] = acc }
+        }
+
+        // Phase 2: delete everything in one flat pass. No fetches, no
+        // relationship reads, no recalcs — just context.delete(...).
+        for tx in primary + pairedLegs {
             guard !tx.isDeleted, tx.modelContext != nil else { continue }
-            if tx.isTransfer {
-                if let other = TransferService.pairedLeg(of: tx, in: modelContext),
-                   let acc = other.account {
-                    accountsToRecalc.insert(acc.id)
-                    accountLookup[acc.id] = acc
-                }
-                if let acc = tx.account {
-                    accountsToRecalc.insert(acc.id)
-                    accountLookup[acc.id] = acc
-                }
-                TransferService.deletePair(tx, in: modelContext)
-            } else {
-                if let acc = tx.account {
-                    accountsToRecalc.insert(acc.id)
-                    accountLookup[acc.id] = acc
-                }
-                modelContext.delete(tx)
-            }
+            modelContext.delete(tx)
         }
-        for id in accountsToRecalc {
-            if let acc = accountLookup[id] {
-                BalanceService.recalculate(account: acc)
-            }
+
+        // Phase 3: save atomically. If this throws we surface it in the
+        // console — prior "try?" silently swallowed constraint errors and
+        // made partial deletes impossible to diagnose.
+        do {
+            try modelContext.save()
+        } catch {
+            print("[bulkDelete] save failed: \(error)")
         }
+
+        // Recalculate account balances AFTER the save commits so the
+        // `account.transactions` relationship reflects post-delete truth.
+        for (_, acc) in accountsToRecalc {
+            BalanceService.recalculate(account: acc)
+        }
+
         selectedTransactions.removeAll()
     }
 
@@ -703,6 +785,10 @@ enum TransactionSortOrder {
 struct TransactionRowView: View {
     let transaction: Transaction
     let isSelected: Bool
+    /// True whenever any row in the list is currently selected. Drives the
+    /// "selection mode" affordance: once the user picks one row, every
+    /// row's checkbox stays visible so adding more is a single click away.
+    var hasAnySelection: Bool = false
     let categories: [BudgetCategory]
     var onSelect: () -> Void
     var onToggleSelect: (Bool) -> Void
@@ -721,6 +807,12 @@ struct TransactionRowView: View {
 
     private var rowContent: some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
+            // Selection checkbox — hidden by default, revealed on hover or
+            // when the list is already in selection mode. Clicking toggles
+            // membership without opening the inspector so it stays out of
+            // the way for the common "click to view details" flow.
+            selectionCheckbox
+
             // Type indicator
             typeIndicator
 
@@ -845,6 +937,9 @@ struct TransactionRowView: View {
             Button { onSelect() } label: {
                 Label("View Details", systemImage: "eye")
             }
+            Button { onToggleSelect(!isSelected) } label: {
+                Label(isSelected ? "Deselect" : "Select", systemImage: isSelected ? "checkmark.circle.fill" : "circle")
+            }
             Button { onDuplicate() } label: {
                 Label("Duplicate", systemImage: "doc.on.doc")
             }
@@ -892,6 +987,29 @@ struct TransactionRowView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(transaction.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
         }
+    }
+
+    /// Leading multi-select checkbox. Always has a reserved 20pt slot so
+    /// the row layout doesn't jitter when the checkbox fades in on hover —
+    /// earlier versions that conditionally added/removed the view caused
+    /// the rest of the row (type icon, payee, amount column) to shift one
+    /// spacing unit every time the user moved the mouse over the list.
+    private var selectionCheckbox: some View {
+        let shouldShow = isSelected || isHovered || hasAnySelection
+        return Button {
+            onToggleSelect(!isSelected)
+        } label: {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(isSelected ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
+                .symbolRenderingMode(.hierarchical)
+                .opacity(shouldShow ? 1 : 0)
+                .animation(CentmondTheme.Motion.micro, value: shouldShow)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: 20)
+        .help(isSelected ? "Deselect" : "Select for bulk action")
     }
 
     private var categoryIcon: some View {

@@ -29,6 +29,21 @@ actor LlamaBackend {
     private var context: OpaquePointer?
     private var sampler: UnsafeMutablePointer<llama_sampler>?
 
+    // Generation-lifecycle flags. Both are actor-isolated so they're only
+    // read/written on the LlamaBackend executor — no atomics needed.
+    //
+    // `isGenerating` is TRUE from the moment `generate(...)` spawns its
+    // runGeneration task until runGeneration exits. `unload()` MUST NOT
+    // free `model` / `context` / `sampler` while this is true — otherwise
+    // the in-flight C calls (`llama_decode`, `llama_sampler_sample`,
+    // `llama_vocab_*`) operate on freed memory → EXC_BAD_ACCESS in
+    // `llama_vocab::impl` (exactly what user hit on Task 225).
+    //
+    // `shouldStop` is the cooperative signal `unload()` raises so that
+    // runGeneration breaks out of its loop at the next Task.yield() boundary.
+    private var isGenerating: Bool = false
+    private var shouldStop: Bool = false
+
     // MARK: - Parameters
 
     private let maxTokens: Int32 = 768
@@ -90,8 +105,29 @@ actor LlamaBackend {
         return true
     }
 
-    func unload() {
+    func unload() async {
+        // If a generation is in flight, signal it to stop and wait for it
+        // to exit before freeing resources. Without this wait, cleanup()
+        // frees the vocab/context while runGeneration is mid-`llama_decode`
+        // → use-after-free crash (EXC_BAD_ACCESS in llama_vocab::impl).
+        if isGenerating {
+            shouldStop = true
+            log.info("LlamaBackend: unload requested mid-generate, waiting for stop")
+            // Cooperative spin — runGeneration checks `shouldStop` on every
+            // Task.yield() boundary (roughly every 6 tokens / every batch).
+            // Bounded wait with a safety cap so a wedged generation can't
+            // prevent unload forever.
+            var spins = 0
+            while isGenerating && spins < 400 {   // ~4 s worst case at 10ms sleeps
+                try? await Task.sleep(nanoseconds: 10_000_000)
+                spins += 1
+            }
+            if isGenerating {
+                log.error("LlamaBackend: generation did not stop in time; proceeding with unload anyway")
+            }
+        }
         cleanup()
+        shouldStop = false
     }
 
     private func cleanup() {
@@ -159,6 +195,11 @@ actor LlamaBackend {
 
         let maxTok = maxTokens
 
+        // Mark the actor as busy BEFORE spawning. unload() sees this and
+        // waits before freeing resources.
+        isGenerating = true
+        shouldStop = false
+
         // Run generation in an unstructured task so the caller
         // doesn't have to await the entire generation.
         Task { [weak self] in
@@ -168,9 +209,17 @@ actor LlamaBackend {
                 messages: messages, systemPrompt: systemPrompt,
                 maxTokens: maxTok, continuation: continuation
             )
+            await self.markGenerationFinished()
         }
 
         return stream
+    }
+
+    /// Actor-isolated setter so the spawned generation Task can flip the
+    /// flag back when it's done. Called from inside the unstructured Task
+    /// after runGeneration returns.
+    private func markGenerationFinished() {
+        isGenerating = false
     }
 
     private func runGeneration(
@@ -209,7 +258,7 @@ actor LlamaBackend {
         let batchLimit = Int(llama_n_batch(ctx))
         var offset = 0
         while offset < tokens.count {
-            if Task.isCancelled { continuation.finish(); return }
+            if Task.isCancelled || shouldStop { continuation.finish(); return }
             let remaining = tokens.count - offset
             let chunkSize = min(remaining, batchLimit)
             var chunk = Array(tokens[offset..<(offset + chunkSize)])
@@ -233,7 +282,7 @@ actor LlamaBackend {
         let eosToken = llama_vocab_eos(vocab)
 
         for i in 0..<maxTokens {
-            if Task.isCancelled { break }
+            if Task.isCancelled || shouldStop { break }
 
             let tokenId = llama_sampler_sample(smp, ctx, -1)
             if tokenId == eosToken { break }

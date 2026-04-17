@@ -232,6 +232,11 @@ final class AIManager {
     func unloadModel() {
         cancelGeneration()
         cancelIdleUnload()
+        // `backend.unload()` is now async and WAITS for any in-flight
+        // generation on the LlamaBackend actor to exit before freeing
+        // model/context/sampler. Without that wait we previously saw
+        // EXC_BAD_ACCESS in llama_vocab::impl when idle-unload or
+        // switchModel landed during streaming.
         Task { await backend.unload() }
         status = .notLoaded
     }

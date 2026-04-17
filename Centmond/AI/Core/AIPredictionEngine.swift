@@ -330,6 +330,14 @@ struct PredictionData {
     let lastMonthSpending: Double     // for month-over-month comparison
     let topInsights: [String]
     let recentTransactions: [RecentTransaction]  // Last 50 transactions for AI context
+    /// All current-month spending transactions, UNCAPPED. Used by the
+    /// Behavioral Patterns hover-to-highlight feature on the Prediction
+    /// page: hovering a pattern card ("Late-night activity") needs to find
+    /// every matching day-of-month in the current month, not just the days
+    /// that happen to fall inside the 50-sample `recentTransactions` window.
+    /// If the ledger is densely populated toward month-end, the capped
+    /// sample misses the early-month transaction the user is looking for.
+    let currentMonthTransactions: [RecentTransaction]
     let emotionalProfile: EmotionalSpendingProfile
     let monthlyOverview: [MonthlySpendingData]   // 12-month actual vs forecast
 }
@@ -399,7 +407,9 @@ enum AIPredictionEngine {
         let windowEnd = cal.date(byAdding: .day, value: -1, to: nextMonthStart)!
         let totalDays = cal.dateComponents([.day], from: windowStart, to: windowEnd).day! + 1
         let daysPassed = max(1, cal.dateComponents([.day], from: windowStart, to: now).day! + 1)
-        let daysLeft = max(0, totalDays - daysPassed)
+        // `daysLeft` (calendar) is intentionally unused — see `projectedDaysLeft`
+        // computed below, which is the data-driven equivalent and is what
+        // downstream math uses.
         // Aliases retained so the rest of compute reads naturally — they are
         // the *window* anchors, not the calendar-month anchors any more.
         let rangeStart = windowStart
@@ -407,9 +417,12 @@ enum AIPredictionEngine {
 
         let (year, month) = (comps.year!, comps.month!)
 
-        // Fetch all transactions in the window (start..<today+1)
-        let fetchUpper = min(rangeEnd, cal.date(byAdding: .day, value: 1, to: now)!)
-        let txns = fetchTransactions(context: context, from: windowStart, to: fetchUpper)
+        // Fetch all transactions in the window. Earlier this capped at
+        // `today+1` which hid future-dated rows — but the chart needs to
+        // draw them as ACTUAL data, not as projections. If the ledger has
+        // real entries on day 25 when today is 17, those days belong on
+        // the blue line, not under the red projected line.
+        let txns = fetchTransactions(context: context, from: windowStart, to: rangeEnd)
         let expenses = txns.filter { !$0.isIncome && BalanceService.isSpendingExpense($0) }
         let income = txns.filter { $0.isIncome }.reduce(0.0) { $0 + nsDecToDouble($1.amount) }
 
@@ -436,11 +449,42 @@ enum AIPredictionEngine {
             dailyTotals[dayIdx, default: 0] += nsDecToDouble(tx.amount)
         }
 
-        let spentSoFar = expenses.reduce(0.0) { $0 + nsDecToDouble($1.amount) }
-        let dailyAvg = spentSoFar / Double(daysPassed)
+        // Data-driven split between actual and projected. `firstProjectedDay`
+        // is the first day-offset (inclusive) where we start drawing the red
+        // projected line. Rule: if the ledger has real data past today, the
+        // actual line extends to cover it; we only project days that have no
+        // data at all. If data covers the whole month, no projection is drawn.
+        //
+        // Why this matters: the user's mental model is "blue = data I have,
+        // red = days I don't yet have data for." Splitting purely on
+        // today's date would paint real transactions on April 25 under the
+        // red projected line, which reads as "the AI is guessing" when in
+        // fact the ledger already has those numbers.
+        let lastDataDayIdx: Int? = {
+            let candidates = dailyTotals.keys.filter { $0 >= 0 && $0 < totalDays && (dailyTotals[$0] ?? 0) > 0 }
+            return candidates.max()
+        }()
+        let firstProjectedDay: Int = {
+            // Default: today's position in the window (legacy behaviour).
+            let byCalendar = daysPassed
+            // If data extends past today, push the split to cover it.
+            if let last = lastDataDayIdx, last + 1 > byCalendar {
+                return min(last + 1, totalDays)
+            }
+            return min(byCalendar, totalDays)
+        }()
+        let projectedDaysLeft = max(0, totalDays - firstProjectedDay)
 
-        // Standard deviation for confidence band
-        let dailyAmounts = (0..<daysPassed).map { dailyTotals[$0] ?? 0 }
+        let spentSoFar = expenses.reduce(0.0) { $0 + nsDecToDouble($1.amount) }
+        // Denominator is the number of days the actual line covers. When
+        // data fills the month, this becomes `totalDays` and `dailyAvg`
+        // reflects the true per-day average across the full window.
+        let actualDaysCount = max(1, firstProjectedDay)
+        let dailyAvg = spentSoFar / Double(actualDaysCount)
+
+        // Standard deviation for confidence band — computed over the actual
+        // range, not the calendar-past range, for the same reason.
+        let dailyAmounts = (0..<actualDaysCount).map { dailyTotals[$0] ?? 0 }
         let stdDev = standardDeviation(dailyAmounts)
 
         // Build trajectory across the window: actual days + projected days.
@@ -449,7 +493,7 @@ enum AIPredictionEngine {
         let trajectory = buildTrajectory(
             dailyTotals: dailyTotals,
             startOfMonth: windowStart,
-            daysPassed: daysPassed,
+            firstProjectedDay: firstProjectedDay,
             totalDays: totalDays,
             dailyAvg: dailyAvg,
             cal: cal
@@ -459,7 +503,7 @@ enum AIPredictionEngine {
         let bars = buildDailyBars(
             dailyTotals: dailyTotals,
             startOfMonth: windowStart,
-            daysPassed: daysPassed,
+            firstProjectedDay: firstProjectedDay,
             totalDays: totalDays,
             dailyAvg: dailyAvg,
             cal: cal
@@ -468,7 +512,7 @@ enum AIPredictionEngine {
         // Build confidence band for projected portion (today → window end)
         let band = buildConfidenceBand(
             startOfMonth: windowStart,
-            daysPassed: daysPassed,
+            firstProjectedDay: firstProjectedDay,
             totalDays: totalDays,
             cumulativeAtToday: spentSoFar,
             dailyAvg: dailyAvg,
@@ -476,16 +520,21 @@ enum AIPredictionEngine {
             cal: cal
         )
 
-        let projectedSpending = spentSoFar + (dailyAvg * Double(daysLeft))
+        let projectedSpending = spentSoFar + (dailyAvg * Double(projectedDaysLeft))
 
+        // Forecast `daysPassed`/`daysLeft` should align with the chart's
+        // actual/projected split so the UI stays consistent. "13d left"
+        // reading 13 while the chart shows zero projected days would be a
+        // direct contradiction. When data fills the window `daysLeft = 0`
+        // is the honest answer: there's nothing left to project.
         let forecast = MonthForecast(
             projectedSpending: projectedSpending,
             totalBudget: totalBudget,
             incomeReceived: income,
             expectedIncome: expectedIncome,
             spentSoFar: spentSoFar,
-            daysLeft: daysLeft,
-            daysPassed: daysPassed
+            daysLeft: projectedDaysLeft,
+            daysPassed: firstProjectedDay
         )
 
         // Category projections — uses window expenses + window day ratio.
@@ -493,12 +542,17 @@ enum AIPredictionEngine {
         // multi-month windows we scale them by the number of months covered
         // so the breach math stays meaningful.
         let monthsInWindow = max(1, range.monthsBack + 1)
+        // Use `firstProjectedDay` so category projections match the chart:
+        // if the ledger covers the full window, `ratio = totalDays / totalDays
+        // = 1` and projected == spent (no extrapolation). Previously this
+        // always extrapolated from calendar-past days, so full-month data
+        // got projected upward as if the month hadn't finished.
         let catProjections = buildCategoryProjections(
             context: context,
             expenses: expenses,
             year: year,
             month: month,
-            daysPassed: daysPassed,
+            daysPassed: max(1, firstProjectedDay),
             totalDays: totalDays,
             budgetMultiplier: monthsInWindow
         )
@@ -564,6 +618,34 @@ enum AIPredictionEngine {
                 )
             }
 
+        // Current-month spending transactions, UNCAPPED. The capped
+        // `recentTxns` above is fine for AI prompt context (token budget),
+        // but the Behavioral Patterns hover-to-highlight feature needs to
+        // see every current-month transaction so it can mark ANY matching
+        // day, not just the days that happen to fall inside the sample
+        // window. Example: user made one 4AM charge on April 1. With 49
+        // other transactions concentrated on April 20–30, the capped
+        // `recentTxns` never reaches April 1, and the hover highlight
+        // misses the exact day the user is looking for.
+        let currentMonthExpenses = expenses.filter { tx in
+            let m = cal.component(.month, from: tx.date)
+            let y = cal.component(.year, from: tx.date)
+            return m == month && y == year
+        }
+        let currentMonthTxns: [RecentTransaction] = currentMonthExpenses.map { tx in
+            let hour = cal.component(.hour, from: tx.date)
+            let weekday = cal.component(.weekday, from: tx.date)
+            return RecentTransaction(
+                date: tx.date,
+                payee: tx.payee.isEmpty ? "Unknown" : tx.payee,
+                amount: nsDecToDouble(tx.amount),
+                categoryName: tx.category?.name ?? "Uncategorized",
+                isWeekend: weekday == 1 || weekday == 7,
+                hourOfDay: hour,
+                dayOfWeek: dayNames[weekday - 1]
+            )
+        }
+
         // Emotional Spending Detector — pre-computed behavioral signals
         let emotionalProfile = buildEmotionalProfile(transactions: recentTxns)
 
@@ -595,6 +677,7 @@ enum AIPredictionEngine {
             lastMonthSpending: lastMonthSpending,
             topInsights: insights,
             recentTransactions: recentTxns,
+            currentMonthTransactions: currentMonthTxns,
             emotionalProfile: emotionalProfile,
             monthlyOverview: monthlyOverview
         )
@@ -885,7 +968,7 @@ enum AIPredictionEngine {
     private static func buildTrajectory(
         dailyTotals: [Int: Double],
         startOfMonth: Date,
-        daysPassed: Int,
+        firstProjectedDay: Int,
         totalDays: Int,
         dailyAvg: Double,
         cal: Calendar
@@ -893,7 +976,7 @@ enum AIPredictionEngine {
         var points: [SpendingDataPoint] = []
 
         var cumulative = 0.0
-        for day in 0..<daysPassed {
+        for day in 0..<firstProjectedDay {
             cumulative += dailyTotals[day] ?? 0
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
             points.append(SpendingDataPoint(date: date, amount: cumulative, isProjected: false))
@@ -902,9 +985,12 @@ enum AIPredictionEngine {
         // Projection: per-day amount = trailing7DayAvg × weekday multiplier.
         // Multipliers come from this user's own weekday spending pattern, so
         // weekends spike, quiet weekdays dip — the line has honest ups and downs.
-        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: daysPassed, fallback: dailyAvg)
-        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: daysPassed, cal: cal)
-        for day in daysPassed..<totalDays {
+        // If `firstProjectedDay == totalDays` the ledger already covers the
+        // full window and this loop runs zero times — no projected points,
+        // no red line, which is exactly what we want for full-month data.
+        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: firstProjectedDay, fallback: dailyAvg)
+        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: firstProjectedDay, cal: cal)
+        for day in firstProjectedDay..<totalDays {
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
             let wd = cal.component(.weekday, from: date) // 1...7
             let mult = weekdayMult[wd] ?? 1.0
@@ -969,14 +1055,14 @@ enum AIPredictionEngine {
     private static func buildDailyBars(
         dailyTotals: [Int: Double],
         startOfMonth: Date,
-        daysPassed: Int,
+        firstProjectedDay: Int,
         totalDays: Int,
         dailyAvg: Double,
         cal: Calendar
     ) -> [DailySpendingBar] {
         var bars: [DailySpendingBar] = []
 
-        for day in 0..<daysPassed {
+        for day in 0..<firstProjectedDay {
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
             bars.append(DailySpendingBar(
                 dayOfMonth: day + 1,
@@ -988,9 +1074,9 @@ enum AIPredictionEngine {
 
         // Projected bars mirror the trajectory: trailing avg × weekday multiplier.
         // Bars and the cumulative line now agree, and both show natural weekly rhythm.
-        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: daysPassed, fallback: dailyAvg)
-        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: daysPassed, cal: cal)
-        for day in daysPassed..<totalDays {
+        let trailingAvg = trailing7DayWeightedAvg(dailyTotals: dailyTotals, daysPassed: firstProjectedDay, fallback: dailyAvg)
+        let weekdayMult = weekdayMultipliers(dailyTotals: dailyTotals, startOfMonth: startOfMonth, daysPassed: firstProjectedDay, cal: cal)
+        for day in firstProjectedDay..<totalDays {
             let date = cal.date(byAdding: .day, value: day, to: startOfMonth)!
             let wd = cal.component(.weekday, from: date)
             let mult = weekdayMult[wd] ?? 1.0
@@ -1009,7 +1095,7 @@ enum AIPredictionEngine {
 
     private static func buildConfidenceBand(
         startOfMonth: Date,
-        daysPassed: Int,
+        firstProjectedDay: Int,
         totalDays: Int,
         cumulativeAtToday: Double,
         dailyAvg: Double,
@@ -1019,12 +1105,14 @@ enum AIPredictionEngine {
         var points: [ConfidenceBandPoint] = []
         let spread = max(stdDev, dailyAvg * 0.1)
 
-        // Build a thin ribbon around the projected cumulative line
+        // Build a thin ribbon around the projected cumulative line.
+        // If `firstProjectedDay == totalDays` (data covers the window), the
+        // loop runs zero times and the band is empty — matches the chart's
+        // no-projection state.
         var cumCenter = cumulativeAtToday
-        let totalProjectedDays = Double(totalDays - daysPassed)
 
-        for day in daysPassed..<totalDays {
-            let daysOut = Double(day - daysPassed + 1)
+        for day in firstProjectedDay..<totalDays {
+            let daysOut = Double(day - firstProjectedDay + 1)
             cumCenter += dailyAvg
             // Band width grows with sqrt but stays narrow (±percentage of center)
             let bandWidth = min(sqrt(daysOut) * spread, cumCenter * 0.08)

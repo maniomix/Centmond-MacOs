@@ -125,15 +125,50 @@ struct AIPredictionView: View {
                         // Row 2: THE CHART
                         chartWithModeSwitcher(data: data, ai: ai)
 
-                        // Row 3: Three intelligence cards side by side
+                        // Row 3: Three intelligence cards side by side.
+                        // `maxHeight: .infinity` + a floor on the HStack
+                        // makes every card match the tallest one. Without
+                        // this, a 2-item Behavioral card ran ~210pt while
+                        // a 1-item Anomaly card stopped around ~130pt,
+                        // producing the visibly uneven row the user reported.
+                        // The inner `minHeight: 160` on each card's content
+                        // VStack was doing nothing useful here — it's the
+                        // HStack that has to coordinate heights, not the
+                        // cards themselves.
                         HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
                             behavioralTriggersCard(ai.triggers)
-                                .frame(maxWidth: .infinity, alignment: .top)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             anomalyDetectionCard(ai.anomalies)
-                                .frame(maxWidth: .infinity, alignment: .top)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             interactiveCombatPlanCard(ai.combatPlan)
-                                .frame(maxWidth: .infinity, alignment: .top)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         }
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        // Row 3b: Help captions explaining what each card does.
+                        // Aligned column-for-column with the three cards above
+                        // so each tip sits directly under its card.
+                        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                            intelligenceCardHelp(
+                                icon: "hand.point.up.left.fill",
+                                title: "Hover to highlight",
+                                body: "Hover any pattern to highlight the days it happened on the chart above.",
+                                accent: CentmondTheme.Colors.warning
+                            )
+                            intelligenceCardHelp(
+                                icon: "magnifyingglass",
+                                title: "Spending spikes",
+                                body: "Unusual jumps the AI flagged. Review what triggered them — these are usually the easiest wins.",
+                                accent: CentmondTheme.Colors.negative
+                            )
+                            intelligenceCardHelp(
+                                icon: "cursorarrow.click.2",
+                                title: "Click to simulate",
+                                body: "Click any action to commit. A green “If you cut” line appears on the chart with your projected savings.",
+                                accent: CentmondTheme.Colors.positive
+                            )
+                        }
+                        .padding(.top, CentmondTheme.Spacing.xs)
 
                         // Row 4: Categories + Merchants
                         HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
@@ -1132,7 +1167,7 @@ struct AIPredictionView: View {
                 .stroke(
                     isAnalyzing
                         ? CentmondTheme.Colors.accent.opacity(0.55)
-                        : CentmondTheme.Colors.strokeDefault,
+                        : CentmondTheme.Colors.accent.opacity(0.18),
                     lineWidth: isAnalyzing ? 1.5 : 1
                 )
                 .animation(CentmondTheme.Motion.default, value: isAnalyzing)
@@ -1140,103 +1175,292 @@ struct AIPredictionView: View {
         .shadow(
             color: isAnalyzing
                 ? CentmondTheme.Colors.accent.opacity(0.35)
-                : .black.opacity(0.15),
-            radius: isAnalyzing ? 14 : 4,
+                : CentmondTheme.Colors.accent.opacity(0.10),
+            radius: isAnalyzing ? 14 : 6,
             y: 2
         )
         .animation(CentmondTheme.Motion.default, value: isAnalyzing)
     }
 
-    /// Background for the Deep Analysis card. While Gemma is generating it
-    /// shows an animated accent → purple gradient that drifts diagonally
-    /// (driven by `gradientPhase` via TimelineView so it doesn't fight
-    /// SwiftUI's view diff cycle). When idle it's the standard card fill.
+    /// Background for the Deep Analysis card. Always shows the animated
+    /// accent → purple gradient drifting diagonally (driven by TimelineView
+    /// so it doesn't fight SwiftUI's view diff cycle). When generating the
+    /// gradient is vivid; when idle it stays as a subtle "AI-touched" sheen
+    /// at roughly 1/3 opacity. Idle sheen is what the user liked — "keep it
+    /// even after ending the generating but less glowy".
     @ViewBuilder
     private var deepAnalysisCardBackground: some View {
-        if isAnalyzing {
-            // CPU note: phase oscillates with period ~7s, so even 4-5 fps
-            // looks smooth. Was 0.05s (20 fps) which alone burned ~10-15%
-            // CPU on a large gradient + stroke + shadow surface.
-            TimelineView(.animation(minimumInterval: 0.2)) { ctx in
-                let t = ctx.date.timeIntervalSinceReferenceDate
-                let phase = CGFloat((sin(t * 0.9) + 1) / 2)  // 0 → 1 → 0 every ~7 s
-                ZStack {
-                    CentmondTheme.Colors.bgSecondary
-                    LinearGradient(
-                        colors: [
-                            CentmondTheme.Colors.accent.opacity(0.28),
-                            Color(red: 0.55, green: 0.36, blue: 0.96).opacity(0.22),
-                            CentmondTheme.Colors.accent.opacity(0.18)
-                        ],
-                        startPoint: UnitPoint(x: phase, y: 0),
-                        endPoint: UnitPoint(x: 1 - phase, y: 1)
-                    )
-                }
+        // CPU note: phase oscillates with period ~7s, so even 4-5 fps
+        // looks smooth. Was 0.05s (20 fps) which alone burned ~10-15%
+        // CPU on a large gradient + stroke + shadow surface. Idle uses a
+        // slower tick (0.4s = ~2.5fps) since the dim gradient drift is
+        // decorative, not attention-grabbing.
+        TimelineView(.animation(minimumInterval: isAnalyzing ? 0.2 : 0.4)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            let phase = CGFloat((sin(t * 0.9) + 1) / 2)  // 0 → 1 → 0 every ~7 s
+            // Opacity scale — 1.0 while generating, 0.35 when idle.
+            // Tuned so the idle gradient reads as a soft ambient wash, not a
+            // glow that competes with actual content.
+            let k: Double = isAnalyzing ? 1.0 : 0.35
+            ZStack {
+                CentmondTheme.Colors.bgSecondary
+                LinearGradient(
+                    colors: [
+                        CentmondTheme.Colors.accent.opacity(0.28 * k),
+                        Color(red: 0.55, green: 0.36, blue: 0.96).opacity(0.22 * k),
+                        CentmondTheme.Colors.accent.opacity(0.18 * k)
+                    ],
+                    startPoint: UnitPoint(x: phase, y: 0),
+                    endPoint: UnitPoint(x: 1 - phase, y: 1)
+                )
             }
-        } else {
-            CentmondTheme.Colors.bgSecondary
+            .animation(CentmondTheme.Motion.default, value: isAnalyzing)
         }
     }
 
     @ViewBuilder
+    /// Groups the streamed AI report by timeframe rather than by topic.
+    /// The AI produces `## Monthly Outlook` / `## Trigger Analysis` / ...
+    /// sections with paragraphs each prefixed by `[This Month]`, `[Last Month]`,
+    /// etc. Earlier renderer showed topic headers with mixed timeframes
+    /// inside — the user's request was the inverse: "5 analyses for the 5
+    /// timeframes." So we parse into `[Timeframe: [TopicEntry]]` and render
+    /// timeframe-first. Within each timeframe we still keep the topic as a
+    /// small sub-header so the reader knows which narrative thread they're
+    /// reading (Outlook vs Triggers vs Psychology).
+    ///
+    /// If parsing yields nothing (stream hasn't produced any tagged content
+    /// yet, or the AI forgot the tags), fall back to line-by-line rendering
+    /// so an in-progress stream still shows something.
     private func aiReportContent(_ text: String) -> some View {
-        let sections = text.components(separatedBy: "\n")
+        let grouped = parseAnalysisByTimeframe(text)
+        // STRICT filter to the selected tab. Earlier version fell back to
+        // "show all timeframes" when the filter returned empty — but the
+        // visual result (This Month paragraph at the top, which is the
+        // first in enum order) was indistinguishable from the This Month
+        // tab itself, so users reported "the text doesn't change" even
+        // though I was filtering. Better: show an explicit empty state
+        // for the selected timeframe so the user can see the filter IS
+        // hooked up, and whatever's missing is an AI-output gap.
+        let selected = grouped.filter { $0.timeframe == timeRange }
 
+        if selected.isEmpty && grouped.isEmpty {
+            // No structured content at all — streaming warmup or
+            // un-tagged output. Line-by-line renderer with inline
+            // entity capsules keeps something on screen.
+            legacyLineRenderer(text)
+        } else if selected.isEmpty {
+            // Parser found structured content but none for the selected
+            // window. Show the empty state, NOT the other timeframes —
+            // silently substituting another window's content is what
+            // made "the text doesn't change" look true to the user.
+            timeframeMissingState()
+        } else {
+            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+                ForEach(selected, id: \.timeframe) { section in
+                    timeframeSection(section)
+                }
+            }
+            // Re-render when the user flips tabs so the filtered slice
+            // updates in place. Cheap — the parser is pure and the
+            // grouped data is already in memory.
+            .animation(CentmondTheme.Motion.default, value: timeRange)
+            .animation(CentmondTheme.Motion.default, value: text)
+        }
+    }
+
+    /// Empty state when the parsed analysis has content for other
+    /// windows but not the one currently selected by the tab. Tells the
+    /// user the filter IS working — the gap is in the AI output, not
+    /// the UI.
+    private func timeframeMissingState() -> some View {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                rangeCapsule(timeRange)
+                Rectangle()
+                    .fill(capsuleColor(for: timeRange).opacity(0.15))
+                    .frame(height: 1)
+            }
+
+            HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 14))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .frame(width: 20)
+                Text("The AI hasn't written an analysis for \(timeRange.rawValue) yet. Try refreshing the analysis to include this window.")
+                    .font(CentmondTheme.Typography.body)
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, CentmondTheme.Spacing.xs)
+        }
+        .padding(.top, CentmondTheme.Spacing.xs)
+    }
+
+    private func timeframeSection(_ section: TimeframeGroupedAnalysis) -> some View {
+        let accent = capsuleColor(for: section.timeframe)
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            // Timeframe header — coloured capsule + divider. Uses the same
+            // palette as the inline window tags so the user's eye links
+            // "This Month" in a tag to "This Month" as a section heading.
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                rangeCapsule(section.timeframe)
+                Rectangle()
+                    .fill(accent.opacity(0.15))
+                    .frame(height: 1)
+            }
+
+            ForEach(Array(section.entries.enumerated()), id: \.offset) { _, entry in
+                VStack(alignment: .leading, spacing: 4) {
+                    if !entry.topic.isEmpty {
+                        Text(entry.topic)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(accent.opacity(0.85))
+                            .textCase(.uppercase)
+                            .tracking(0.5)
+                    }
+                    InlineEntityText(text: entry.body)
+                }
+            }
+        }
+        .padding(.top, CentmondTheme.Spacing.xs)
+    }
+
+    /// Fallback renderer for text that hasn't yet parsed into timeframes
+    /// (typically during the initial streaming chunks). Walks lines and
+    /// renders headers + paragraphs with inline entity capsules. Does NOT
+    /// show any `[Window]` tags that haven't finished streaming — an
+    /// unclosed `[` is suppressed so the user doesn't see half-tags flash.
+    @ViewBuilder
+    private func legacyLineRenderer(_ text: String) -> some View {
+        let lines = text.components(separatedBy: "\n")
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
-            ForEach(Array(sections.enumerated()), id: \.offset) { _, line in
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if trimmed.isEmpty {
                     Spacer().frame(height: CentmondTheme.Spacing.sm)
                 } else if trimmed.hasPrefix("## ") {
-                    // Section header
                     Text(trimmed.replacingOccurrences(of: "## ", with: ""))
                         .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .padding(.top, CentmondTheme.Spacing.sm)
-                } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                    // Bullet point — strip leading bullet, then capsule-ify
-                    HStack(alignment: .top, spacing: CentmondTheme.Spacing.xs) {
-                        Circle()
-                            .fill(CentmondTheme.Colors.accent)
-                            .frame(width: 4, height: 4)
-                            .padding(.top, 6)
-                        taggedParagraph(String(trimmed.dropFirst(2)))
-                    }
                 } else if trimmed.hasPrefix("#") {
-                    // Any header
                     Text(trimmed.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces))
                         .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .padding(.top, CentmondTheme.Spacing.xs)
                 } else {
-                    taggedParagraph(trimmed)
+                    let parts = extractWindowTags(trimmed)
+                    InlineEntityText(text: parts.body)
                 }
             }
         }
     }
 
-    /// Render a paragraph that may begin with a `[Window Name]` tag
-    /// (e.g. `[This Month] You spent $...`). Recognised tags are replaced by
-    /// inline coloured capsules; the remaining text flows next to them.
-    @ViewBuilder
-    private func taggedParagraph(_ paragraph: String) -> some View {
-        let parts = extractWindowTags(paragraph)
-        if parts.tags.isEmpty {
-            Text(paragraph)
-                .font(CentmondTheme.Typography.body)
-                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: CentmondTheme.Spacing.xs) {
-                ForEach(Array(parts.tags.enumerated()), id: \.offset) { _, tag in
-                    rangeCapsule(tag)
-                }
-                Text(parts.body)
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+    /// Walks the AI report and produces timeframe-first groups. Within
+    /// each timeframe, entries retain the topic (## heading) the paragraph
+    /// came from so the UI can label it. Returns `[]` if the text is too
+    /// fresh or too malformed to group.
+    ///
+    /// The AI sometimes emits paragraphs line-separated ("[This Month]\n…
+    /// [Last Month]\n…") and sometimes concatenates multiple tags on ONE
+    /// line ("[This Month] You are… April 30th. [Last Month] This past
+    /// month saw…"). Earlier versions only picked up LEADING tags per
+    /// line, so when the AI concatenated, everything after the leading
+    /// [This Month] stayed bucketed under This Month — which made every
+    /// tab look identical because the first tag in the stream is always
+    /// This Month.
+    ///
+    /// Fix: scan the full text for `[Window]` markers wherever they
+    /// appear, use each marker as a paragraph boundary, assign the
+    /// preceding chunk to the PREVIOUS window tag, and start a new chunk
+    /// under the current window tag. The `## Topic` heading tracking is
+    /// folded into the same scan so a topic assignment stays valid across
+    /// whatever window boundaries appear next.
+    private func parseAnalysisByTimeframe(_ text: String) -> [TimeframeGroupedAnalysis] {
+        var currentTopic: String = ""
+        var byTimeframe: [PredictionTimeRange: [TopicEntry]] = [:]
+
+        // Walk line-by-line to capture `## Topic` headings first, then
+        // feed the remaining prose (a line at a time) into a window-tag
+        // splitter. Collapsing to a single string would lose the topic
+        // context that spans multiple lines.
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { continue }
+            if trimmed.hasPrefix("## ") {
+                currentTopic = trimmed.replacingOccurrences(of: "## ", with: "")
+                continue
+            }
+            if trimmed.hasPrefix("#") { continue }  // other heading levels — skip
+
+            // Split this line wherever a `[Window]` marker appears.
+            // Each split produces (optional preceding-tag, chunk) pairs.
+            for (tag, body) in splitByWindowMarkers(trimmed) {
+                guard let tag, !body.isEmpty else { continue }
+                byTimeframe[tag, default: []].append(TopicEntry(topic: currentTopic, body: body))
             }
         }
+
+        if byTimeframe.isEmpty { return [] }
+
+        return PredictionTimeRange.allCases.compactMap { range in
+            guard let entries = byTimeframe[range], !entries.isEmpty else { return nil }
+            return TimeframeGroupedAnalysis(timeframe: range, entries: entries)
+        }
+    }
+
+    /// Split a line into `(tag, body)` chunks using any `[Window]`
+    /// markers as boundaries. A chunk appearing BEFORE the first tag in
+    /// the line has `tag = nil` (orphan prose, typically the AI forgot a
+    /// leading tag — dropped by the parser). Case-insensitive tag match
+    /// against the canonical window names.
+    private func splitByWindowMarkers(_ line: String) -> [(tag: PredictionTimeRange?, body: String)] {
+        // Regex: `[Window Name]` — letters, numbers, spaces inside brackets.
+        guard let re = try? NSRegularExpression(pattern: #"\[([^\]]+)\]"#) else {
+            return [(nil, line)]
+        }
+        let ns = line as NSString
+        let matches = re.matches(in: line, range: NSRange(location: 0, length: ns.length))
+        if matches.isEmpty {
+            return [(nil, line.trimmingCharacters(in: .whitespaces))]
+        }
+
+        var result: [(PredictionTimeRange?, String)] = []
+        var cursor = 0
+        var currentTag: PredictionTimeRange? = nil
+
+        for m in matches {
+            // Chunk of prose between the previous marker and this one
+            // belongs to the CURRENT tag (the tag that started before it).
+            if m.range.location > cursor {
+                let chunk = ns.substring(with: NSRange(location: cursor, length: m.range.location - cursor))
+                    .trimmingCharacters(in: .whitespaces)
+                if !chunk.isEmpty {
+                    result.append((currentTag, chunk))
+                }
+            }
+            // Update the active tag from this marker's content.
+            let inside = ns.substring(with: m.range(at: 1))
+            if let range = PredictionTimeRange.allCases.first(where: {
+                $0.rawValue.caseInsensitiveCompare(inside) == .orderedSame
+            }) {
+                currentTag = range
+            }
+            // else: unknown bracket content — leave the active tag alone
+            // and skip the marker. This handles e.g. "[Window]" strings
+            // the model might invent that don't match our enum.
+            cursor = m.range.location + m.range.length
+        }
+        // Tail after the last marker belongs to the last tag
+        if cursor < ns.length {
+            let chunk = ns.substring(with: NSRange(location: cursor, length: ns.length - cursor))
+                .trimmingCharacters(in: .whitespaces)
+            if !chunk.isEmpty {
+                result.append((currentTag, chunk))
+            }
+        }
+        return result
     }
 
     /// Strip leading `[Window]` tag(s) from a paragraph; return the matched
@@ -1286,7 +1510,14 @@ struct AIPredictionView: View {
 
     private func behavioralTriggersCard(_ triggers: [AITrigger]) -> some View {
         RiskCardContainer(riskLevel: aiPredictions?.riskLevel ?? "medium") {
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            // Outer VStack spacing MUST match the anomaly + combat cards
+            // (both use `xs`). Earlier this card used `sm` (8pt) while the
+            // other two used `xs` (4pt), producing a 4pt bottom-edge
+            // misalignment that survived the HStack height equaliser —
+            // `.fixedSize(vertical: true)` snapped the HStack to the
+            // tallest card's natural height, and the siblings' content
+            // didn't stretch the extra 4pt to close the gap.
+            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "brain.head.profile.fill")
                         .font(.system(size: 12, weight: .medium))
@@ -1330,43 +1561,17 @@ struct AIPredictionView: View {
     }
 
     private func behavioralTriggerCard(_ trigger: AITrigger) -> some View {
-        HStack(spacing: CentmondTheme.Spacing.md) {
-            ZStack {
-                Circle()
-                    .fill(CentmondTheme.Colors.warning.opacity(0.12))
-                    .frame(width: 38, height: 38)
-                Image(systemName: triggerIcon(for: trigger.pattern))
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(CentmondTheme.Colors.warning)
+        BehavioralTriggerRow(
+            trigger: trigger,
+            icon: triggerIcon(for: trigger.pattern),
+            onHoverChanged: { hovering in
+                hoveredTriggerDays = hovering ? daysMatching(trigger: trigger) : []
             }
-
-            Text(trigger.pattern)
-                .font(CentmondTheme.Typography.bodyMedium)
-                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                .lineLimit(1)
-
-            Spacer()
-
-            Text(CurrencyFormat.compact(Decimal(trigger.amount)))
-                .font(.system(size: 15, weight: .bold, design: .monospaced))
-                .foregroundStyle(CentmondTheme.Colors.warning)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, CentmondTheme.Spacing.md)
-        .padding(.vertical, CentmondTheme.Spacing.md)
-        .background(CentmondTheme.Colors.warning.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            if hovering {
-                hoveredTriggerDays = extractDays(from: trigger.description)
-            } else {
-                hoveredTriggerDays = []
-            }
-        }
+        )
     }
 
-    /// Extract day-of-month numbers from trigger description text (e.g. "April 13th" → 13)
+    /// Extract day-of-month numbers from trigger description text (e.g. "April 13th" → 13).
+    /// Used as a fallback / supplement to the pattern-based matching in `daysMatching(trigger:)`.
     private func extractDays(from text: String) -> Set<Int> {
         var days = Set<Int>()
         // Match patterns like "April 13th", "April 4th", "13th", "22nd", "1st"
@@ -1377,6 +1582,91 @@ struct AIPredictionView: View {
                 days.insert(day)
             }
         }
+        return days
+    }
+
+    /// Returns the set of current-month days-of-month where a transaction matches the
+    /// behavioral pattern (late-night, weekend, etc.). Used by the hover-to-highlight
+    /// affordance under the Behavioral Patterns card — the chart's Layer 10 then highlights
+    /// matching bars on those days.
+    ///
+    /// Why this exists: the AI's `trigger.description` text rarely contains explicit day
+    /// numbers ("3 food delivery orders after 10 PM totaling $47" → no days). The earlier
+    /// `extractDays(from:)` regex returned an empty set for time-based triggers like
+    /// "Late-night activity", so hovering produced zero highlighted bars and the help text
+    /// "Hover to highlight" was a lie. This function classifies the pattern from keywords
+    /// in `trigger.pattern` and filters `predictionData.recentTransactions` accordingly,
+    /// then unions whatever the regex extractor finds in the description.
+    private func daysMatching(trigger: AITrigger) -> Set<Int> {
+        var days = extractDays(from: trigger.description)
+
+        // Prefer the UNCAPPED `currentMonthTransactions` list. The capped
+        // `recentTransactions` sample (50 for .thisMonth) silently drops
+        // early-month transactions when the ledger is dense near month-end
+        // — so a user's 4AM charge on April 1 never enters the hover set
+        // if April 20–30 already fill the 50-slot sample.
+        let txns: [RecentTransaction] = {
+            if let current = predictionData?.currentMonthTransactions, !current.isEmpty {
+                return current
+            }
+            return predictionData?.recentTransactions ?? []
+        }()
+
+        guard !txns.isEmpty else { return days }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let currentMonth = calendar.component(.month, from: now)
+        let currentYear = calendar.component(.year, from: now)
+
+        // `currentMonthTransactions` is already month-scoped on the engine
+        // side, but the fallback `recentTransactions` branch might hand us
+        // cross-month data — the defensive filter is cheap so keep it.
+        let currentMonthTxns = txns.filter {
+            let m = calendar.component(.month, from: $0.date)
+            let y = calendar.component(.year, from: $0.date)
+            return m == currentMonth && y == currentYear
+        }
+
+        let pattern = trigger.pattern.lowercased()
+        let description = trigger.description.lowercased()
+        let combined = "\(pattern) \(description)"
+
+        let matched: [RecentTransaction]
+        if combined.contains("night") || combined.contains("midnight") || combined.contains("late") {
+            // Late-night = engine's own definition: 22:00–04:59 (matches EmotionalSpendingProfile.lateNightCount)
+            matched = currentMonthTxns.filter { $0.hourOfDay >= 22 || $0.hourOfDay <= 4 }
+        } else if combined.contains("weekend") || combined.contains("saturday") || combined.contains("sunday") {
+            matched = currentMonthTxns.filter { $0.isWeekend }
+        } else if combined.contains("morning") || combined.contains("breakfast") || combined.contains("coffee") {
+            matched = currentMonthTxns.filter { $0.hourOfDay >= 6 && $0.hourOfDay <= 10 }
+        } else if combined.contains("lunch") || combined.contains("midday") {
+            matched = currentMonthTxns.filter { $0.hourOfDay >= 11 && $0.hourOfDay <= 14 }
+        } else if combined.contains("evening") || combined.contains("dinner") {
+            matched = currentMonthTxns.filter { $0.hourOfDay >= 17 && $0.hourOfDay <= 21 }
+        } else if combined.contains("food") || combined.contains("dining") || combined.contains("restaurant")
+               || combined.contains("pizza") || combined.contains("delivery") || combined.contains("takeout") {
+            matched = currentMonthTxns.filter {
+                let c = $0.categoryName.lowercased()
+                return c.contains("food") || c.contains("dining") || c.contains("restaurant")
+                    || c.contains("delivery") || c.contains("takeout")
+            }
+        } else if combined.contains("subscription") || combined.contains("recurring") {
+            matched = currentMonthTxns.filter {
+                let c = $0.categoryName.lowercased()
+                return c.contains("subscription") || c.contains("streaming") || c.contains("software")
+            }
+        } else if combined.contains("impulse") || combined.contains("small") || combined.contains("quick") {
+            // Engine's impulse definition: small charges < $15
+            matched = currentMonthTxns.filter { $0.amount < 15 }
+        } else {
+            matched = []
+        }
+
+        for txn in matched {
+            days.insert(calendar.component(.day, from: txn.date))
+        }
+
         return days
     }
 
@@ -1512,10 +1802,17 @@ struct AIPredictionView: View {
                             let isCommitted = committedActions.contains(action.id)
                             let tint: Color = isCommitted ? CentmondTheme.Colors.positive : CentmondTheme.Colors.warning
                             Button {
-                                withAnimation(CentmondTheme.Motion.default) {
-                                    if isCommitted { committedActions.remove(action.id) }
-                                    else { committedActions.insert(action.id) }
-                                }
+                                // No `withAnimation` wrap — that propagated
+                                // the toggle into the trajectory chart and
+                                // Swift Charts tried to interpolate the
+                                // success-path AreaMark from "no points" to
+                                // "all points", producing torn triangular
+                                // slices and a doubled-purple wash mid-frame.
+                                // The button's own visual changes (icon
+                                // swap, strikethrough, tint) animate via the
+                                // implicit `.animation(value:)` on the row.
+                                if isCommitted { committedActions.remove(action.id) }
+                                else { committedActions.insert(action.id) }
                             } label: {
                                 HStack(spacing: CentmondTheme.Spacing.md) {
                                     ZStack {
@@ -2081,34 +2378,8 @@ struct AIPredictionView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         let maxAmount = merchants.first?.amount ?? 1
                         VStack(spacing: CentmondTheme.Spacing.sm) {
-                            ForEach(merchants.prefix(6)) { merchant in
-                                VStack(spacing: CentmondTheme.Spacing.xs) {
-                                    HStack(spacing: CentmondTheme.Spacing.sm) {
-                                        Text(merchant.name)
-                                            .font(CentmondTheme.Typography.bodyMedium)
-                                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                            .lineLimit(1)
-
-                                        Text("\(merchant.txCount)x")
-                                            .font(CentmondTheme.Typography.caption)
-                                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-
-                                        Spacer()
-
-                                        Text(CurrencyFormat.compact(Decimal(merchant.amount)))
-                                            .font(CentmondTheme.Typography.mono)
-                                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                                            .monospacedDigit()
-                                    }
-
-                                    // Mini bar
-                                    GeometryReader { geo in
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(CentmondTheme.Colors.accent.opacity(0.2))
-                                            .frame(width: geo.size.width * (merchant.amount / maxAmount), height: 3)
-                                    }
-                                    .frame(height: 3)
-                                }
+                            ForEach(Array(merchants.prefix(6).enumerated()), id: \.element.id) { idx, merchant in
+                                merchantRow(merchant, rank: idx + 1, maxAmount: maxAmount)
                             }
                         }
                     }
@@ -2116,6 +2387,69 @@ struct AIPredictionView: View {
             }
         }
         .frame(height: dataCardHeight)
+    }
+
+    /// Single merchant row. Two-line layout mirroring the category card:
+    ///   Line 1: [rank] name · Nx                           AMOUNT
+    ///   Line 2: [bar proportional to top merchant amount]
+    /// Rank number adds a clear ordering cue so the user doesn't have to
+    /// re-read amounts to figure out the sort. The "Nx" transaction count
+    /// moves next to the name (rather than a dim afterthought) and the
+    /// bar tints by rank — top merchant full accent, others tinted down —
+    /// so the eye can tell "this is the biggest" without staring.
+    private func merchantRow(_ merchant: TopMerchant, rank: Int, maxAmount: Double) -> some View {
+        let ratio = max(merchant.amount / maxAmount, 0.04)
+        let isTop = rank == 1
+        let barColor: Color = isTop ? CentmondTheme.Colors.accent : CentmondTheme.Colors.accent.opacity(0.5)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                // Rank chip — monospaced digit + circle so 1/2/3... line up
+                Text("\(rank)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(isTop ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
+                    .frame(width: 18, height: 18)
+                    .background(
+                        Circle()
+                            .fill((isTop ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary).opacity(0.12))
+                    )
+
+                Text(merchant.name)
+                    .font(CentmondTheme.Typography.bodyMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    .lineLimit(1)
+
+                Text("\(merchant.txCount)×")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .monospacedDigit()
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(CentmondTheme.Colors.bgTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+
+                Spacer(minLength: CentmondTheme.Spacing.sm)
+
+                Text(CurrencyFormat.compact(Decimal(merchant.amount)))
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    .monospacedDigit()
+            }
+
+            // Bar — indent to align with merchant name (chip 18pt + spacing 8pt)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(CentmondTheme.Colors.bgTertiary)
+                        .frame(height: 4)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(barColor)
+                        .frame(width: max(3, geo.size.width * ratio), height: 4)
+                }
+            }
+            .frame(height: 4)
+            .padding(.leading, 26)
+        }
     }
 
     // MARK: - Account Health Card
@@ -2414,7 +2748,12 @@ struct AIPredictionView: View {
 
         // Breach computation moved below (needs `budgetSegments` / `isMultiMonth`).
 
-        // Success path: if user committed to combat actions, show green optimistic line
+        // Success path: if user committed to combat actions, show green optimistic line.
+        // Inherits the same per-day DELTAS (and thus weekday rhythm) as the violet
+        // projected line, then rescales them so the new cumulative ends at the lower
+        // `optimisticTarget`. Earlier version added a flat `dailyAvg` every day, which
+        // produced a perfectly straight diagonal — visually inert and obviously fake
+        // next to the projected line's organic ups and downs.
         let totalCommittedSavings = combatActions.filter { committedActions.contains($0.id) }.reduce(0.0) { $0 + $1.savings }
         let successPath: [SpendingDataPoint] = {
             guard totalCommittedSavings > 0 else { return [] }
@@ -2423,11 +2762,26 @@ struct AIPredictionView: View {
             let optimisticTarget = max(0, aiProjected - totalCommittedSavings)
             let spentSoFar = points.filter({ !$0.isProjected }).last?.amount ?? 0
             let remaining = max(0, optimisticTarget - spentSoFar)
-            let projCount = Double(projected.count)
-            let dailyAvg = projCount > 0 ? remaining / projCount : 0
+
+            // Recover per-day deltas from the violet projected line so the
+            // success path moves with the same Monday-quiet / Friday-spike
+            // shape. Without this the green line is a perfectly straight
+            // diagonal that screams "fake".
+            var prev = spentSoFar
+            var deltas: [Double] = []
+            for p in projected {
+                deltas.append(max(0, p.amount - prev))
+                prev = p.amount
+            }
+            let deltaSum = deltas.reduce(0, +)
+            let scale = deltaSum > 0 ? (remaining / deltaSum) : 0
+
             var cum = spentSoFar
-            return projected.enumerated().map { i, pt in
-                cum += dailyAvg
+            return zip(projected, deltas).enumerated().map { (i, pair) in
+                let (pt, d) = pair
+                cum += d * scale
+                // Pin the very last point to `optimisticTarget` exactly so
+                // the endpoint label is a clean number, not off by a few $.
                 let amount = (i == projected.count - 1) ? optimisticTarget : cum
                 return SpendingDataPoint(date: pt.date, amount: amount, isProjected: true)
             }
@@ -2618,11 +2972,20 @@ struct AIPredictionView: View {
                             .interpolationMethod(.monotone)
                         }
 
-                        // Layer 3: Actual cumulative line (solid, prominent)
+                        // Layer 3: Actual cumulative line (solid, prominent).
+                        // CRITICAL: every LineMark layer in this Chart MUST
+                        // pass an explicit `series:` value. Without it, Swift
+                        // Charts groups all LineMarks by their y-axis VALUE
+                        // name and the first style "wins" — that's why the
+                        // projected/red and success/green lines were rendering
+                        // as the same blue as this actual line. With `series:`
+                        // each layer gets its own connected line and styling
+                        // is honoured per series.
                         ForEach(points.filter({ !$0.isProjected })) { point in
                             LineMark(
                                 x: .value("Day", dayForDate(point.date)),
-                                y: .value("Cumulative", point.amount)
+                                y: .value("Amount", point.amount),
+                                series: .value("Path", "Actual")
                             )
                             .foregroundStyle(CentmondTheme.Colors.accent)
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
@@ -2640,23 +3003,28 @@ struct AIPredictionView: View {
                         }()
 
                         if let bDay = breachDay {
-                            // Before breach: warning orange dashed (distinct from actual blue)
+                            // Before breach: violet dashed (distinct from actual blue).
+                            // Explicit `series:` so this isn't merged with Layer 3.
                             let beforeBreach = projectedBridge.filter { dayForDate($0.date) <= bDay }
                             ForEach(beforeBreach) { point in
                                 LineMark(
                                     x: .value("Day", dayForDate(point.date)),
-                                    y: .value("Cumulative", point.amount)
+                                    y: .value("Amount", point.amount),
+                                    series: .value("Path", "ProjectedSafe")
                                 )
                                 .foregroundStyle(projectedColor)
                                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
                                 .interpolationMethod(.monotone)
                             }
-                            // After breach: red dashed — danger zone
+                            // After breach: red dashed — danger zone.
+                            // Distinct `series:` so red stays red regardless
+                            // of layer ordering or other LineMarks present.
                             let afterBreach = projectedBridge.filter { dayForDate($0.date) >= bDay }
                             ForEach(afterBreach) { point in
                                 LineMark(
                                     x: .value("Day", dayForDate(point.date)),
-                                    y: .value("Projected Over", point.amount)
+                                    y: .value("Amount", point.amount),
+                                    series: .value("Path", "ProjectedDanger")
                                 )
                                 .foregroundStyle(CentmondTheme.Colors.negative.opacity(0.75))
                                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
@@ -2679,13 +3047,23 @@ struct AIPredictionView: View {
                                     )
                                     .symbol {
                                         // 8 fps — Charts re-lays out the symbol per tick.
+                                        // IMPORTANT: the outer ZStack must have a
+                                        // FIXED frame size. If the animated outer
+                                        // circle changes the ZStack's intrinsic
+                                        // size, Swift Charts re-anchors the whole
+                                        // symbol on every tick and the dot
+                                        // visibly jitters. We pin to 28×28 (the
+                                        // max pulse size) and let the inner
+                                        // circles breathe inside that frame via
+                                        // scaleEffect instead of frame.
                                         TimelineView(.animation(minimumInterval: 1.0 / 8.0)) { context in
                                             let t = context.date.timeIntervalSinceReferenceDate
                                             let phase = (sin(t * 2.2) + 1) / 2  // 0...1
                                             ZStack {
                                                 Circle()
                                                     .fill(CentmondTheme.Colors.negative.opacity(0.15 + 0.15 * phase))
-                                                    .frame(width: 22 + 6 * phase, height: 22 + 6 * phase)
+                                                    .frame(width: 22, height: 22)
+                                                    .scaleEffect(1.0 + 0.27 * phase)
                                                     .blur(radius: 3)
                                                 Circle()
                                                     .fill(CentmondTheme.Colors.negative.opacity(0.35))
@@ -2695,6 +3073,7 @@ struct AIPredictionView: View {
                                                     .frame(width: 7, height: 7)
                                                     .shadow(color: CentmondTheme.Colors.negative.opacity(0.9), radius: 4)
                                             }
+                                            .frame(width: 28, height: 28)
                                         }
                                     }
                                     .annotation(position: .top, spacing: 4) {
@@ -2738,11 +3117,14 @@ struct AIPredictionView: View {
                                 }
                             }
                         } else {
-                            // No breach — warning-colored dashed projected line (distinct from actual)
+                            // No breach — violet dashed projected line.
+                            // Distinct `series:` so it never gets merged into
+                            // the actual-blue series.
                             ForEach(projectedBridge) { point in
                                 LineMark(
                                     x: .value("Day", dayForDate(point.date)),
-                                    y: .value("Cumulative", point.amount)
+                                    y: .value("Amount", point.amount),
+                                    series: .value("Path", "ProjectedSafe")
                                 )
                                 .foregroundStyle(projectedColor)
                                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
@@ -2750,9 +3132,30 @@ struct AIPredictionView: View {
                             }
                         }
 
-                        // Layer 4b: Projected endpoint amount
+                        // Layer 4b: Projected endpoint amount.
+                        // When a success path is committed we offset the
+                        // projected label UP and the success label DOWN so
+                        // their boxes don't collide on the right edge — they
+                        // typically only differ by a few % of yMax which puts
+                        // them within label-height of each other.
                         if let lastPt = projectedBridge.last {
                             let endColor = breachDay != nil ? CentmondTheme.Colors.negative : projectedColor
+                            // Pinned to `.topTrailing` regardless of whether the
+                            // success path is showing. Earlier we flipped this
+                            // between `.trailing` (no success) and `.topTrailing`
+                            // (success exists) for visual balance, but that
+                            // position flip depends on `committedActions` —
+                            // which means the chart-level
+                            // `.animation(_:value: committedActions)` modifier
+                            // ANIMATES the label sliding between positions,
+                            // and the whole projected PointMark re-animates
+                            // alongside it. The user reads that as "the red
+                            // line is glitching" because the dot + label
+                            // visibly shift every time you click a Combat
+                            // Plan action. Pinning the position eliminates
+                            // the dependency, so the projected mark stays
+                            // perfectly still while only the success-path
+                            // layer animates in/out.
                             PointMark(
                                 x: .value("Day", dayForDate(lastPt.date)),
                                 y: .value("End", lastPt.amount)
@@ -2762,7 +3165,7 @@ struct AIPredictionView: View {
                                     .fill(endColor)
                                     .frame(width: 5, height: 5)
                             }
-                            .annotation(position: .trailing, spacing: 2) {
+                            .annotation(position: .topTrailing, spacing: 2) {
                                 Text(CurrencyFormat.compact(Decimal(lastPt.amount)))
                                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     .foregroundStyle(endColor)
@@ -2773,23 +3176,29 @@ struct AIPredictionView: View {
                             }
                         }
 
-                        // Layer 5: Today marker — prominent divider between actual & projected
-                        RuleMark(x: .value("Today", daysPassed))
-                            .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.35))
-                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                            .annotation(position: .top, alignment: .center) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "location.fill")
-                                        .font(.system(size: 7))
-                                    Text("Today")
-                                        .font(.system(size: 9, weight: .semibold))
+                        // Layer 5: Today marker — prominent divider between actual & projected.
+                        // Hidden when data covers the full window (daysPassed >= totalDays)
+                        // because there's no projected region to divide; showing it would
+                        // plant a misleading "Today" label at the far right of a complete
+                        // month of data.
+                        if let totalDays = bars.last?.dayOfMonth, daysPassed < totalDays {
+                            RuleMark(x: .value("Today", daysPassed))
+                                .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.35))
+                                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                                .annotation(position: .top, alignment: .center) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 7))
+                                        Text("Today")
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .foregroundStyle(CentmondTheme.Colors.accent)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(CentmondTheme.Colors.accent.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
-                                .foregroundStyle(CentmondTheme.Colors.accent)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(CentmondTheme.Colors.accent.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
+                        }
 
                         // Layer 7: Budget lines.
                         // Single-month view: keep the original full-width
@@ -2818,7 +3227,16 @@ struct AIPredictionView: View {
 
                         // (Break-even marker removed — breachDay PointMark handles this)
 
-                        // Layer 9: Success path (green) — shown when user commits to combat actions
+                        // Layer 9: Success path (green) — shown when user commits to
+                        // combat actions. Drawn AFTER (on top of) the violet/red
+                        // projected line so the green stays visible even when the
+                        // two paths nearly overlap. Uses a distinct y-axis name
+                        // ("If You Cut") to keep Swift Charts from merging it
+                        // with the "Cumulative"/"Projected Over" series — that
+                        // merge was making the green stroke render as the same
+                        // bluish hue as the rest. Also uses a wider dash pattern
+                        // (10/5) so the segments read as clearly DIFFERENT from
+                        // the projected line's tighter (6/4) dashes.
                         if !successPath.isEmpty {
                             let bridged: [SpendingDataPoint] = {
                                 if let lastActual = points.filter({ !$0.isProjected }).last {
@@ -2826,47 +3244,85 @@ struct AIPredictionView: View {
                                 }
                                 return successPath
                             }()
+
+                            // Success line — IDENTICAL stroke (2.5pt, dash [6,4],
+                            // round cap) to the projected line. Earlier tried a
+                            // longer dash [8,4] for differentiation but with
+                            // round caps each dash gained ~2.5pt rounding on
+                            // both ends → green dashes rendered as visibly
+                            // chunkier "pills" vs red's tighter "ticks", which
+                            // the user read as still being thicker. Colour
+                            // alone (green vs red) carries the differentiation.
                             ForEach(bridged) { point in
                                 LineMark(
                                     x: .value("Day", dayForDate(point.date)),
-                                    y: .value("Success", point.amount)
+                                    y: .value("Amount", point.amount),
+                                    series: .value("Path", "IfYouCut")
                                 )
-                                .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
-                                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [6, 4]))
+                                .foregroundStyle(CentmondTheme.Colors.positive)
+                                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
                                 .interpolationMethod(.monotone)
                             }
 
-                            // Endpoint marker showing target amount
+                            // Endpoint marker showing target amount.
+                            // Anchored bottom-trailing so its label sits BELOW
+                            // the data point — paired with the projected
+                            // endpoint's top-trailing label, the two never
+                            // overlap even when amounts are within a few % of
+                            // each other on the y-axis.
                             if let lastPt = successPath.last {
                                 PointMark(
                                     x: .value("Day", dayForDate(lastPt.date)),
-                                    y: .value("Success", lastPt.amount)
+                                    y: .value("If You Cut", lastPt.amount)
                                 )
                                 .symbol {
-                                    Circle()
-                                        .fill(CentmondTheme.Colors.positive)
-                                        .frame(width: 6, height: 6)
+                                    ZStack {
+                                        Circle()
+                                            .fill(CentmondTheme.Colors.positive.opacity(0.20))
+                                            .frame(width: 10, height: 10)
+                                        Circle()
+                                            .fill(CentmondTheme.Colors.positive)
+                                            .frame(width: 5, height: 5)
+                                            .shadow(color: CentmondTheme.Colors.positive.opacity(0.6), radius: 2)
+                                    }
                                 }
-                                .annotation(position: .trailing, spacing: 4) {
-                                    Text(CurrencyFormat.compact(Decimal(lastPt.amount)))
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(CentmondTheme.Colors.positive)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(CentmondTheme.Colors.positive.opacity(0.12))
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                .annotation(position: .bottomTrailing, spacing: 4) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "arrow.down.right")
+                                            .font(.system(size: 8, weight: .bold))
+                                        Text(CurrencyFormat.compact(Decimal(lastPt.amount)))
+                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    }
+                                    .foregroundStyle(CentmondTheme.Colors.positive)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(CentmondTheme.Colors.positive.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
                                 }
                             }
                         }
 
-                        // Layer 10: Highlighted bars for hovered trigger
+                        // Layer 10: Highlighted days for hovered trigger.
+                        // Two marks per matching day so the highlight is always
+                        // visible regardless of that day's spending amount:
+                        //   (a) a full-height vertical RuleMark tinted with the
+                        //       trigger's warning color — works even on days
+                        //       with $0 spending (the earlier BarMark-only
+                        //       approach was invisible on low/zero-spending days);
+                        //   (b) a thicker, brighter BarMark overlay on top of
+                        //       Layer 1's faint blue bar so the day "pops".
                         if !hoveredTriggerDays.isEmpty {
+                            ForEach(Array(hoveredTriggerDays), id: \.self) { day in
+                                RuleMark(x: .value("Day", day))
+                                    .foregroundStyle(CentmondTheme.Colors.warning.opacity(0.35))
+                                    .lineStyle(StrokeStyle(lineWidth: 10, lineCap: .round))
+                            }
                             ForEach(bars.filter({ hoveredTriggerDays.contains($0.dayOfMonth) })) { bar in
                                 BarMark(
                                     x: .value("Day", bar.dayOfMonth),
                                     y: .value("Amount", bar.amount)
                                 )
-                                .foregroundStyle(CentmondTheme.Colors.warning.opacity(0.8))
+                                .foregroundStyle(CentmondTheme.Colors.warning)
                                 .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
                             }
                         }
@@ -2918,6 +3374,15 @@ struct AIPredictionView: View {
                             anchorDate: predictionData?.spendingTrajectory.first?.date
                         )
                     }
+                    // Native Swift Charts animation for the success-path layer.
+                    // When `committedActions` toggles, the LineMark/PointMark
+                    // for the green "If you cut" path either appear or
+                    // disappear; this `.animation(_:value:)` modifier on the
+                    // Chart view tells Charts to interpolate that transition
+                    // over 0.5s rather than snapping. With AreaMark already
+                    // removed earlier, only LineMark and PointMark remain,
+                    // both of which interpolate cleanly.
+                    .animation(.easeInOut(duration: 0.5), value: committedActions)
 
                 // Bottom: budget progress bar + spending velocity
                 if forecast.totalBudget > 0 {
@@ -3241,6 +3706,38 @@ struct AIPredictionView: View {
     // `TrajectoryTooltipView` struct (defined at end of file) so the new
     // `TrajectoryHoverOverlay` can render it without an AIPredictionView.
 
+    /// Caption row sitting beneath each of the three intelligence cards
+    /// (Behavioral / Anomalies / Combat Plan). Tells the user what they can
+    /// DO with the card — hover to highlight, read the spike, click to
+    /// simulate the savings line. Aligned column-for-column with the cards
+    /// above via `.frame(maxWidth: .infinity)`.
+    private func intelligenceCardHelp(icon: String, title: String, body: String, accent: Color) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 22, height: 22)
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accent)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                Text(body)
+                    .font(.system(size: 10))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.sm)
+        .padding(.vertical, CentmondTheme.Spacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func statChip(icon: String, value: String, color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
@@ -3291,9 +3788,17 @@ struct AIPredictionView: View {
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
+                        // Pass the top category's projected spend so every
+                        // row renders a magnitude bar proportional to it.
+                        // Previously only rows with a budget showed a bar,
+                        // so the card looked empty and scale-less — the
+                        // user couldn't tell at a glance that Travel was
+                        // ~2× Home without reading numbers. The merchant
+                        // card already does this; the two now match.
+                        let maxAmount = max(1, categories.map(\.projected).max() ?? 1)
                         VStack(spacing: CentmondTheme.Spacing.xs) {
                             ForEach(categories.prefix(10)) { cat in
-                                categoryRow(cat)
+                                categoryRow(cat, maxAmount: maxAmount)
                             }
                         }
                     }
@@ -3303,75 +3808,100 @@ struct AIPredictionView: View {
         .frame(height: dataCardHeight)
     }
 
-    private func categoryRow(_ cat: CategoryProjection) -> some View {
-        VStack(spacing: CentmondTheme.Spacing.xs) {
-            HStack {
+    private func categoryRow(_ cat: CategoryProjection, maxAmount: Double) -> some View {
+        // Two-line layout, parity with the merchants card:
+        //   Line 1: [icon] name [trend pill]              AMOUNT
+        //   Line 2: [magnitude bar]           [over-by caption if flagged]
+        //
+        // The bar is ALWAYS rendered, proportional to the top category's
+        // amount, tinted in the category's own colorHex. That gives every
+        // row a visual weight cue — users can tell "Travel is roughly 2×
+        // Home" without reading any numbers. Earlier iteration only drew
+        // bars for rows with a budget set, which is 1–2 rows out of 10 in
+        // typical data, leaving the rest of the card feeling empty.
+        //
+        // Over-budget handling:
+        //   - Amount text turns red.
+        //   - Bar tint switches to red (overrides the category colour) so
+        //     it visually "stains" the row.
+        //   - Line 2 gets the "over by $N" caption aligned to the right.
+        //
+        // Trend arrow only appears when rising or falling — stable is the
+        // majority case and the arrow was cluttering every single row.
+        let hasBudget = cat.budget > 0
+        let overBudget = hasBudget && cat.projected > cat.budget
+        let magnitudeRatio = cat.projected / maxAmount
+        let amountColor: Color = overBudget ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textPrimary
+        let barTint: Color = overBudget ? CentmondTheme.Colors.negative : Color(hex: cat.colorHex)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            // Line 1
+            HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: cat.icon)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color(hex: cat.colorHex))
-                    .frame(width: 24)
+                    .frame(width: 20)
 
                 Text(cat.name)
                     .font(CentmondTheme.Typography.bodyMedium)
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    .lineLimit(1)
 
-                Image(systemName: cat.trend.rawValue)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(trendColor(cat.trend))
-
-                Spacer()
-
-                // Spent / Projected
-                HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Text(CurrencyFormat.compact(Decimal(cat.spent)))
-                        .font(CentmondTheme.Typography.mono)
-                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                        .monospacedDigit()
-
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 8))
-                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-
-                    Text(CurrencyFormat.compact(Decimal(cat.projected)))
-                        .font(CentmondTheme.Typography.mono)
-                        .foregroundStyle(projectedColor(cat))
-                        .monospacedDigit()
-
-                    if cat.budget > 0 {
-                        Text("/ \(CurrencyFormat.compact(Decimal(cat.budget)))")
-                            .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                            .monospacedDigit()
-                    }
+                if cat.trend == .rising {
+                    trendPill(symbol: "arrow.up.right", color: CentmondTheme.Colors.negative)
+                } else if cat.trend == .falling {
+                    trendPill(symbol: "arrow.down.right", color: CentmondTheme.Colors.positive)
                 }
+
+                Spacer(minLength: CentmondTheme.Spacing.sm)
+
+                Text(CurrencyFormat.compact(Decimal(cat.projected)))
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(amountColor)
+                    .monospacedDigit()
             }
 
-            // Progress bar
-            if cat.budget > 0 {
+            // Line 2 — magnitude bar + optional over-by caption, both
+            // indented 28pt (icon 20pt + spacing 8pt) so they align under
+            // the NAME, not the icon column.
+            HStack(spacing: CentmondTheme.Spacing.sm) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        // Background
                         RoundedRectangle(cornerRadius: 2)
                             .fill(CentmondTheme.Colors.bgTertiary)
                             .frame(height: 4)
-
-                        // Projected (translucent, behind spent)
-                        if cat.projectedRatio > cat.spentRatio {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(progressColor(cat).opacity(0.3))
-                                .frame(width: geo.size.width * min(cat.projectedRatio, 1.0), height: 4)
-                        }
-
-                        // Spent (solid, on top)
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(progressColor(cat))
-                            .frame(width: geo.size.width * min(cat.spentRatio, 1.0), height: 4)
+                            .fill(barTint)
+                            .frame(width: max(3, geo.size.width * min(magnitudeRatio, 1.0)), height: 4)
                     }
                 }
                 .frame(height: 4)
+
+                if overBudget {
+                    Text("over by \(CurrencyFormat.compact(Decimal(cat.projected - cat.budget)))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(CentmondTheme.Colors.negative)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
+            .padding(.leading, 28)
         }
-        .padding(.vertical, CentmondTheme.Spacing.xs)
+        .padding(.vertical, 5)
+    }
+
+    /// Tiny coloured pill for the trend arrow. Replaces the earlier bare
+    /// SF Symbol next to the name, which blended into the row and looked
+    /// like every category was trending up. A filled rounded chip is
+    /// scannable as an explicit "this metric is moving" badge.
+    private func trendPill(symbol: String, color: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 
     private func trendColor(_ trend: CategoryProjection.Trend) -> Color {
@@ -3481,6 +4011,61 @@ extension EnvironmentValues {
     var riskLevel: String {
         get { self[RiskLevelKey.self] }
         set { self[RiskLevelKey.self] = newValue }
+    }
+}
+
+// MARK: - Behavioral Trigger Row
+//
+// Owns its own `isHovered` @State so the hover transition animates the card
+// background locally without invalidating AIPredictionView's body on every
+// enter/leave. The parent is notified via `onHoverChanged` so it can update
+// `hoveredTriggerDays` (the chart highlight source of truth). This matches
+// the rule from the "Hover State Scope" memory — any hover handler on a busy
+// parent view gets extracted into its own sub-view.
+fileprivate struct BehavioralTriggerRow: View {
+    let trigger: AITrigger
+    let icon: String
+    let onHoverChanged: (Bool) -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: CentmondTheme.Spacing.md) {
+            ZStack {
+                Circle()
+                    .fill(CentmondTheme.Colors.warning.opacity(isHovered ? 0.22 : 0.12))
+                    .frame(width: 38, height: 38)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(CentmondTheme.Colors.warning)
+            }
+
+            Text(trigger.pattern)
+                .font(CentmondTheme.Typography.bodyMedium)
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text(CurrencyFormat.compact(Decimal(trigger.amount)))
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .foregroundStyle(CentmondTheme.Colors.warning)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+        .background(CentmondTheme.Colors.warning.opacity(isHovered ? 0.16 : 0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
+                .stroke(CentmondTheme.Colors.warning.opacity(isHovered ? 0.5 : 0), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isHovered = hovering
+            }
+            onHoverChanged(hovering)
+        }
     }
 }
 
@@ -3606,6 +4191,39 @@ fileprivate struct TrajectoryHoverOverlay: View {
                         .allowsHitTesting(false)
                 }
 
+                // Soft blue dot pinned to the line at the hovered day — same
+                // accent blue as the actual cumulative line, so it reads as
+                // "the line glowing a little" rather than a spotlight.
+                // plusLighter over accent-blue stays subtle because we keep
+                // the core opacity low.
+                if let day = hoveredDay,
+                   let plotFrameKey = proxy.plotFrame {
+                    let plotFrame = geometry[plotFrameKey]
+                    let cumulative = cumulativeAmount(forDay: day)
+                    if let yInPlot = proxy.position(forY: cumulative) {
+                        let hx = hoverLocation.x
+                        let hy = yInPlot + plotFrame.origin.y
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        CentmondTheme.Colors.accent.opacity(0.45),
+                                        CentmondTheme.Colors.accent.opacity(0.18),
+                                        CentmondTheme.Colors.accent.opacity(0.0)
+                                    ],
+                                    center: .center,
+                                    startRadius: 0.5,
+                                    endRadius: 11
+                                )
+                            )
+                            .frame(width: 26, height: 26)
+                            .blendMode(.plusLighter)
+                            .position(x: hx, y: hy)
+                            .allowsHitTesting(false)
+                            .animation(.easeOut(duration: 0.08), value: hoveredDay)
+                    }
+                }
+
                 // Tooltip
                 if let day = hoveredDay,
                    let bar = bars.first(where: { $0.dayOfMonth == day }) {
@@ -3618,6 +4236,32 @@ fileprivate struct TrajectoryHoverOverlay: View {
                 }
             }
         }
+    }
+
+    /// Points of the actual (non-projected) cumulative line within ±`window`
+    /// days of `centerDay`, converted to overlay-space CGPoints so the
+    /// `Canvas` can stroke them directly. Empty / single-element if the
+    /// window falls outside the data range.
+    fileprivate struct HighlightPoint { let day: Double; let point: CGPoint }
+    private func highlightSegment(centerDay: Int, window: Int, proxy: ChartProxy, plotFrame: CGRect) -> [HighlightPoint] {
+        guard let anchor = anchorDate else { return [] }
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: anchor)
+        let lo = centerDay - window
+        let hi = centerDay + window
+        var result: [HighlightPoint] = []
+        for pt in points where !pt.isProjected {
+            let target = cal.startOfDay(for: pt.date)
+            let off = (cal.dateComponents([.day], from: dayStart, to: target).day ?? 0) + 1
+            guard off >= lo && off <= hi else { continue }
+            guard let xInPlot = proxy.position(forX: off),
+                  let yInPlot = proxy.position(forY: pt.amount) else { continue }
+            result.append(HighlightPoint(
+                day: Double(off),
+                point: CGPoint(x: xInPlot + plotFrame.origin.x, y: yInPlot + plotFrame.origin.y)
+            ))
+        }
+        return result
     }
 
     /// Cumulative spending up to (and including) `day`. Day is a 1-indexed
@@ -3716,5 +4360,289 @@ fileprivate struct TrajectoryTooltipView: View {
                 .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
+    }
+}
+
+// MARK: - Deep Analysis: Timeframe-Grouped Parse Result
+
+/// One time window + the topic paragraphs the AI generated for it.
+fileprivate struct TimeframeGroupedAnalysis: Hashable {
+    let timeframe: PredictionTimeRange
+    let entries: [TopicEntry]
+}
+
+/// One paragraph inside a timeframe group — topic is the `## heading`
+/// the paragraph came from (Monthly Outlook / Triggers / etc.).
+fileprivate struct TopicEntry: Hashable {
+    let topic: String
+    let body: String
+}
+
+// MARK: - Deep Analysis: Inline Entity Capsules
+//
+// Replaces the plain `Text(paragraph)` renderer with a per-token view
+// so dollar amounts, percentages, and month names can render as inline
+// coloured capsules without breaking natural text-wrap. User request:
+// "you are over budget by (200€) by the category of (travel)" — parens
+// = capsule. We match:
+//   - currency:  $1,234.56 / €200 / 200€ / 12k etc.
+//   - percent:   -36% / 12.5%
+//   - month:     April / Apr / March 2026
+// Plain text between entities is split word-by-word so the wrapping
+// layout can break lines naturally. Categories are detected from a
+// static keyword list — good enough for the common cases (travel,
+// food, shopping, etc.); extend as needed.
+
+/// One token in a parsed paragraph. Plain text tokens are rendered as
+/// `Text`; entity tokens render as coloured capsules.
+fileprivate enum InlineToken {
+    case text(String)
+    case amount(String)
+    case percent(String)
+    case month(String)
+    case category(String)
+}
+
+/// Renders a paragraph with inline coloured capsules for entities.
+fileprivate struct InlineEntityText: View {
+    let text: String
+
+    var body: some View {
+        let tokens = InlineTokenizer.tokenize(text)
+        WrapLayout(hSpacing: 3, vSpacing: 5) {
+            ForEach(Array(tokens.enumerated()), id: \.offset) { _, token in
+                tokenView(token)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tokenView(_ token: InlineToken) -> some View {
+        switch token {
+        case .text(let s):
+            Text(s)
+                .font(CentmondTheme.Typography.body)
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+        case .amount(let s):
+            inlineCapsule(s, color: CentmondTheme.Colors.accent, monospaced: true)
+        case .percent(let s):
+            let isNegative = s.hasPrefix("-")
+            inlineCapsule(s, color: isNegative ? CentmondTheme.Colors.negative : CentmondTheme.Colors.positive, monospaced: true)
+        case .month(let s):
+            inlineCapsule(s, color: Color(red: 0.55, green: 0.36, blue: 0.96), monospaced: false) // violet
+        case .category(let s):
+            inlineCapsule(s, color: CentmondTheme.Colors.warning, monospaced: false)
+        }
+    }
+
+    private func inlineCapsule(_ s: String, color: Color, monospaced: Bool) -> some View {
+        Text(s)
+            .font(.system(size: 12, weight: .semibold, design: monospaced ? .monospaced : .default))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(color.opacity(0.14))
+            .overlay(
+                Capsule()
+                    .stroke(color.opacity(0.30), lineWidth: 0.5)
+            )
+            .clipShape(Capsule())
+    }
+}
+
+/// Tokenises a paragraph into plain text + entity spans. Strategy:
+///   1. Build a list of (range, token) matches for every recognised
+///      pattern. Prefer the FIRST match when ranges overlap (rare).
+///   2. Walk the paragraph; between matches emit plain-text tokens
+///      broken up by whitespace so the WrapLayout can break lines at
+///      word boundaries.
+fileprivate enum InlineTokenizer {
+    // Keep in sync with the category keywords the AI tends to surface.
+    // Matches are case-insensitive, whole-word. Extend if users pick
+    // category names outside this list and want them capsuled.
+    static let categoryKeywords: [String] = [
+        "travel", "food", "dining", "restaurants", "groceries",
+        "shopping", "clothing",
+        "home", "housing", "rent", "mortgage",
+        "health", "medical", "pharmacy",
+        "education", "tuition",
+        "transportation", "transport", "gas", "fuel",
+        "entertainment", "streaming", "subscriptions",
+        "bills", "utilities",
+        "gifts", "donations",
+    ]
+
+    // Month names (standalone only). Matching is case-sensitive because
+    // the AI writes them capitalised; lowercase "march" as a verb
+    // shouldn't get capsule'd.
+    static let monthNames: [String] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+        "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec",
+    ]
+
+    static func tokenize(_ paragraph: String) -> [InlineToken] {
+        guard !paragraph.isEmpty else { return [] }
+
+        // Collect every match across every pattern as NSRange + token kind.
+        struct Match {
+            let range: NSRange
+            let kind: InlineToken
+        }
+        let ns = paragraph as NSString
+        var matches: [Match] = []
+
+        func add(pattern: String, options: NSRegularExpression.Options = [], make: (String) -> InlineToken) {
+            guard let re = try? NSRegularExpression(pattern: pattern, options: options) else { return }
+            re.enumerateMatches(in: paragraph, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
+                guard let r = m?.range else { return }
+                let sub = ns.substring(with: r)
+                matches.append(Match(range: r, kind: make(sub)))
+            }
+        }
+
+        // Currency: $1,234 / $1,234.56 / $12k / €200 / 200€ (euro before OR after)
+        add(pattern: #"(?:\$|€)\s?-?\d[\d,]*(?:\.\d+)?[kKmMbB]?|\d[\d,]*(?:\.\d+)?\s?€"#) { .amount($0) }
+        // Percent: 12% / -36% / 1.5%
+        add(pattern: #"-?\d+(?:\.\d+)?%"#) { .percent($0) }
+        // Months: April, April 2026, Apr 30th (month component only)
+        let monthPattern = "\\b(?:" + monthNames.joined(separator: "|") + ")(?:\\s+\\d{1,2}(?:st|nd|rd|th)?)?(?:,?\\s+\\d{4})?\\b"
+        add(pattern: monthPattern) { .month($0) }
+        // Categories: word-boundary list
+        let catPattern = "\\b(?:" + categoryKeywords.joined(separator: "|") + ")\\b"
+        add(pattern: catPattern, options: [.caseInsensitive]) { .category($0) }
+
+        // Resolve overlaps — prefer earlier start, longer span on tie.
+        matches.sort {
+            if $0.range.location != $1.range.location {
+                return $0.range.location < $1.range.location
+            }
+            return $0.range.length > $1.range.length
+        }
+        var filtered: [Match] = []
+        var cursor = 0
+        for m in matches {
+            if m.range.location >= cursor {
+                filtered.append(m)
+                cursor = m.range.location + m.range.length
+            }
+        }
+
+        // Walk the paragraph, emitting plain-text gaps split by whitespace
+        // so the WrapLayout can break lines. Entity tokens stay whole.
+        var tokens: [InlineToken] = []
+        var idx = 0
+        for m in filtered {
+            if m.range.location > idx {
+                let gap = ns.substring(with: NSRange(location: idx, length: m.range.location - idx))
+                appendWordTokens(gap, into: &tokens)
+            }
+            tokens.append(m.kind)
+            idx = m.range.location + m.range.length
+        }
+        if idx < ns.length {
+            let tail = ns.substring(with: NSRange(location: idx, length: ns.length - idx))
+            appendWordTokens(tail, into: &tokens)
+        }
+
+        return tokens
+    }
+
+    /// Split a plain-text span into word tokens. Preserves trailing
+    /// punctuation on each word so "amount," stays one token (keeps the
+    /// comma tight against the preceding word, avoids orphan commas).
+    private static func appendWordTokens(_ span: String, into tokens: inout [InlineToken]) {
+        // Split on whitespace only; word+punctuation stays together.
+        var current = ""
+        for ch in span {
+            if ch.isWhitespace {
+                if !current.isEmpty {
+                    tokens.append(.text(current))
+                    current = ""
+                }
+            } else {
+                current.append(ch)
+            }
+        }
+        if !current.isEmpty { tokens.append(.text(current)) }
+    }
+}
+
+// MARK: - Deep Analysis: Wrap Layout
+//
+// SwiftUI's built-in HStack can't wrap to a new line when content
+// exceeds the container's width — it clips or scrolls. For inline
+// entity capsules mixed with text we need HTML-style flowing layout:
+// pack tokens left-to-right, break to the next line when the next
+// token won't fit, repeat. This is ~50 lines of Layout protocol.
+
+fileprivate struct WrapLayout: Layout {
+    var hSpacing: CGFloat = 4
+    var vSpacing: CGFloat = 4
+    /// Vertical alignment of tokens within each line. `.firstTextBaseline`
+    /// looks weird because some subviews (capsules) don't report
+    /// baselines; `.center` gives consistent visual alignment.
+    var rowAlignment: VerticalAlignment = .center
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentLineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var maxLineWidth: CGFloat = 0
+
+        for sv in subviews {
+            let sz = sv.sizeThatFits(.unspecified)
+            if currentX > 0, currentX + sz.width > maxWidth {
+                // line break
+                totalHeight += currentLineHeight + vSpacing
+                maxLineWidth = max(maxLineWidth, currentX - hSpacing)
+                currentX = 0
+                currentLineHeight = 0
+            }
+            currentX += sz.width + hSpacing
+            currentLineHeight = max(currentLineHeight, sz.height)
+        }
+        totalHeight += currentLineHeight
+        maxLineWidth = max(maxLineWidth, currentX - hSpacing)
+        return CGSize(width: maxWidth == .infinity ? maxLineWidth : maxWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxX = bounds.maxX
+        var x = bounds.minX
+        var y = bounds.minY
+        var lineHeight: CGFloat = 0
+        // First pass: group subviews into lines so we can center each
+        // subview vertically within its line's height.
+        var lines: [[(Subviews.Element, CGSize)]] = [[]]
+        var curX: CGFloat = 0
+        for sv in subviews {
+            let sz = sv.sizeThatFits(.unspecified)
+            if curX > 0, bounds.minX + curX + sz.width > maxX {
+                lines.append([])
+                curX = 0
+            }
+            lines[lines.count - 1].append((sv, sz))
+            curX += sz.width + hSpacing
+        }
+
+        // Second pass: place tokens, vertically centered per-line.
+        for line in lines {
+            lineHeight = line.map { $0.1.height }.max() ?? 0
+            x = bounds.minX
+            for (sv, sz) in line {
+                let yOffset: CGFloat
+                switch rowAlignment {
+                case .top:     yOffset = 0
+                case .bottom:  yOffset = lineHeight - sz.height
+                default:       yOffset = (lineHeight - sz.height) / 2
+                }
+                sv.place(at: CGPoint(x: x, y: y + yOffset),
+                         proposal: ProposedViewSize(width: sz.width, height: sz.height))
+                x += sz.width + hSpacing
+            }
+            y += lineHeight + vSpacing
+        }
     }
 }
