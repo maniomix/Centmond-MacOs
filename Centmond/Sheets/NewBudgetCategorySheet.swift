@@ -262,7 +262,7 @@ struct NewBudgetCategorySheet: View {
             .padding(.horizontal, CentmondTheme.Spacing.lg)
             .padding(.vertical, CentmondTheme.Spacing.md)
         }
-        .frame(width: 400, height: 560)
+        .frame(height: 560)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { appeared = true }
         }

@@ -82,7 +82,19 @@ struct AIPredictionView: View {
     // invalidate this entire view body at ~60 Hz on hover and pegged CPU.
     @State private var chartMode: ChartMode = .trajectory
     @State private var committedActions: Set<UUID> = []       // Combat Plan committed actions
-    @State private var hoveredTriggerDays: Set<Int> = []      // Trigger → chart bar highlight
+    // Hover state for the "highlight days on chart" affordance lives in an
+    // @Observable class instead of @State. Why: every hover enter/leave
+    // used to mutate a parent @State Set, which invalidated the WHOLE
+    // AIPredictionView.body — rebuilding the Chart (60+ marks), every
+    // card, every InlineEntityText, etc. CPU pegged.
+    //
+    // With @Observable, the class instance is stored in @State but the
+    // parent body doesn't READ `triggerHover.days` — it only passes the
+    // reference down. SwiftUI's observation system tracks property reads
+    // per-view-identity; only views that read `triggerHover.days` in
+    // THEIR OWN body (see `TriggerHoverHighlight`) invalidate when the
+    // set changes. The parent stays inert on hover.
+    @State private var triggerHover = TriggerHoverCoordinator()
     @State private var timeRange: PredictionTimeRange = .thisMonth  // Historical window the AI analyses
 
     // Per-range caches. Engine data is pre-computed upfront for ALL ranges
@@ -111,8 +123,11 @@ struct AIPredictionView: View {
     private let dataCardHeight: CGFloat = 280
 
     var body: some View {
-        ScrollView {
-            if phase == .ready, let data = predictionData, let ai = aiPredictions {
+        VStack(spacing: 0) {
+            BetaBanner(title: "AI Predictions")
+
+            ScrollView {
+                if phase == .ready, let data = predictionData, let ai = aiPredictions {
                 HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
                     // LEFT: main content column
                     VStack(spacing: CentmondTheme.Spacing.sm) {
@@ -245,6 +260,19 @@ struct AIPredictionView: View {
             // reload, no re-stream of the current view.
             applyCachedRange(newRange)
         }
+        .onDisappear {
+            // Same rationale as AIChatView.onDisappear — cancel any
+            // in-flight prediction stream before the user lands on
+            // another AI screen. Prevents concurrent generations
+            // from colliding at LlamaBackend. `.task` above cancels
+            // on view-removal for its own body, but the AIManager's
+            // `Task.detached` generation task is NOT cancelled by
+            // SwiftUI's task lifecycle — needs an explicit cancel.
+            if aiManager.isGenerating {
+                aiManager.cancelGeneration()
+            }
+        }
+        } // VStack wrapping BetaBanner + ScrollView
     }
 
     // MARK: - Time Range Picker
@@ -1061,8 +1089,17 @@ struct AIPredictionView: View {
                 // Status: analyzing pulse → just-finished capsule → checkmark
                 if isAnalyzing {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
+                        // `.controlSize(.small)` instead of `.scaleEffect(0.55)`
+                        // — scaleEffect only visually scales the view while
+                        // AppKit keeps the spinner's original intrinsic width
+                        // (~59.43pt). Multiplying through produces 32.687858pt,
+                        // and float precision makes AppKit's own min/max
+                        // comparison fail with "maximum length (32.687858)
+                        // doesn't satisfy min (32.687858) <= max (32.687858)"
+                        // on every analyze tick. `.controlSize` resizes the
+                        // control natively with clean integer intrinsics.
                         ProgressView()
-                            .scaleEffect(0.55)
+                            .controlSize(.small)
                         Text("Gemma 4 analyzing…")
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
@@ -1155,8 +1192,19 @@ struct AIPredictionView: View {
                 SkeletonLoader()
                     .padding(.vertical, CentmondTheme.Spacing.sm)
             } else {
-                // Full AI text — card expands with page scroll, sidebar matches left column height
-                aiReportContent(aiAnalysisText)
+                // Full AI text — card expands with page scroll, sidebar matches left column height.
+                // Wrapped in `EqualityGate` so hover events on trigger rows
+                // (which mutate `hoveredTriggerDays` on this view and force
+                // a body re-eval) DON'T re-run `parseAnalysisByTimeframe`
+                // or rebuild the WrapLayout tree. The gate is equal when
+                // `text` and `timeRange` haven't changed — which is every
+                // hover tick — and SwiftUI skips this subtree entirely.
+                // Without this, ~15 paragraphs of regex-tokenization +
+                // WrapLayout size-passes were burning CPU on every hover.
+                EqualityGate(keys: [AnyHashable(aiAnalysisText), AnyHashable(timeRange.rawValue)]) {
+                    aiReportContent(aiAnalysisText)
+                }
+                .equatable()
             }
         }
         .padding(CentmondTheme.Spacing.lg)
@@ -1320,6 +1368,7 @@ struct AIPredictionView: View {
                             .tracking(0.5)
                     }
                     InlineEntityText(text: entry.body)
+                        .equatable()
                 }
             }
         }
@@ -1352,6 +1401,7 @@ struct AIPredictionView: View {
                 } else {
                     let parts = extractWindowTags(trimmed)
                     InlineEntityText(text: parts.body)
+                        .equatable()
                 }
             }
         }
@@ -1513,10 +1563,18 @@ struct AIPredictionView: View {
             // Outer VStack spacing MUST match the anomaly + combat cards
             // (both use `xs`). Earlier this card used `sm` (8pt) while the
             // other two used `xs` (4pt), producing a 4pt bottom-edge
-            // misalignment that survived the HStack height equaliser —
-            // `.fixedSize(vertical: true)` snapped the HStack to the
-            // tallest card's natural height, and the siblings' content
-            // didn't stretch the extra 4pt to close the gap.
+            // misalignment that survived the HStack height equaliser.
+            //
+            // `.frame(maxHeight: .infinity, alignment: .top)` on the inner
+            // VStack is load-bearing: the outer card already accepts up to
+            // infinity height via its own `.frame(maxHeight: .infinity)`,
+            // but without this modifier the inner VStack takes only its
+            // natural (content) size, so a 2-row Behavioral card sitting
+            // next to a 3-row Combat Plan card rendered shorter despite
+            // the HStack having equalised. The modifier tells this
+            // VStack to ABSORB any extra vertical space offered by the
+            // HStack, keeping content top-aligned so the empty space
+            // lands at the bottom.
             VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "brain.head.profile.fill")
@@ -1557,15 +1615,26 @@ struct AIPredictionView: View {
                     .frame(maxWidth: .infinity, minHeight: 160, alignment: .top)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
     private func behavioralTriggerCard(_ trigger: AITrigger) -> some View {
-        BehavioralTriggerRow(
+        // Precompute once per body re-eval. Closure captures `days`, so
+        // hover enter/leave events reuse the cached value instead of
+        // walking `currentMonthTransactions` with filters + date math
+        // on every hover tick. `daysMatching` is ~1–5ms per call and
+        // rapid mouse motion compounds that fast.
+        let days = daysMatching(trigger: trigger)
+        return BehavioralTriggerRow(
             trigger: trigger,
             icon: triggerIcon(for: trigger.pattern),
-            onHoverChanged: { hovering in
-                hoveredTriggerDays = hovering ? daysMatching(trigger: trigger) : []
+            onHoverChanged: { [triggerHover, days] hovering in
+                // Mutates @Observable — only `TriggerHoverHighlight`
+                // (which reads `triggerHover.days`) will invalidate.
+                // Parent body stays inert so the Chart + cards don't
+                // rebuild on hover.
+                triggerHover.days = hovering ? days : []
             }
         )
     }
@@ -1663,8 +1732,44 @@ struct AIPredictionView: View {
             matched = []
         }
 
+        // Convert each matched transaction's date into a chart-X
+        // coordinate: day-index FROM `windowStart` (+1 to match the
+        // engine's `DailySpendingBar.dayOfMonth = day + 1` convention).
+        //
+        // Single-month view: windowStart = start-of-current-month, so
+        // dayIdx for April 5 = 5 — same as calendar day-of-month. Old
+        // behaviour preserved.
+        //
+        // Multi-month view (Last 3 Months, Last Year, etc.): windowStart
+        // is months or a year before current month. April 5 with
+        // windowStart = May 1 prior year → dayIdx = 340. Old code
+        // returned `calendar.component(.day, ...) = 5`, which made the
+        // chart plot the highlight at May 5 of the FIRST month —
+        // hundreds of days away from the actual transaction.
+        let windowStart = predictionData?.windowStart ?? calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
         for txn in matched {
-            days.insert(calendar.component(.day, from: txn.date))
+            let offset = calendar.dateComponents([.day], from: windowStart, to: txn.date).day ?? 0
+            days.insert(offset + 1)
+        }
+
+        // The `extractDays` regex still returns calendar day-of-month
+        // numbers (1-31) from AI text like "the 22nd" — those were
+        // already only correct for single-month windows anyway. For
+        // multi-month windows the AI's in-text day references are
+        // ambiguous (which month's 22nd?) so we drop those days when
+        // the window spans multiple months.
+        let isMultiMonth = predictionData?.forecast.daysPassed ?? 0 > 35 ||
+                           (calendar.dateComponents([.day], from: windowStart, to: now).day ?? 0) > 35
+        if isMultiMonth {
+            days = days.filter { $0 >= 1 && $0 <= 31 ? false : true }
+            // Re-add only the offset-based days (txn-derived) for multi-
+            // month windows. Extract-days results are discarded above.
+            var offsetOnly = Set<Int>()
+            for txn in matched {
+                let offset = calendar.dateComponents([.day], from: windowStart, to: txn.date).day ?? 0
+                offsetOnly.insert(offset + 1)
+            }
+            return offsetOnly
         }
 
         return days
@@ -1753,6 +1858,7 @@ struct AIPredictionView: View {
                     .frame(maxWidth: .infinity, minHeight: 160, alignment: .top)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -1849,6 +1955,7 @@ struct AIPredictionView: View {
                     .frame(maxWidth: .infinity, minHeight: 160, alignment: .top)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -3302,30 +3409,13 @@ struct AIPredictionView: View {
                             }
                         }
 
-                        // Layer 10: Highlighted days for hovered trigger.
-                        // Two marks per matching day so the highlight is always
-                        // visible regardless of that day's spending amount:
-                        //   (a) a full-height vertical RuleMark tinted with the
-                        //       trigger's warning color — works even on days
-                        //       with $0 spending (the earlier BarMark-only
-                        //       approach was invisible on low/zero-spending days);
-                        //   (b) a thicker, brighter BarMark overlay on top of
-                        //       Layer 1's faint blue bar so the day "pops".
-                        if !hoveredTriggerDays.isEmpty {
-                            ForEach(Array(hoveredTriggerDays), id: \.self) { day in
-                                RuleMark(x: .value("Day", day))
-                                    .foregroundStyle(CentmondTheme.Colors.warning.opacity(0.35))
-                                    .lineStyle(StrokeStyle(lineWidth: 10, lineCap: .round))
-                            }
-                            ForEach(bars.filter({ hoveredTriggerDays.contains($0.dayOfMonth) })) { bar in
-                                BarMark(
-                                    x: .value("Day", bar.dayOfMonth),
-                                    y: .value("Amount", bar.amount)
-                                )
-                                .foregroundStyle(CentmondTheme.Colors.warning)
-                                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-                            }
-                        }
+                        // Layer 10 MOVED to a chartOverlay Canvas — see
+                        // `TriggerHoverHighlight` below. Drawing the highlight
+                        // inside the Chart block meant every hover on a
+                        // Behavioral Pattern row triggered a full Chart
+                        // rebuild (60+ marks). Moving it to a chartOverlay
+                        // backed by @Observable means only that overlay
+                        // invalidates on hover.
 
                     }
                     .chartYAxis {
@@ -3373,6 +3463,16 @@ struct AIPredictionView: View {
                             forecast: forecast,
                             anchorDate: predictionData?.spendingTrajectory.first?.date
                         )
+                    }
+                    // Behavioral-Pattern hover highlight lives here (was
+                    // Chart Layer 10). Passes the @Observable coordinator;
+                    // only THIS overlay's body reads `coordinator.days`,
+                    // so only this Canvas invalidates when the user hovers
+                    // a trigger row. The main Chart stays fully rebuilt-
+                    // free. Drawn BEHIND TrajectoryHoverOverlay so the
+                    // hover dot glow stays on top.
+                    .chartOverlay(alignment: .topLeading) { proxy in
+                        TriggerHoverHighlight(coordinator: triggerHover, proxy: proxy)
                     }
                     // Native Swift Charts animation for the success-path layer.
                     // When `committedActions` toggles, the LineMark/PointMark
@@ -4060,10 +4160,15 @@ fileprivate struct BehavioralTriggerRow: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
         .contentShape(Rectangle())
+        // Implicit `.animation(_:value:)` is narrower than `withAnimation`
+        // — it only animates properties whose values derive from
+        // `isHovered` (icon circle fill opacity, background opacity, stroke
+        // opacity). withAnimation(...) created a broader transaction that
+        // propagated to sibling state changes, which added cost on rapid
+        // mouse movement across rows.
+        .animation(.easeInOut(duration: 0.18), value: isHovered)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isHovered = hovering
-            }
+            isHovered = hovering
             onHoverChanged(hovering)
         }
     }
@@ -4118,10 +4223,15 @@ private struct RiskCardContainer<Content: View>: View {
                 radius: isHovered ? 16 : 6,
                 y: isHovered ? 4 : 2
             )
+            // Card hover fires every time the mouse moves over any
+            // descendant (including the behavioral rows inside).
+            // Narrower implicit animation instead of withAnimation so
+            // the row's own hover transaction and the card's hover
+            // transaction don't stack when the user is moving inside
+            // the card.
+            .animation(CentmondTheme.Motion.default, value: isHovered)
             .onHover { hovering in
-                withAnimation(CentmondTheme.Motion.default) {
-                    isHovered = hovering
-                }
+                isHovered = hovering
             }
     }
 }
@@ -4404,8 +4514,22 @@ fileprivate enum InlineToken {
 }
 
 /// Renders a paragraph with inline coloured capsules for entities.
-fileprivate struct InlineEntityText: View {
+fileprivate struct InlineEntityText: View, Equatable {
     let text: String
+
+    // `Equatable` + `.equatable()` at call sites is load-bearing.
+    // Hovering a Behavioral Pattern row updates `hoveredTriggerDays` on
+    // `AIPredictionView`, which invalidates the whole body — normally
+    // SwiftUI would then call THIS view's `body` on every hover, which
+    // in turn runs `InlineTokenizer.tokenize(text)` through
+    // NSRegularExpression + a nested loop in `WrapLayout.sizeThatFits`
+    // over ~100 subviews per paragraph × ~15 paragraphs. CPU spiked to
+    // 100% on hover. Making the view `Equatable` on `text` alone lets
+    // SwiftUI skip body + layout entirely when the text (the only
+    // input) hasn't changed, which is every hover tick.
+    static func == (lhs: InlineEntityText, rhs: InlineEntityText) -> Bool {
+        lhs.text == rhs.text
+    }
 
     var body: some View {
         let tokens = InlineTokenizer.tokenize(text)
@@ -4575,6 +4699,96 @@ fileprivate enum InlineTokenizer {
 // entity capsules mixed with text we need HTML-style flowing layout:
 // pack tokens left-to-right, break to the next line when the next
 // token won't fit, repeat. This is ~50 lines of Layout protocol.
+
+// MARK: - Trigger Hover Coordinator (@Observable)
+//
+// Holds the "days currently highlighted on the chart" set. Lives as an
+// @Observable class (not @State Set<Int>) so that writes only invalidate
+// views that actually READ `days` in their body. The parent
+// AIPredictionView holds an instance but doesn't read `.days`, so its
+// body stays inert on hover — only `TriggerHoverHighlight` re-renders.
+// Before this, every hover enter/leave pegged CPU because parent body
+// re-ran and rebuilt the Chart (60+ marks) + every card.
+@MainActor
+@Observable
+fileprivate final class TriggerHoverCoordinator {
+    var days: Set<Int> = []
+}
+
+// MARK: - Trigger Hover Highlight (chart overlay Canvas)
+//
+// Replaces the in-Chart Layer 10 BarMarks/RuleMarks. Drawn via Canvas
+// in a `.chartOverlay` so it can use the `ChartProxy` to find the X
+// pixel of each highlighted day on the axis. Only this view observes
+// `coordinator.days`; hover changes invalidate this view alone,
+// leaving the main Chart and the rest of AIPredictionView untouched.
+//
+// Canvas redraws are extremely cheap (pure CoreGraphics fills) compared
+// to rebuilding 60+ Chart marks on every hover event.
+fileprivate struct TriggerHoverHighlight: View {
+    let coordinator: TriggerHoverCoordinator
+    let proxy: ChartProxy
+
+    var body: some View {
+        // Reading coordinator.days here registers observation. When the
+        // set changes, SwiftUI invalidates ONLY this view.
+        let days = coordinator.days
+        GeometryReader { geo in
+            if !days.isEmpty, let plotFrame = proxy.plotFrame {
+                let frame = geo[plotFrame]
+                Canvas { ctx, _ in
+                    // Full-height vertical bar per matched day. 10pt wide,
+                    // matches the old RuleMark(lineWidth: 10) look.
+                    for day in days {
+                        guard let xPos = proxy.position(forX: day) else { continue }
+                        let x = frame.minX + xPos - 5
+                        let rect = CGRect(x: x, y: frame.minY, width: 10, height: frame.height)
+                        ctx.fill(
+                            Path(roundedRect: rect, cornerRadius: 2),
+                            with: .color(CentmondTheme.Colors.warning.opacity(0.30))
+                        )
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+// MARK: - Deep Analysis: Equality Gate
+//
+// Generic wrapper that uses Equatable + `.equatable()` to skip rebuilding
+// an entire sub-tree unless one of the supplied keys changed. The content
+// closure is `@ViewBuilder` and only runs when body runs — so when the
+// gate's == returns true (keys unchanged), SwiftUI skips body entirely
+// and the closure never executes. That means `parseAnalysisByTimeframe`,
+// `WrapLayout.sizeThatFits`, and the whole `InlineEntityText` tree all
+// skip re-evaluation on parent-body invalidations that don't change the
+// gate keys (e.g. hover state flips).
+//
+// Usage:
+//
+//   EqualityGate(keys: [AnyHashable(text), AnyHashable(timeRange.rawValue)]) {
+//       aiReportContent(text)
+//   }
+//   .equatable()
+//
+// `.equatable()` is load-bearing — without it SwiftUI ignores the
+// Equatable conformance and always calls body. The modifier opts the
+// view into SwiftUI's equatable diff path.
+fileprivate struct EqualityGate<Content: View>: View, Equatable {
+    let keys: [AnyHashable]
+    @ViewBuilder let contentBuilder: () -> Content
+
+    static func == (lhs: EqualityGate<Content>, rhs: EqualityGate<Content>) -> Bool {
+        lhs.keys == rhs.keys
+    }
+
+    var body: some View {
+        contentBuilder()
+    }
+}
 
 fileprivate struct WrapLayout: Layout {
     var hSpacing: CGFloat = 4

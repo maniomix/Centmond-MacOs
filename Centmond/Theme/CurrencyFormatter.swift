@@ -2,20 +2,42 @@ import Foundation
 
 /// Shared currency formatting for the entire app.
 /// All money values flow through these functions for consistency.
+///
+/// Currency code is read at format time from the `defaultCurrency`
+/// AppStorage setting so the Settings → Default Currency picker
+/// actually changes what users see. Before this change the code was
+/// hardcoded to "USD" in every entry point and the setting was dead.
 enum CurrencyFormat {
+
+    /// Read the user's chosen currency code from AppStorage. Falls
+    /// back to USD if unset or unrecognised.
+    static var currentCurrencyCode: String {
+        UserDefaults.standard.string(forKey: "defaultCurrency") ?? "USD"
+    }
+
+    /// Matching currency symbol for the abbreviated K/M formatter.
+    /// NumberFormatter resolves this per locale; we build one on
+    /// demand rather than caching so a live currency change takes
+    /// effect immediately.
+    static var currentCurrencySymbol: String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = currentCurrencyCode
+        return f.currencySymbol ?? "$"
+    }
 
     // MARK: - Standard (with cents): $1,234.56
 
     /// Format a Decimal amount with cents. Used for individual transaction amounts,
     /// account balances, and anywhere precision matters.
-    static func standard(_ value: Decimal, currencyCode: String = "USD") -> String {
+    static func standard(_ value: Decimal, currencyCode: String? = nil) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencyCode = currencyCode
+        formatter.currencyCode = currencyCode ?? currentCurrencyCode
         formatter.locale = Locale(identifier: "en_US")
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0.00"
+        return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0.00"
     }
 
     // MARK: - Compact (no cents): $1,235
@@ -25,10 +47,10 @@ enum CurrencyFormat {
     static func compact(_ value: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
+        formatter.currencyCode = currentCurrencyCode
         formatter.locale = Locale(identifier: "en_US")
         formatter.maximumFractionDigits = 0
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0"
+        return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0"
     }
 
     // MARK: - Abbreviated: $1.2K, $3.4M
@@ -37,13 +59,14 @@ enum CurrencyFormat {
     static func abbreviated(_ value: Double) -> String {
         let abs = Swift.abs(value)
         let sign = value < 0 ? "-" : ""
+        let symbol = currentCurrencySymbol
         if abs >= 1_000_000 {
-            return "\(sign)$\(String(format: "%.1fM", abs / 1_000_000))"
+            return "\(sign)\(symbol)\(String(format: "%.1fM", abs / 1_000_000))"
         }
         if abs >= 1_000 {
-            return "\(sign)$\(String(format: "%.1fK", abs / 1_000))"
+            return "\(sign)\(symbol)\(String(format: "%.1fK", abs / 1_000))"
         }
-        return "\(sign)$\(Int(abs))"
+        return "\(sign)\(symbol)\(Int(abs))"
     }
 
     // MARK: - Signed: +$500.00 / -$120.00

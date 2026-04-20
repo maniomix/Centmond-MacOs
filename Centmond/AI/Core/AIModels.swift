@@ -87,6 +87,9 @@ struct AIAction: Identifiable, Equatable, Codable {
         // Subscriptions
         case addSubscription = "add_subscription"
         case cancelSubscription = "cancel_subscription"
+        case pauseSubscription = "pause_subscription"
+        case resumeSubscription = "resume_subscription"
+        case detectSubscriptions = "detect_subscriptions"
 
         // Accounts
         case updateBalance = "update_balance"
@@ -102,7 +105,7 @@ struct AIAction: Identifiable, Equatable, Codable {
 
         var isMutation: Bool {
             switch self {
-            case .analyze, .compare, .forecast, .advice:
+            case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
                 return false
             default:
                 return true
@@ -111,11 +114,12 @@ struct AIAction: Identifiable, Equatable, Codable {
 
         var riskLevel: RiskLevel {
             switch self {
-            case .analyze, .compare, .forecast, .advice:
+            case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
                 return .none
             case .addTransaction, .splitTransaction, .addRecurring,
                  .addSubscription, .addContribution, .createGoal,
-                 .transfer, .assignMember:
+                 .transfer, .assignMember,
+                 .pauseSubscription, .resumeSubscription:
                 return .low
             case .setBudget, .adjustBudget, .setCategoryBudget,
                  .updateGoal, .updateBalance, .editTransaction,
@@ -199,14 +203,21 @@ struct AIAction: Identifiable, Equatable, Codable {
 
 struct AIInsight: Identifiable, Equatable {
     let id: UUID
-    let type: InsightType
-    let title: String
-    let body: String
+    let kind: Kind
+    let domain: Domain
     let severity: Severity
+    let title: String
+    let warning: String
+    let advice: String?
+    let cause: String?
     let timestamp: Date
+    let expiresAt: Date?
+    let dedupeKey: String
     var suggestedAction: AIAction?
+    var deeplink: Deeplink?
 
-    enum InsightType: String, Equatable {
+    // Discriminator — what kind of signal this is.
+    enum Kind: String, Codable, Equatable, CaseIterable {
         case budgetWarning
         case spendingAnomaly
         case savingsOpportunity
@@ -215,24 +226,132 @@ struct AIInsight: Identifiable, Equatable {
         case goalProgress
         case patternDetected
         case morningBriefing
+        case subscriptionRenewal
+        case subscriptionUnused
+        case cashflowRisk
+        case duplicateTransaction
+
+        var domain: Domain {
+            switch self {
+            case .budgetWarning:        return .budget
+            case .spendingAnomaly:      return .anomaly
+            case .savingsOpportunity:   return .cashflow
+            case .recurringDetected:    return .recurring
+            case .weeklyReport,
+                 .morningBriefing:      return .cashflow
+            case .goalProgress:         return .goal
+            case .patternDetected:      return .anomaly
+            case .subscriptionRenewal,
+                 .subscriptionUnused:   return .subscription
+            case .cashflowRisk:         return .cashflow
+            case .duplicateTransaction: return .duplicate
+            }
+        }
     }
 
-    enum Severity: String, Equatable {
-        case info
-        case warning
+    // Which area of the app the insight lives in. Drives filter chips + routing.
+    enum Domain: String, Codable, Equatable, CaseIterable {
+        case budget, subscription, goal, recurring, anomaly, cashflow, duplicate
+    }
+
+    // 4-tier: critical (act now) / warning (act soon) / watch (keep an eye) / positive.
+    enum Severity: String, Codable, Equatable, Comparable {
         case critical
+        case warning
+        case watch
         case positive
+
+        private var order: Int {
+            switch self {
+            case .critical: return 0
+            case .warning:  return 1
+            case .watch:    return 2
+            case .positive: return 3
+            }
+        }
+
+        static func < (lhs: Severity, rhs: Severity) -> Bool { lhs.order < rhs.order }
     }
 
-    init(type: InsightType, title: String, body: String,
-         severity: Severity = .info, suggestedAction: AIAction? = nil) {
+    // Where tapping the card sends the user.
+    enum Deeplink: Equatable {
+        case dashboard
+        case budgets
+        case subscriptions(UUID?)
+        case goals(UUID?)
+        case recurring(UUID?)
+        case transactions(UUID?)
+        case cashflow
+        case netWorth
+    }
+
+    /// Verb-first label for the primary CTA button. Prefers the structured
+    /// action type when one is attached; otherwise falls back to the deeplink
+    /// destination; otherwise empty (no primary action — the card is
+    /// informational and the user can only dismiss).
+    var primaryActionLabel: String {
+        if let action = suggestedAction {
+            switch action.type {
+            case .addContribution:                                     return "Add contribution"
+            case .cancelSubscription:                                  return "Cancel subscription"
+            case .pauseSubscription:                                   return "Pause subscription"
+            case .resumeSubscription:                                  return "Resume subscription"
+            case .setBudget, .adjustBudget, .setCategoryBudget:        return "Set budget"
+            case .createGoal:                                          return "Create goal"
+            case .updateGoal:                                          return "Update goal"
+            case .transfer:                                            return "Transfer funds"
+            case .addTransaction:                                      return "Add transaction"
+            case .editTransaction:                                     return "Edit transaction"
+            case .deleteTransaction:                                   return "Delete transaction"
+            case .addRecurring:                                        return "Add recurring"
+            case .editRecurring:                                       return "Edit recurring"
+            case .cancelRecurring:                                     return "Cancel recurring"
+            case .addSubscription:                                     return "Add subscription"
+            case .detectSubscriptions:                                 return "Scan subscriptions"
+            case .updateBalance:                                       return "Update balance"
+            case .splitTransaction:                                    return "Split transaction"
+            case .assignMember:                                        return "Assign"
+            case .analyze, .compare, .forecast, .advice:               return "Open"
+            }
+        }
+        switch deeplink {
+        case .budgets:          return "Review budget"
+        case .subscriptions:    return "Open subscription"
+        case .goals:            return "Open goal"
+        case .recurring:        return "Review recurring"
+        case .transactions:     return "View transaction"
+        case .cashflow:         return "See forecast"
+        case .dashboard:        return "Open dashboard"
+        case .netWorth:         return "Open net worth"
+        case .none:             return ""
+        }
+    }
+
+    init(
+        kind: Kind,
+        title: String,
+        warning: String,
+        severity: Severity = .watch,
+        advice: String? = nil,
+        cause: String? = nil,
+        expiresAt: Date? = nil,
+        dedupeKey: String? = nil,
+        suggestedAction: AIAction? = nil,
+        deeplink: Deeplink? = nil
+    ) {
         self.id = UUID()
-        self.type = type
+        self.kind = kind
+        self.domain = kind.domain
         self.title = title
-        self.body = body
+        self.warning = warning
         self.severity = severity
+        self.advice = advice
+        self.cause = cause
         self.timestamp = Date()
+        self.expiresAt = expiresAt
+        self.dedupeKey = dedupeKey ?? "\(kind.rawValue):\(title)"
         self.suggestedAction = suggestedAction
+        self.deeplink = deeplink
     }
 }
 

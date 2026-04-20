@@ -19,6 +19,12 @@ final class Transaction {
     var transferGroupID: UUID?
     var isTransfer: Bool = false
 
+    /// Set when this transaction is sourced from (or has been linked to) a
+    /// `RecurringTransaction` template. Drives the Review Queue's "From
+    /// Recurring" filter, the auto-approve sweep, and dedupe in
+    /// `RecurringService.linkPendingMatches`.
+    var recurringTemplateID: UUID?
+
     @Relationship var account: Account?
     @Relationship var category: BudgetCategory?
     @Relationship(inverse: \Tag.transactions) var tags: [Tag]
@@ -60,6 +66,7 @@ final class Transaction {
         self.splits = []
         self.transferGroupID = nil
         self.isTransfer = false
+        self.recurringTemplateID = nil
         self.createdAt = .now
         self.updatedAt = .now
     }

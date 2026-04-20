@@ -17,9 +17,14 @@ struct CentmondApp: App {
             MonthlyBudget.self,
             MonthlyTotalBudget.self,
             Goal.self,
+            GoalContribution.self,
+            GoalAllocationRule.self,
             Subscription.self,
+            SubscriptionCharge.self,
+            SubscriptionPriceChange.self,
+            DismissedDetection.self,
+            DismissedInsight.self,
             RecurringTransaction.self,
-            Insight.self,
             HouseholdMember.self,
             Tag.self,
             SmartFolder.self,
@@ -41,6 +46,17 @@ struct CentmondApp: App {
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
+        .commands {
+            // "Help → Replay Welcome Tour" — AppShell owns the AppRouter
+            // so we hand this off via NotificationCenter rather than
+            // trying to inject an Observable into a CommandGroup.
+            CommandGroup(after: .help) {
+                Divider()
+                Button("Replay Welcome Tour") {
+                    NotificationCenter.default.post(name: .replayOnboarding, object: nil)
+                }
+            }
+        }
 
         #if os(macOS)
         Settings {

@@ -7,6 +7,7 @@ enum BillingCycle: String, Codable, CaseIterable, Identifiable {
     case quarterly
     case semiannual
     case annual
+    case custom
 
     var id: String { rawValue }
 
@@ -18,9 +19,14 @@ enum BillingCycle: String, Codable, CaseIterable, Identifiable {
         case .quarterly: "Quarterly"
         case .semiannual: "Semi-Annual"
         case .annual: "Annual"
+        case .custom: "Custom"
         }
     }
 
+    /// Multiplier used by recurring/subscription projections. `.custom`
+    /// callers must consult the subscription's `customCadenceDays` instead —
+    /// this enum has no access to that value, so we approximate with monthly
+    /// to keep non-subscription recurrence UIs compiling without changes.
     var monthlyMultiplier: Decimal {
         switch self {
         case .weekly: 52 / 12
@@ -29,6 +35,7 @@ enum BillingCycle: String, Codable, CaseIterable, Identifiable {
         case .quarterly: Decimal(1) / 3
         case .semiannual: Decimal(1) / 6
         case .annual: Decimal(1) / 12
+        case .custom: 1
         }
     }
 
@@ -60,6 +67,7 @@ enum BillingCycle: String, Codable, CaseIterable, Identifiable {
         case .quarterly: return calendar.date(byAdding: .month,      value: 3 * n,  to: date)!
         case .semiannual:return calendar.date(byAdding: .month,      value: 6 * n,  to: date)!
         case .annual:    return calendar.date(byAdding: .year,        value: n,      to: date)!
+        case .custom:    return calendar.date(byAdding: .day,         value: 30 * n, to: date)!
         }
     }
 }

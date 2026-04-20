@@ -27,6 +27,8 @@ enum AIContextBuilder {
         sections.append(goalSection(context: context))
         sections.append(accountSection(context: context))
         sections.append(subscriptionSection(context: context))
+        sections.append(recurringSection(context: context))
+        sections.append(forecastSection(context: context))
         sections.append(householdSection(context: context))
 
         return sections
@@ -56,12 +58,81 @@ enum AIContextBuilder {
         goalSection(context: context)
     }
 
+    static func buildRecurringOnly(context: ModelContext) -> String {
+        recurringSection(context: context)
+    }
+
     static func buildSubscriptionsOnly(context: ModelContext) -> String {
         subscriptionSection(context: context)
     }
 
     static func buildAccountsOnly(context: ModelContext) -> String {
         accountSection(context: context)
+    }
+
+    static func buildForecastOnly(context: ModelContext, horizonDays: Int = 30) -> String {
+        forecastSection(context: context, horizonDays: horizonDays)
+    }
+
+    // MARK: - Forecast
+
+    /// Runs `ForecastEngine` for a 30-day horizon and summarises it as a
+    /// compact block the model can reason over. Includes starting/ending
+    /// balance, projected totals, lowest-point, risk flags, and the top
+    /// upcoming obligations. Kept short — this section ships in every
+    /// full-context build so a large dump would crowd out other slices.
+    private static func forecastSection(context: ModelContext, horizonDays: Int = 30) -> String {
+        guard let subs = try? context.fetch(FetchDescriptor<Subscription>()),
+              let recurring = try? context.fetch(FetchDescriptor<RecurringTransaction>()),
+              let goals = try? context.fetch(FetchDescriptor<Goal>()),
+              let accounts = try? context.fetch(FetchDescriptor<Account>())
+        else { return "" }
+
+        let start = Calendar.current.date(byAdding: .day, value: -60, to: .now) ?? .now
+        let history = fetchTransactions(context: context, from: start, to: .now)
+
+        let startingBalance = accounts
+            .filter { !$0.isArchived && !$0.isClosed && $0.includeInNetWorth }
+            .reduce(Decimal.zero) { $0 + $1.currentBalance }
+
+        let horizon = ForecastEngine.build(
+            ForecastEngine.Inputs(
+                startingBalance: startingBalance,
+                subscriptions: subs,
+                recurring: recurring,
+                goals: goals,
+                history: history
+            ),
+            horizonDays: horizonDays
+        )
+
+        var lines = ["FORECAST (next \(horizonDays)d)"]
+        lines.append("  Starting balance: \(dollars(horizon.summary.startingBalance))")
+        lines.append("  Ending balance (expected): \(dollars(horizon.summary.endingExpectedBalance))")
+        lines.append("  Projected income: \(dollars(horizon.summary.totalProjectedIncome))")
+        lines.append("  Projected bills + subs: \(dollars(horizon.summary.totalProjectedObligations))")
+        lines.append("  Projected typical spend: \(dollars(horizon.summary.totalProjectedDiscretionary))")
+        lines.append("  Lowest point: \(dollars(horizon.summary.lowestExpectedBalance)) on \(shortDate(horizon.summary.lowestExpectedBalanceDate))")
+        if let neg = horizon.summary.firstExpectedNegativeDate {
+            lines.append("  OVERDRAFT RISK: expected balance goes negative on \(shortDate(neg))")
+        } else if let risk = horizon.summary.firstAtRiskDate {
+            lines.append("  Tight window: confidence band dips below zero on \(shortDate(risk))")
+        }
+
+        // Top 5 upcoming events by absolute magnitude.
+        let topEvents = horizon.days
+            .flatMap { $0.events }
+            .sorted { abs(($0.delta as NSDecimalNumber).doubleValue) > abs(($1.delta as NSDecimalNumber).doubleValue) }
+            .prefix(5)
+        if !topEvents.isEmpty {
+            lines.append("  Top upcoming events:")
+            for ev in topEvents {
+                let sign = ev.delta > 0 ? "+" : "−"
+                lines.append("    \(shortDate(ev.date)) · \(ev.name): \(sign)\(dollars(abs(ev.delta)))")
+            }
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Date
@@ -175,6 +246,16 @@ enum AIContextBuilder {
         descriptor.fetchLimit = 20
         guard let goals = try? context.fetch(descriptor), !goals.isEmpty else { return "" }
 
+        // Rule counts per goal, in one fetch — cheaper than a fetch per goal.
+        let ruleDescriptor = FetchDescriptor<GoalAllocationRule>(
+            predicate: #Predicate { $0.isActive }
+        )
+        let activeRules = (try? context.fetch(ruleDescriptor)) ?? []
+        let ruleCountByGoal: [UUID: Int] = activeRules.reduce(into: [:]) { acc, rule in
+            guard let id = rule.goal?.id else { return }
+            acc[id, default: 0] += 1
+        }
+
         var lines = ["ACTIVE GOALS"]
         for g in goals {
             let pct = Int(g.progressPercentage * 100)
@@ -183,9 +264,50 @@ enum AIContextBuilder {
                 detail += " due \(shortDate(deadline))"
             }
             if let monthly = g.monthlyContribution, monthly > 0 {
-                detail += " — contributing \(dollars(monthly))/mo"
+                detail += " — target \(dollars(monthly))/mo"
             }
+
+            // Trajectory: this-month vs 3-mo avg + projected completion — the
+            // model uses these to suggest whether a goal is on track, needs a
+            // redirection, or would benefit from an allocation rule.
+            let thisMonth = GoalAnalytics.thisMonthContribution(g)
+            let avg = GoalAnalytics.averageMonthlyContribution(g)
+            if thisMonth > 0 || avg > 0 {
+                detail += " · this month \(dollars(thisMonth)), 3mo avg \(dollars(avg))"
+            }
+            if let projected = GoalAnalytics.projectedCompletion(g) {
+                detail += " · projected \(shortDate(projected))"
+            }
+
+            // Funding-source breakdown only when there's material mix.
+            let breakdown = GoalAnalytics.breakdownByKind(g)
+            let sources: [String] = [
+                (GoalContributionKind.fromIncome, "income"),
+                (GoalContributionKind.autoRule, "rule"),
+                (GoalContributionKind.fromTransfer, "transfer"),
+                (GoalContributionKind.manual, "manual"),
+            ].compactMap { pair in
+                let (k, label) = pair
+                let v = breakdown[k] ?? 0
+                return v > 0 ? "\(label) \(dollars(v))" : nil
+            }
+            if !sources.isEmpty {
+                detail += " · sources: \(sources.joined(separator: ", "))"
+            }
+
+            let ruleCount = ruleCountByGoal[g.id] ?? 0
+            if ruleCount > 0 {
+                detail += " · \(ruleCount) active rule\(ruleCount == 1 ? "" : "s")"
+            }
+
             lines.append(detail)
+        }
+
+        // Unallocated income nudge — lets the model suggest a redirection
+        // even when the user hasn't mentioned it.
+        let unallocated = GoalAnalytics.unallocatedIncomeThisMonth(context: context)
+        if unallocated.count > 0 {
+            lines.append("  (Unallocated income this month: \(dollars(unallocated.total)) across \(unallocated.count) tx)")
         }
         return lines.joined(separator: "\n")
     }
@@ -218,23 +340,129 @@ enum AIContextBuilder {
     // MARK: - Subscriptions
 
     private static func subscriptionSection(context: ModelContext) -> String {
-        let activeSub = SubscriptionStatus.active
-        let descriptor = FetchDescriptor<Subscription>(
-            predicate: #Predicate { $0.status == activeSub }
-        )
-        guard let subs = try? context.fetch(descriptor), !subs.isEmpty else { return "" }
+        let descriptor = FetchDescriptor<Subscription>()
+        guard let allSubs = try? context.fetch(descriptor) else { return "" }
+        let subs = allSubs.filter { $0.status == .active || $0.status == .trial }
+        guard !subs.isEmpty else { return "" }
 
         let monthlyTotal = subs.reduce(Decimal.zero) { $0 + $1.monthlyCost }
-        var lines = ["ACTIVE SUBSCRIPTIONS (total \(dollars(monthlyTotal))/mo)"]
-        for s in subs {
+        let next7 = SubscriptionForecast.projected(for: subs, next: 7)
+        let next30 = SubscriptionForecast.projected(for: subs, next: 30)
+
+        var lines = ["ACTIVE SUBSCRIPTIONS (total \(dollars(monthlyTotal))/mo; next 7d \(dollars(next7)); next 30d \(dollars(next30)))"]
+
+        // Top 5 by monthly cost — keeps the prompt size bounded for users
+        // with 30+ subscriptions while still surfacing the biggest line items
+        // the AI should reason about.
+        let topByCost = subs.sorted {
+            NSDecimalNumber(decimal: $0.monthlyCost).doubleValue
+              > NSDecimalNumber(decimal: $1.monthlyCost).doubleValue
+        }.prefix(5)
+
+        for s in topByCost {
             let cycleName = s.billingCycle.rawValue
             var detail = "  \(s.serviceName): \(dollars(s.amount))/\(cycleName)"
             let daysUntil = Calendar.current.dateComponents([.day], from: Date(), to: s.nextPaymentDate).day ?? 0
             if daysUntil >= 0 {
                 detail += " (renews in \(daysUntil)d)"
             }
+            if s.isTrial, let end = s.trialEndsAt {
+                let trialDays = Calendar.current.dateComponents([.day], from: Date(), to: end).day ?? 0
+                if trialDays >= 0 { detail += " [trial ends in \(trialDays)d]" }
+            }
+            if s.isPastDue { detail += " [past due]" }
+            if s.wasImpulseSignup { detail += " [late-night signup]" }
             lines.append(detail)
         }
+        if subs.count > 5 {
+            lines.append("  …and \(subs.count - 5) more")
+        }
+
+        // Untouched-for-60-days roll-up — gives the model a single line to
+        // reason about cancellation candidates without enumerating every sub.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: .now) ?? .now
+        let unused = subs.filter { $0.status == .active && $0.createdAt < cutoff && $0.updatedAt < cutoff }
+        if !unused.isEmpty {
+            let names = unused.prefix(3).map(\.serviceName).joined(separator: ", ")
+            let suffix = unused.count > 3 ? ", +\(unused.count - 3) more" : ""
+            lines.append("  POTENTIALLY UNUSED (60+ days untouched): \(names)\(suffix)")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Daily recurring-baseline series for the Prediction page. Given a date
+    /// range, returns projected subscription outflow bucketed by calendar
+    /// day. Lets the prediction chart render recurring spend as a distinct
+    /// layer underneath discretionary — so forecasts don't double-count
+    /// fixed costs as "volatile" spend.
+    static func recurringBaseline(
+        from: Date,
+        to: Date,
+        context: ModelContext
+    ) -> [Date: Decimal] {
+        let descriptor = FetchDescriptor<Subscription>()
+        guard let allSubs = try? context.fetch(descriptor) else { return [:] }
+        let subs = allSubs.filter { $0.status == .active || $0.status == .trial }
+        return SubscriptionForecast.dailyBaseline(for: subs, from: from, to: to)
+    }
+
+    // MARK: - Recurring (templates)
+
+    /// Active recurring transactions — salary, rent, utilities, gym,
+    /// etc. Distinct from `subscriptionSection` because subscriptions
+    /// are purely outflow streams the user might cancel; recurring
+    /// templates include income (salary) and obligations (rent) the
+    /// model needs to reason about for cash-flow forecasting.
+    private static func recurringSection(context: ModelContext) -> String {
+        let descriptor = FetchDescriptor<RecurringTransaction>(
+            predicate: #Predicate { $0.isActive }
+        )
+        guard let templates = try? context.fetch(descriptor), !templates.isEmpty else { return "" }
+
+        let cal = Calendar.current
+        guard let horizon = cal.date(byAdding: .day, value: 30, to: .now) else { return "" }
+
+        // Project each template forward, bucket by income/expense.
+        var incomeAmount: Decimal = 0
+        var expenseAmount: Decimal = 0
+        var upcoming: [(date: Date, name: String, amount: Decimal, isIncome: Bool)] = []
+
+        for template in templates {
+            var cursor = template.nextOccurrence
+            var safety = 0
+            while cursor < .now && safety < 60 {
+                cursor = template.frequency.nextDate(after: cursor)
+                safety += 1
+            }
+            var iter = 0
+            while cursor <= horizon && iter < 60 {
+                if template.isIncome { incomeAmount += template.amount }
+                else                 { expenseAmount += template.amount }
+                upcoming.append((cursor, template.name, template.amount, template.isIncome))
+                cursor = template.frequency.nextDate(after: cursor)
+                iter += 1
+            }
+        }
+
+        let net = incomeAmount - expenseAmount
+        var lines = [
+            "RECURRING (next 30d: in \(dollars(incomeAmount)), out \(dollars(expenseAmount)), net \(dollars(net)))"
+        ]
+
+        // Top 5 upcoming events by date so the model can reference
+        // "your $2,500 rent on the 1st" without us listing 30 lines.
+        let next5 = upcoming.sorted { $0.date < $1.date }.prefix(5)
+        for event in next5 {
+            let days = cal.dateComponents([.day], from: .now, to: event.date).day ?? 0
+            let when = days <= 0 ? "today" : "in \(days)d"
+            let arrow = event.isIncome ? "+" : "-"
+            lines.append("  \(arrow)\(dollars(event.amount)) \(event.name) (\(when))")
+        }
+        if upcoming.count > 5 {
+            lines.append("  …and \(upcoming.count - 5) more in the next 30d")
+        }
+
         return lines.joined(separator: "\n")
     }
 

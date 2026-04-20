@@ -317,6 +317,14 @@ struct MonthlySpendingData: Identifiable {
 }
 
 struct PredictionData {
+    /// Anchor date for the chart's X axis. The chart draws day-indices
+    /// 1..N where 1 = `windowStart`. Used by hover-to-highlight logic
+    /// in AIPredictionView to convert a calendar-date transaction into
+    /// the right X position on multi-month views. Without this,
+    /// `daysMatching` would return calendar day-of-month (1-31) and
+    /// plot them against the FIRST month of a multi-month window
+    /// instead of the month the transaction actually occurred in.
+    let windowStart: Date
     let spendingTrajectory: [SpendingDataPoint]
     let dailyBars: [DailySpendingBar]
     let confidenceBand: [ConfidenceBandPoint]
@@ -664,6 +672,7 @@ enum AIPredictionEngine {
         )
 
         return PredictionData(
+            windowStart: windowStart,
             spendingTrajectory: trajectory,
             dailyBars: bars,
             confidenceBand: band,

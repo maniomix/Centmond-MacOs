@@ -70,6 +70,7 @@ enum SubscriptionService {
         case .quarterly: return cal.date(byAdding: .month,      value: 3, to: date) ?? date
         case .semiannual:return cal.date(byAdding: .month,      value: 6, to: date) ?? date
         case .annual:    return cal.date(byAdding: .year,       value: 1, to: date) ?? date
+        case .custom:    return cal.date(byAdding: .day,        value: 30, to: date) ?? date
         }
     }
 }

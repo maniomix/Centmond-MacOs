@@ -10,6 +10,7 @@ struct RecurringView: View {
     @State private var showDeleteConfirmation = false
     @State private var itemToDelete: RecurringTransaction?
     @State private var showPaused = true
+    @State private var pendingDetectedCount: Int = 0
 
     enum FilterType: String, CaseIterable {
         case all = "All"
@@ -69,6 +70,12 @@ struct RecurringView: View {
         }
     }
 
+    @MainActor
+    private func refreshPendingDetectedCount() {
+        let detected = RecurringDetector.detect(context: modelContext)
+        pendingDetectedCount = detected.filter { $0.confidence < RecurringDetector.effectiveAutoConfirmThreshold }.count
+    }
+
     private func projectedOccurrence(for item: RecurringTransaction) -> Date? {
         guard item.isActive else { return nil }
         return item.frequency.projectedDate(
@@ -94,22 +101,27 @@ struct RecurringView: View {
 
                     Divider().background(CentmondTheme.Colors.strokeSubtle)
 
-                    if filteredItems.isEmpty {
-                        VStack(spacing: CentmondTheme.Spacing.md) {
-                            Text("No matching recurring transactions")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            if !showPaused {
-                                Button("Show Paused") { showPaused = true }
-                                    .buttonStyle(SecondaryButtonStyle())
-                            }
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            RecurringForecastStrip(
+                                templates: items,
+                                onSelectTemplate: { template in
+                                    router.showSheet(.editRecurring(template))
+                                }
+                            )
+
+                            templatesSection
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        recurringTable
                     }
                 }
             }
+        }
+        .onAppear { refreshPendingDetectedCount() }
+        .onChange(of: items.count) { _, _ in refreshPendingDetectedCount() }
+        .onChange(of: router.activeSheet?.id) { _, new in
+            // After the detected-recurring sheet closes the user may have
+            // confirmed or dismissed entries; refresh the chip count.
+            if new == nil { refreshPendingDetectedCount() }
         }
         .alert("Delete Recurring Item", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { itemToDelete = nil }
@@ -187,14 +199,35 @@ struct RecurringView: View {
                 }
             }
 
-            Button {
-                let count = RecurringService.materializeDue(in: modelContext)
-                if count > 0 { Haptics.impact() } else { Haptics.tap() }
-            } label: {
-                Label("Run Due", systemImage: "play.circle")
+            // Automation status pill — replaces the old "Run Due" button.
+            // The scheduler ticks on launch, scene-active transitions, and
+            // every midnight, so there is nothing for the user to push.
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Image(systemName: "bolt.badge.automatic.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(CentmondTheme.Colors.positive)
+                Text("Auto")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
-            .buttonStyle(SecondaryButtonStyle())
-            .help("Materialize all auto-create recurring items that are due")
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(CentmondTheme.Colors.positive.opacity(0.10))
+            .clipShape(Capsule())
+            .help("Recurring transactions materialize automatically. Edit a template to change its schedule.")
+
+            // Lower-confidence detection results — auto-confirmed templates
+            // were already minted by the scheduler; this chip surfaces only
+            // the items that need a human yes/no.
+            if pendingDetectedCount > 0 {
+                Button {
+                    router.showSheet(.detectedRecurring)
+                } label: {
+                    Label("\(pendingDetectedCount) detected", systemImage: "wand.and.stars")
+                }
+                .buttonStyle(SecondaryChipButtonStyle())
+                .help("Review patterns the detector found but isn't confident enough to add automatically")
+            }
 
             Button {
                 router.showSheet(.newRecurring)
@@ -223,8 +256,25 @@ struct RecurringView: View {
 
     // MARK: - Table
 
-    private var recurringTable: some View {
+    /// Templates list, demoted below the forecast strip and rendered
+    /// inside the parent ScrollView (no nested scroll). Header doubles
+    /// as the section title + template count.
+    private var templatesSection: some View {
         VStack(spacing: 0) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                Text("TEMPLATES")
+                    .font(CentmondTheme.Typography.overline)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .tracking(0.5)
+                Text("\(items.count)")
+                    .font(CentmondTheme.Typography.overline)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                Spacer()
+            }
+            .padding(.horizontal, CentmondTheme.Spacing.xxl)
+            .padding(.top, CentmondTheme.Spacing.lg)
+            .padding(.bottom, CentmondTheme.Spacing.sm)
+
             HStack(spacing: 0) {
                 tableHeader("Name", width: nil, alignment: .leading)
                 tableHeader("Type", width: 80, alignment: .center)
@@ -232,7 +282,6 @@ struct RecurringView: View {
                 tableHeader("Next Due", width: 120, alignment: .leading)
                 tableHeader("Amount", width: 100, alignment: .trailing)
                 tableHeader("Monthly", width: 90, alignment: .trailing)
-                tableHeader("Auto", width: 50, alignment: .center)
                 tableHeader("Status", width: 80, alignment: .center)
             }
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -241,7 +290,19 @@ struct RecurringView: View {
                 Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
             }
 
-            ScrollView {
+            if filteredItems.isEmpty {
+                VStack(spacing: CentmondTheme.Spacing.md) {
+                    Text("No matching templates")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    if !showPaused {
+                        Button("Show Paused") { showPaused = true }
+                            .buttonStyle(SecondaryButtonStyle())
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, CentmondTheme.Spacing.xxxl)
+            } else {
                 LazyVStack(spacing: 0) {
                     ForEach(filteredItems) { item in
                         RecurringRow(
@@ -249,15 +310,10 @@ struct RecurringView: View {
                             monthlyAmount: monthlyAmount(item),
                             projectedOccurrence: projectedOccurrence(for: item),
                             onToggleActive: { item.isActive.toggle() },
-                            onToggleAuto: { item.autoCreate.toggle() },
                             onEdit: { router.showSheet(.editRecurring(item)) },
                             onDelete: {
                                 itemToDelete = item
                                 showDeleteConfirmation = true
-                            },
-                            onRunNow: {
-                                let count = RecurringService.materializeOne(item, in: modelContext)
-                                if count > 0 { Haptics.impact() } else { Haptics.tap() }
                             }
                         )
                     }
@@ -289,10 +345,8 @@ struct RecurringRow: View {
     let monthlyAmount: Decimal
     var projectedOccurrence: Date? = nil
     var onToggleActive: () -> Void
-    var onToggleAuto: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
-    var onRunNow: () -> Void
     @State private var isHovered = false
 
     private var displayDate: Date { projectedOccurrence ?? item.nextOccurrence }
@@ -374,18 +428,6 @@ struct RecurringRow: View {
                 .monospacedDigit()
                 .frame(width: 90, alignment: .trailing)
 
-            // Auto-create
-            Button {
-                onToggleAuto()
-            } label: {
-                Image(systemName: item.autoCreate ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(item.autoCreate ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textTertiary)
-            }
-            .buttonStyle(.plainHover)
-            .help(item.autoCreate ? "Auto-create enabled" : "Auto-create disabled")
-            .frame(width: 50)
-
             // Status
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 Circle()
@@ -411,16 +453,8 @@ struct RecurringRow: View {
             Button { onEdit() } label: {
                 Label("Edit", systemImage: "pencil")
             }
-            Button { onRunNow() } label: {
-                Label("Run Now", systemImage: "play.circle.fill")
-            }
-            .disabled(!item.isActive)
-            Divider()
             Button { onToggleActive() } label: {
                 Label(item.isActive ? "Pause" : "Resume", systemImage: item.isActive ? "pause.circle" : "play.circle")
-            }
-            Button { onToggleAuto() } label: {
-                Label(item.autoCreate ? "Disable Auto-Create" : "Enable Auto-Create", systemImage: item.autoCreate ? "xmark.circle" : "checkmark.circle")
             }
             Divider()
             Button(role: .destructive) { onDelete() } label: {

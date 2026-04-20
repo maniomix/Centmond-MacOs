@@ -253,10 +253,11 @@ final class AIEventBus {
 
                 if rule.action == .insightBanner || rule.action == .both {
                     AIInsightEngine.shared.eventInsight = AIInsight(
-                        type: .patternDetected,
+                        kind: .patternDetected,
                         title: rule.name,
-                        body: message,
-                        severity: .warning
+                        warning: message,
+                        severity: .warning,
+                        dedupeKey: "rule:\(rule.id.uuidString)"
                     )
                 }
             }

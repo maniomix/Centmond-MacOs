@@ -10,6 +10,17 @@ struct InAppSettingsView: View {
     @AppStorage("tableDensity") private var tableDensity = "default"
     @AppStorage("sidebarIconOnly") private var sidebarIconOnly = false
 
+    @Environment(AppRouter.self) private var router
+
+    // Subscriptions notifications (P8)
+    @AppStorage(SubscriptionNotificationScheduler.masterEnabledKey) private var subNotifEnabled = true
+    @AppStorage(SubscriptionNotificationScheduler.trialAlertDaysKey) private var subTrialLeadDays = 2
+    @AppStorage(SubscriptionNotificationScheduler.chargeAlertEnabledKey) private var subChargeEnabled = true
+    @AppStorage(SubscriptionNotificationScheduler.chargeAlertThresholdKey) private var subChargeThreshold: Double = 10
+    @AppStorage(SubscriptionNotificationScheduler.priceHikeAlertEnabledKey) private var subPriceHikeEnabled = true
+    @AppStorage(SubscriptionNotificationScheduler.unusedAlertEnabledKey) private var subUnusedEnabled = true
+    @Environment(\.modelContext) private var modelContext
+
     // AI
     private let aiManager = AIManager.shared
     private let modeManager = AIAssistantModeManager.shared
@@ -42,6 +53,24 @@ struct InAppSettingsView: View {
 
                 // Cards grid
                 VStack(spacing: CentmondTheme.Spacing.lg) {
+                    // Getting started (replay onboarding) — first card so
+                    // returning users can find it quickly.
+                    settingsCard(title: "Getting Started", icon: "sparkles", iconColor: CentmondTheme.Colors.accent) {
+                        settingsRow {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label("Replay onboarding", systemImage: "play.circle")
+                                Text("Walk through the tour again. Nothing in your data changes.")
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            }
+                            Spacer()
+                            Button("Start tour") {
+                                router.replayOnboarding()
+                            }
+                            .buttonStyle(AccentChipButtonStyle())
+                        }
+                    }
+
                     // General
                     settingsCard(title: "General", icon: "slider.horizontal.3", iconColor: CentmondTheme.Colors.accent) {
                         settingsRow {
@@ -119,6 +148,9 @@ struct InAppSettingsView: View {
 
                     // AI Assistant
                     aiSettingsCard
+
+                    // Subscriptions notifications
+                    subscriptionNotificationsCard
 
                     // Feedback
                     settingsCard(title: "Feedback", icon: "hand.tap.fill", iconColor: Color(hex: "F59E0B")) {
@@ -301,6 +333,36 @@ struct InAppSettingsView: View {
 
             Divider().background(CentmondTheme.Colors.strokeSubtle)
 
+            settingsRow {
+                Label("Critical Push", systemImage: "exclamationmark.bubble.fill")
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { insightEngine.isCriticalPushEnabled },
+                    set: { insightEngine.isCriticalPushEnabled = $0 }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                Label("AI Advice Polish", systemImage: "wand.and.stars")
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { insightEngine.isInsightEnrichmentEnabled },
+                    set: { insightEngine.isInsightEnrichmentEnabled = $0 }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            MutedDetectorsSection()
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
             // ── AI Chat Shortcut ──
             settingsRow {
                 Label("AI Chat Shortcut", systemImage: "keyboard")
@@ -452,6 +514,124 @@ struct InAppSettingsView: View {
         case .downloading(let p, _): return "Downloading \(Int(p * 100))%"
         case .error(let msg): return msg
         case .notLoaded: return aiManager.isModelDownloaded ? "Not loaded" : "No model"
+        }
+    }
+
+    // MARK: - Subscription Notifications card
+
+    private var subscriptionNotificationsCard: some View {
+        settingsCard(title: "Subscription Alerts", icon: "bell.badge.fill", iconColor: CentmondTheme.Colors.accent) {
+            settingsRow {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Enable subscription alerts", systemImage: "power")
+                    Text("Master toggle — turning off cancels every pending alert")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+                Spacer()
+                Toggle("", isOn: $subNotifEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .onChange(of: subNotifEnabled) { _, newValue in
+                        if newValue {
+                            SubscriptionNotificationScheduler.requestAuthorization { _ in
+                                SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                            }
+                        } else {
+                            SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                        }
+                    }
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                Label("Trial-ends lead time", systemImage: "clock")
+                Spacer()
+                Picker("", selection: $subTrialLeadDays) {
+                    Text("Same day").tag(0)
+                    Text("1 day before").tag(1)
+                    Text("2 days before").tag(2)
+                    Text("3 days before").tag(3)
+                    Text("7 days before").tag(7)
+                }
+                .labelsHidden()
+                .frame(width: 160)
+                .disabled(!subNotifEnabled)
+                .onChange(of: subTrialLeadDays) { _, _ in
+                    SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                }
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Charge tomorrow", systemImage: "calendar.badge.exclamationmark")
+                    Text("Notify the morning before a charge over the threshold")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+                Spacer()
+                Toggle("", isOn: $subChargeEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(!subNotifEnabled)
+                    .onChange(of: subChargeEnabled) { _, _ in
+                        SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                    }
+            }
+
+            settingsRow {
+                Label("Charge alert threshold", systemImage: "dollarsign.circle")
+                Spacer()
+                Picker("", selection: $subChargeThreshold) {
+                    Text("Any amount").tag(0.0)
+                    Text("$5+").tag(5.0)
+                    Text("$10+").tag(10.0)
+                    Text("$25+").tag(25.0)
+                    Text("$50+").tag(50.0)
+                }
+                .labelsHidden()
+                .frame(width: 140)
+                .disabled(!subNotifEnabled || !subChargeEnabled)
+                .onChange(of: subChargeThreshold) { _, _ in
+                    SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                }
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                Label("Price hikes", systemImage: "arrow.up.right.circle")
+                Spacer()
+                Toggle("", isOn: $subPriceHikeEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(!subNotifEnabled)
+                    .onChange(of: subPriceHikeEnabled) { _, _ in
+                        SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                    }
+            }
+
+            Divider().background(CentmondTheme.Colors.strokeSubtle)
+
+            settingsRow {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Unused subscriptions", systemImage: "moon.zzz")
+                    Text("Nudge after 60+ days without changes")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+                Spacer()
+                Toggle("", isOn: $subUnusedEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(!subNotifEnabled)
+                    .onChange(of: subUnusedEnabled) { _, _ in
+                        SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+                    }
+            }
         }
     }
 

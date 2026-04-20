@@ -8,27 +8,59 @@ struct SubscriptionsView: View {
 
     @State private var showDeleteConfirmation = false
     @State private var subscriptionToDelete: Subscription?
-    @State private var showCancelled = true
+    @State private var selectedTab: Tab = .active
 
-    private var activeSubscriptions: [Subscription] { subscriptions.filter { $0.status == .active } }
-    private var pausedSubscriptions: [Subscription] { subscriptions.filter { $0.status == .paused } }
-    private var cancelledSubscriptions: [Subscription] { subscriptions.filter { $0.status == .cancelled } }
-    private var annualTotal: Decimal { activeSubscriptions.reduce(Decimal.zero) { $0 + $1.annualCost } }
-
-    /// Active subscriptions that have a payment in the globally selected month.
-    private var activeInSelectedMonth: [Subscription] {
-        activeSubscriptions.filter {
-            $0.billingCycle.occursInMonth(
-                anchorDate: $0.nextPaymentDate,
-                monthStart: router.selectedMonthStart,
-                monthEnd: router.selectedMonthEnd
-            )
+    enum Tab: String, CaseIterable, Identifiable {
+        case active, trial, paused, cancelled
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .active: "Active"
+            case .trial: "Trials"
+            case .paused: "Paused"
+            case .cancelled: "Cancelled"
+            }
+        }
+        var statusFilter: SubscriptionStatus {
+            switch self {
+            case .active: .active
+            case .trial: .trial
+            case .paused: .paused
+            case .cancelled: .cancelled
+            }
         }
     }
 
-    /// Actual cash out for the selected month (sum of per-payment amounts, not monthly-normalised).
-    private var totalForSelectedMonth: Decimal {
-        activeInSelectedMonth.reduce(Decimal.zero) { $0 + $1.amount }
+    private var activeSubscriptions: [Subscription] { subscriptions.filter { $0.status == .active } }
+    private var trialSubscriptions: [Subscription] { subscriptions.filter { $0.status == .trial } }
+    private var pausedSubscriptions: [Subscription] { subscriptions.filter { $0.status == .paused } }
+    private var cancelledSubscriptions: [Subscription] { subscriptions.filter { $0.status == .cancelled } }
+    private var billableSubscriptions: [Subscription] { activeSubscriptions + trialSubscriptions }
+    private var annualTotal: Decimal { billableSubscriptions.reduce(Decimal.zero) { $0 + $1.annualCost } }
+    private var monthlyTotal: Decimal { billableSubscriptions.reduce(Decimal.zero) { $0 + $1.monthlyCost } }
+
+    private func count(for tab: Tab) -> Int {
+        switch tab {
+        case .active: return activeSubscriptions.count
+        case .trial: return trialSubscriptions.count
+        case .paused: return pausedSubscriptions.count
+        case .cancelled: return cancelledSubscriptions.count
+        }
+    }
+
+    private var gridSubscriptions: [Subscription] {
+        subscriptions
+            .filter { $0.status == selectedTab.statusFilter }
+            .sorted { $0.nextPaymentDate < $1.nextPaymentDate }
+    }
+
+    private var next7Total: Decimal {
+        SubscriptionForecast.projected(for: subscriptions, next: 7)
+    }
+
+    private var next30Charges: [SubscriptionForecast.UpcomingCharge] {
+        let to = Calendar.current.date(byAdding: .day, value: 30, to: .now) ?? .now
+        return SubscriptionForecast.upcomingCharges(for: subscriptions, from: .now, to: to)
     }
 
     private var selectedSubID: UUID? {
@@ -42,32 +74,38 @@ struct SubscriptionsView: View {
                 EmptyStateView(
                     icon: "arrow.triangle.2.circlepath",
                     heading: "No subscriptions tracked",
-                    description: "Add your recurring subscriptions to keep track of what you're paying for.",
-                    primaryAction: "Add Subscription",
-                    onPrimaryAction: { router.showSheet(.newSubscription) }
+                    description: "Scan your transactions for recurring patterns, or add subscriptions manually.",
+                    primaryAction: "Detect from transactions",
+                    secondaryAction: "Add Manually",
+                    onPrimaryAction: { router.showSheet(.detectedSubscriptions) },
+                    onSecondaryAction: { router.showSheet(.newSubscription) }
                 )
             } else {
                 VStack(spacing: 0) {
-                    summaryBar
+                    heroSummary
+
+                    SubscriptionInsightsStrip(subscriptions: subscriptions)
+
+                    if !next30Charges.isEmpty {
+                        Divider().background(CentmondTheme.Colors.strokeSubtle)
+                        upcomingTimeline
+                    }
 
                     Divider().background(CentmondTheme.Colors.strokeSubtle)
 
-                    if displayedSubscriptions.isEmpty {
-                        VStack(spacing: CentmondTheme.Spacing.md) {
-                            Text("All subscriptions are cancelled")
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            Button("Show Cancelled") {
-                                showCancelled = true
-                            }
-                            .buttonStyle(SecondaryButtonStyle())
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        subscriptionTable
-                    }
+                    tabsRow
+
+                    subscriptionGrid
                 }
             }
+        }
+        .onAppear {
+            // Opportunistic retroactive link — covers legacy transactions
+            // that missed their initial reconciliation pass (e.g. subs
+            // created pre-P1 with empty merchantKey). Cheap no-op when
+            // everything is already matched.
+            SubscriptionReconciliationService.reconcileAll(in: modelContext)
+            SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
         }
         .alert("Delete Subscription", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { subscriptionToDelete = nil }
@@ -85,46 +123,27 @@ struct SubscriptionsView: View {
         }
     }
 
-    // MARK: - Summary Bar
+    // MARK: - Hero Summary
 
-    private var summaryBar: some View {
+    /// Hub header: three big stats (Monthly / Annual / Next 7d) + action
+    /// cluster (Detect, Add). Replaces the old compact summary bar so the
+    /// Subscriptions page reads like a first-class pillar instead of a
+    /// settings list.
+    private var heroSummary: some View {
         HStack(spacing: CentmondTheme.Spacing.xxxl) {
-            summaryMetric(
-                label: router.selectedMonth.formatted(.dateTime.month(.abbreviated).year()),
-                value: CurrencyFormat.standard(totalForSelectedMonth)
-            )
-            summaryMetric(label: "Annual", value: CurrencyFormat.standard(annualTotal))
-            summaryMetric(label: "Due", value: "\(activeInSelectedMonth.count)")
-
-            if !pausedSubscriptions.isEmpty {
-                summaryMetric(label: "Paused", value: "\(pausedSubscriptions.count)")
-            }
-
+            heroStat(label: "Monthly", value: CurrencyFormat.standard(monthlyTotal))
+            heroStat(label: "Annual",  value: CurrencyFormat.standard(annualTotal))
+            heroStat(label: "Next 7d", value: CurrencyFormat.standard(next7Total),
+                     tint: next7Total > 0 ? CentmondTheme.Colors.warning : nil)
             Spacer()
 
-            if router.isCurrentMonth {
-                let upcoming = activeInSelectedMonth.filter {
-                    $0.nextPaymentDate <= Calendar.current.date(byAdding: .day, value: 7, to: .now)!
-                }
-                if !upcoming.isEmpty {
-                    HStack(spacing: CentmondTheme.Spacing.sm) {
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(CentmondTheme.Colors.warning)
-                        Text("\(upcoming.count) due this week")
-                            .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.warning)
-                    }
-                }
+            Button {
+                router.showSheet(.detectedSubscriptions)
+            } label: {
+                Label("Detect", systemImage: "wand.and.stars")
             }
-
-            if !cancelledSubscriptions.isEmpty {
-                Toggle("Show cancelled", isOn: $showCancelled)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-            }
+            .buttonStyle(SecondaryChipButtonStyle())
+            .help("Scan transactions for recurring patterns")
 
             Button {
                 router.showSheet(.newSubscription)
@@ -134,286 +153,247 @@ struct SubscriptionsView: View {
             .buttonStyle(AccentChipButtonStyle())
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
-        .padding(.vertical, CentmondTheme.Spacing.lg)
+        .padding(.vertical, CentmondTheme.Spacing.xl)
         .background(CentmondTheme.Colors.bgSecondary)
     }
 
-    private func summaryMetric(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+    private func heroStat(label: String, value: String, tint: Color? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text(label.uppercased())
                 .font(CentmondTheme.Typography.overline)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 .tracking(0.5)
             Text(value)
-                .font(CentmondTheme.Typography.monoLarge)
-                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                .font(CentmondTheme.Typography.monoDisplay)
+                .foregroundStyle(tint ?? CentmondTheme.Colors.textPrimary)
                 .monospacedDigit()
         }
     }
 
-    // MARK: - Table
+    // MARK: - Tabs
 
-    /// Subscriptions to show for the selected month:
-    /// - Active: only those with a payment scheduled in that month
-    /// - Paused: always shown as context
-    /// - Cancelled: only if showCancelled toggle is on
-    private var displayedSubscriptions: [Subscription] {
-        let s = router.selectedMonthStart
-        let e = router.selectedMonthEnd
-        return subscriptions.filter { sub in
-            switch sub.status {
-            case .active:
-                return sub.billingCycle.occursInMonth(anchorDate: sub.nextPaymentDate, monthStart: s, monthEnd: e)
-            case .paused:
-                return true
-            case .cancelled:
-                return showCancelled
+    /// Status tabs that replace the old month-filter pills. Tabs are what
+    /// subscription-tracker apps actually let users slice by — having seven
+    /// Netflix charges in "March 2026" was never the right lens.
+    private var tabsRow: some View {
+        HStack(spacing: CentmondTheme.Spacing.xs) {
+            ForEach(Tab.allCases) { tab in
+                tabChip(tab)
             }
+            Spacer()
         }
+        .padding(.horizontal, CentmondTheme.Spacing.xxl)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+        .background(CentmondTheme.Colors.bgPrimary)
     }
 
-    private func projectedPaymentDate(for sub: Subscription) -> Date? {
-        guard sub.status == .active else { return nil }
-        return sub.billingCycle.projectedDate(
-            anchorDate: sub.nextPaymentDate,
-            monthStart: router.selectedMonthStart,
-            monthEnd: router.selectedMonthEnd
-        )
-    }
-
-    private var subscriptionTable: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                tableHeader("Service", width: nil, alignment: .leading)
-                tableHeader("Category", width: 120, alignment: .leading)
-                tableHeader("Cycle", width: 100, alignment: .leading)
-                tableHeader("Next Payment", width: 120, alignment: .leading)
-                tableHeader("Amount", width: 100, alignment: .trailing)
-                tableHeader("Annual", width: 100, alignment: .trailing)
-                tableHeader("Status", width: 80, alignment: .center)
-            }
-            .padding(.horizontal, CentmondTheme.Spacing.lg)
-            .frame(height: 32)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
-            }
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(displayedSubscriptions) { sub in
-                        SubscriptionRow(
-                            subscription: sub,
-                            projectedPaymentDate: projectedPaymentDate(for: sub),
-                            isSelected: selectedSubID == sub.id,
-                            onSelect: { router.inspectSubscription(sub.id) },
-                            onEdit: { router.showSheet(.editSubscription(sub)) },
-                            onPause: { sub.status = .paused; sub.updatedAt = .now },
-                            onResume: { sub.status = .active; sub.updatedAt = .now },
-                            onCancel: { sub.status = .cancelled; sub.updatedAt = .now },
-                            onMarkPaid: {
-                                SubscriptionService.markPaid(sub, in: modelContext)
-                                Haptics.impact()
-                            },
-                            onDelete: {
-                                subscriptionToDelete = sub
-                                showDeleteConfirmation = true
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private func tableHeader(_ title: String, width: CGFloat?, alignment: Alignment) -> some View {
-        Group {
-            if let width {
-                Text(title.uppercased())
-                    .frame(width: width, alignment: alignment)
-            } else {
-                Text(title.uppercased())
-                    .frame(maxWidth: .infinity, alignment: alignment)
-            }
-        }
-        .font(CentmondTheme.Typography.captionMedium)
-        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-        .tracking(0.3)
-    }
-}
-
-// MARK: - Subscription Row
-
-struct SubscriptionRow: View {
-    let subscription: Subscription
-    var projectedPaymentDate: Date? = nil
-    let isSelected: Bool
-    var onSelect: () -> Void
-    var onEdit: () -> Void
-    var onPause: () -> Void
-    var onResume: () -> Void
-    var onCancel: () -> Void
-    var onMarkPaid: () -> Void
-    var onDelete: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // Service name
-            HStack(spacing: CentmondTheme.Spacing.sm) {
-                Circle()
-                    .fill(isSelected ? CentmondTheme.Colors.accent.opacity(0.3) : CentmondTheme.Colors.accent.opacity(0.2))
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Text(String(subscription.serviceName.prefix(1)))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(CentmondTheme.Colors.accent)
-                    }
-
-                Text(subscription.serviceName)
+    private func tabChip(_ tab: Tab) -> some View {
+        let isOn = selectedTab == tab
+        let c = count(for: tab)
+        return Button {
+            selectedTab = tab
+        } label: {
+            HStack(spacing: 6) {
+                Text(tab.label)
                     .font(CentmondTheme.Typography.bodyMedium)
-                    .foregroundStyle(subscription.status == .cancelled ? CentmondTheme.Colors.textTertiary : CentmondTheme.Colors.textPrimary)
-                    .strikethrough(subscription.status == .cancelled)
-                    .lineLimit(1)
+                Text("\(c)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(isOn ? CentmondTheme.Colors.bgPrimary : CentmondTheme.Colors.textTertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(isOn ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.bgQuaternary))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(subscription.categoryName)
-                .font(CentmondTheme.Typography.body)
-                .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                .frame(width: 120, alignment: .leading)
-                .lineLimit(1)
-
-            Text(subscription.billingCycle.displayName)
-                .font(CentmondTheme.Typography.body)
-                .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                .frame(width: 100, alignment: .leading)
-
-            nextPaymentText
-                .frame(width: 120, alignment: .leading)
-
-            Text(CurrencyFormat.standard(subscription.amount))
-                .font(CentmondTheme.Typography.mono)
-                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                .monospacedDigit()
-                .frame(width: 100, alignment: .trailing)
-
-            Text(CurrencyFormat.standard(subscription.annualCost))
-                .font(CentmondTheme.Typography.mono)
-                .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                .monospacedDigit()
-                .frame(width: 100, alignment: .trailing)
-
-            statusDot
-                .frame(width: 80)
+            .foregroundStyle(isOn ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textTertiary)
+            .padding(.horizontal, CentmondTheme.Spacing.md)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(isOn ? CentmondTheme.Colors.bgTertiary : Color.clear)
+            )
+            .overlay(
+                Capsule().stroke(isOn ? CentmondTheme.Colors.strokeDefault : Color.clear, lineWidth: 1)
+            )
         }
-        .padding(.horizontal, CentmondTheme.Spacing.lg)
-        .frame(height: 44)
-        .background(
-            isSelected ? CentmondTheme.Colors.accentMuted :
-            isHovered ? CentmondTheme.Colors.bgQuaternary : .clear
-        )
-        .overlay(alignment: .leading) {
-            if isSelected {
-                Rectangle().fill(CentmondTheme.Colors.accent).frame(width: 3)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { onSelect() }
-        .onHover { hovering in
-            if hovering { Haptics.tick() }
-            withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
-        }
-        .contextMenu {
-            Button { onSelect() } label: {
-                Label("View Details", systemImage: "eye")
-            }
-            Button { onEdit() } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            Divider()
-            if subscription.status == .active {
-                Button { onMarkPaid() } label: {
-                    Label("Mark Paid (logs transaction)", systemImage: "checkmark.circle")
-                }
-                Button { onPause() } label: {
-                    Label("Pause", systemImage: "pause.circle")
-                }
-                Button { onCancel() } label: {
-                    Label("Cancel Subscription", systemImage: "xmark.circle")
-                }
-            } else if subscription.status == .paused {
-                Button { onResume() } label: {
-                    Label("Resume", systemImage: "play.circle")
-                }
-                Button { onCancel() } label: {
-                    Label("Cancel Subscription", systemImage: "xmark.circle")
-                }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Grid
+
+    private var subscriptionGrid: some View {
+        Group {
+            if gridSubscriptions.isEmpty {
+                emptyTabState
             } else {
-                Button { onResume() } label: {
-                    Label("Reactivate", systemImage: "arrow.uturn.backward")
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg),
+                            GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg),
+                            GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg)
+                        ],
+                        spacing: CentmondTheme.Spacing.lg
+                    ) {
+                        ForEach(gridSubscriptions) { sub in
+                            SubscriptionCard(
+                                subscription: sub,
+                                isSelected: selectedSubID == sub.id,
+                                onTap: { router.inspectSubscription(sub.id) }
+                            )
+                            .contextMenu { contextMenu(for: sub) }
+                        }
+                    }
+                    .padding(.horizontal, CentmondTheme.Spacing.xxl)
+                    .padding(.vertical, CentmondTheme.Spacing.lg)
                 }
             }
-            Divider()
-            Button(role: .destructive) { onDelete() } label: {
-                Label("Delete", systemImage: "trash")
+        }
+    }
+
+    private var emptyTabState: some View {
+        VStack(spacing: CentmondTheme.Spacing.md) {
+            Text("Nothing to show in \(selectedTab.label)")
+                .font(CentmondTheme.Typography.body)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            if selectedTab != .active {
+                Button("Go to Active") { selectedTab = .active }
+                    .buttonStyle(SecondaryButtonStyle())
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
-    private var nextPaymentText: some View {
-        if subscription.status == .cancelled {
-            Text("—")
-                .font(CentmondTheme.Typography.body)
-                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-        } else if subscription.status == .paused {
-            Text("Paused")
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(CentmondTheme.Colors.warning)
-        } else {
-            let displayDate = projectedPaymentDate ?? subscription.nextPaymentDate
-            let isOverdue = displayDate < .now
-            let daysUntil = Calendar.current.dateComponents(
-                [.day],
-                from: Calendar.current.startOfDay(for: .now),
-                to: Calendar.current.startOfDay(for: displayDate)
-            ).day ?? 0
-            VStack(alignment: .leading, spacing: 0) {
-                Text(displayDate.formatted(.dateTime.month(.abbreviated).day()))
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(isOverdue ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textSecondary)
-                if isOverdue {
-                    Text("overdue")
-                        .font(.system(size: 9))
-                        .foregroundStyle(CentmondTheme.Colors.negative)
-                } else if daysUntil <= 3 && daysUntil >= 0 {
-                    Text("in \(daysUntil)d")
-                        .font(.system(size: 9))
-                        .foregroundStyle(CentmondTheme.Colors.warning)
+    private func contextMenu(for sub: Subscription) -> some View {
+        Button {
+            router.inspectSubscription(sub.id)
+        } label: {
+            Label("View Details", systemImage: "eye")
+        }
+        Button {
+            router.showSheet(.editSubscription(sub))
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        Divider()
+        Button {
+            SubscriptionService.markPaid(sub, in: modelContext)
+            Haptics.impact()
+        } label: {
+            Label("Mark Paid", systemImage: "checkmark.circle")
+        }
+        Divider()
+        if sub.status == .active || sub.status == .trial {
+            Button {
+                sub.status = .paused
+                sub.updatedAt = .now
+            } label: {
+                Label("Pause", systemImage: "pause.circle")
+            }
+        }
+        if sub.status == .paused {
+            Button {
+                sub.status = .active
+                sub.updatedAt = .now
+            } label: {
+                Label("Resume", systemImage: "play.circle")
+            }
+        }
+        if sub.status != .cancelled {
+            Button {
+                sub.status = .cancelled
+                sub.updatedAt = .now
+            } label: {
+                Label("Cancel", systemImage: "xmark.circle")
+            }
+        }
+        Divider()
+        Button(role: .destructive) {
+            subscriptionToDelete = sub
+            showDeleteConfirmation = true
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    // MARK: - Upcoming Timeline
+
+    /// Horizontally-scrolling strip showing the next 30 days of projected
+    /// charges. Uses `SubscriptionForecast` which projects forward from each
+    /// active subscription's `nextPaymentDate`, repeating occurrences if the
+    /// cadence fits inside the window.
+    private var upcomingTimeline: some View {
+        let charges = Array(next30Charges.prefix(12))
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 11))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                Text("NEXT 30 DAYS")
+                    .font(CentmondTheme.Typography.overline)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .tracking(0.5)
+                Spacer()
+                Text(CurrencyFormat.standard(SubscriptionForecast.total(for: next30Charges)))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    ForEach(charges) { charge in
+                        upcomingChargeCard(charge)
+                    }
                 }
             }
         }
+        .padding(.horizontal, CentmondTheme.Spacing.xxl)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+        .background(CentmondTheme.Colors.bgPrimary)
     }
 
-    private var statusDot: some View {
-        HStack(spacing: CentmondTheme.Spacing.xs) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-            Text(subscription.status.displayName)
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+    private func upcomingChargeCard(_ charge: SubscriptionForecast.UpcomingCharge) -> some View {
+        let daysOut = max(Calendar.current.dateComponents([.day], from: .now, to: charge.date).day ?? 0, 0)
+        let dayLabel: String = {
+            if daysOut == 0 { return "Today" }
+            if daysOut == 1 { return "Tomorrow" }
+            return charge.date.formatted(.dateTime.month(.abbreviated).day())
+        }()
+        let tint: Color = daysOut <= 2
+            ? CentmondTheme.Colors.warning
+            : (daysOut <= 7 ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 6, height: 6)
+                Text(dayLabel)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(tint)
+            }
+            Text(charge.displayName)
+                .font(CentmondTheme.Typography.body)
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                .lineLimit(1)
+            if charge.isTrialEnd {
+                Text("Trial ends")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+            } else {
+                Text(CurrencyFormat.standard(charge.amount))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+            }
         }
+        .frame(width: 120, alignment: .leading)
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+        .padding(.vertical, CentmondTheme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(CentmondTheme.Colors.bgSecondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
+        )
     }
 
-    private var statusColor: Color {
-        switch subscription.status {
-        case .active: CentmondTheme.Colors.positive
-        case .paused: CentmondTheme.Colors.warning
-        case .cancelled: CentmondTheme.Colors.negative
-        }
-    }
 }

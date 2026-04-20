@@ -70,17 +70,20 @@ struct AIChatView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // MARK: - Chat History Sidebar
-            if isChatSidebarVisible {
-                chatHistorySidebar
-                    .frame(width: 220)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
+        VStack(spacing: 0) {
+            BetaBanner(title: "AI Chat")
 
-            // MARK: - Main Chat Area
-            NavigationStack {
-                messageList
+            HStack(spacing: 0) {
+                // MARK: - Chat History Sidebar
+                if isChatSidebarVisible {
+                    chatHistorySidebar
+                        .frame(width: 220)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+
+                // MARK: - Main Chat Area
+                NavigationStack {
+                    messageList
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         VStack(spacing: 0) {
                             if !conversation.pendingActions.isEmpty {
@@ -156,6 +159,16 @@ struct AIChatView: View {
                     }
                 }
                 .onDisappear {
+                    // Cancel any in-flight chat stream immediately —
+                    // without this, rapid tab-switching to another AI
+                    // screen (Predictions) starts a second generation
+                    // that crashes when both hit LlamaBackend. Belt-
+                    // and-braces: AIManager.stream() also cancels on
+                    // new-generation entry, but cancelling here shaves
+                    // the race window down to zero on disappear.
+                    if aiManager.isGenerating {
+                        aiManager.cancelGeneration()
+                    }
                     // User navigated away from chat — schedule a fast unload
                     // so Gemma's ~5 GB residency doesn't sit around. Cancelled
                     // automatically by `cancelIdleUnload` if they come back
@@ -218,6 +231,7 @@ struct AIChatView: View {
         } // NavigationStack
         } // HStack
         .animation(.easeInOut(duration: 0.25), value: isChatSidebarVisible)
+        } // VStack (contains BetaBanner + HStack)
     }
 
     // MARK: - Chat History Sidebar
@@ -2268,6 +2282,9 @@ struct AIChatView: View {
                 let amt = fmtDollarsStatic(p.subscriptionAmount)
                 return "I'll add subscription \"\(p.subscriptionName ?? "")\" at \(amt)."
             case .cancelSubscription: return "I'll cancel the subscription \"\(p.subscriptionName ?? "")\"."
+            case .pauseSubscription: return "I'll pause \"\(p.subscriptionName ?? "")\"."
+            case .resumeSubscription: return "I'll resume \"\(p.subscriptionName ?? "")\"."
+            case .detectSubscriptions: return "I'll scan for new subscription patterns."
             case .transfer:
                 let amt = fmtDollarsStatic(p.amount)
                 return "I'll transfer \(amt) from \(p.fromAccount ?? "?") to \(p.toAccount ?? "?")."

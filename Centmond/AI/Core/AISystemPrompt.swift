@@ -171,6 +171,9 @@ enum AISystemPrompt {
         • add_subscription: subscriptionName*, subscriptionAmount*, \
         subscriptionFrequency* ("monthly"|"yearly")
         • cancel_subscription: subscriptionName*
+        • pause_subscription: subscriptionName*  (reversible — sets status to paused)
+        • resume_subscription: subscriptionName*  (re-activates a paused sub)
+        • detect_subscriptions: (no params; scans transactions for recurring patterns and returns candidates)
 
         ACCOUNTS
         • update_balance: accountName*, accountBalance*

@@ -134,11 +134,15 @@ struct DashboardView: View {
                 metricsRow
                 aiQuickAccessBanner
                 mainChartsRow
+                DashboardInsightStrip()
                 bottomRow
             }
             .padding(CentmondTheme.Spacing.lg)
         }
         .background(CentmondTheme.Colors.bgPrimary)
+        .onAppear {
+            AIInsightEngine.shared.refresh(context: modelContext)
+        }
     }
 
     // MARK: - AI Quick Access
@@ -915,6 +919,7 @@ struct DashboardView: View {
         let chartStyle: ChartStyle
         let dailyData: [DailyDataPoint]
 
+        @Environment(\.modelContext) private var modelContext
         @State private var hoveredDay: Int?
         @State private var hoverLocation: CGPoint = .zero
 
@@ -1115,6 +1120,47 @@ struct DashboardView: View {
                         .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.positive)
                         .monospacedDigit()
+                }
+
+                // Goal-allocation sub-rows. Only fetched on hover so the
+                // chart's main render path stays untouched. When any income
+                // on this day funded a goal, show the slice + the remainder
+                // available to spend.
+                if data.income > 0 {
+                    let allocated = GoalContributionService.totalAllocatedFromIncome(on: data.date, context: modelContext)
+                    if allocated > 0 {
+                        let toSpend = max(Decimal(data.income) - allocated, 0)
+                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                            Image(systemName: "target")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.accent)
+                                .frame(width: 6)
+                            Text("To goals")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            Spacer()
+                            Text(CurrencyFormat.standard(allocated))
+                                .font(CentmondTheme.Typography.captionMedium)
+                                .foregroundStyle(CentmondTheme.Colors.accent)
+                                .monospacedDigit()
+                        }
+                        .padding(.leading, 12)
+                        HStack(spacing: CentmondTheme.Spacing.xs) {
+                            Image(systemName: "wallet.pass.fill")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
+                                .frame(width: 6)
+                            Text("To spend")
+                                .font(CentmondTheme.Typography.caption)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            Spacer()
+                            Text(CurrencyFormat.standard(toSpend))
+                                .font(CentmondTheme.Typography.captionMedium)
+                                .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.85))
+                                .monospacedDigit()
+                        }
+                        .padding(.leading, 12)
+                    }
                 }
 
                 HStack(spacing: CentmondTheme.Spacing.xs) {

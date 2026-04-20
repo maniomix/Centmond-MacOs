@@ -48,6 +48,8 @@ struct GoalsView: View {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
                         goalsSummaryBar
 
+                        unallocatedIncomeBanner
+
                         if activeGoals.isEmpty && !doneGoals.isEmpty {
                             VStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: "checkmark.circle")
@@ -129,8 +131,18 @@ struct GoalsView: View {
                 Label("Pause Goal", systemImage: "pause.circle")
             }
             Button {
-                goal.currentAmount = goal.targetAmount
-                goal.status = .completed
+                let delta = goal.targetAmount - goal.currentAmount
+                if delta > 0 {
+                    GoalContributionService.addContribution(
+                        to: goal,
+                        amount: delta,
+                        kind: .manual,
+                        note: "Marked complete",
+                        context: modelContext
+                    )
+                } else {
+                    goal.status = .completed
+                }
             } label: {
                 Label("Mark as Completed", systemImage: "checkmark.circle")
             }
@@ -163,6 +175,50 @@ struct GoalsView: View {
             showDeleteConfirmation = true
         } label: {
             Label("Delete", systemImage: "trash")
+        }
+    }
+
+    // MARK: - Unallocated income banner
+
+    /// Visible only when there's idle income this month (no GoalContributions
+    /// linked to any current-month income tx). Nudges the user to allocate it
+    /// by opening the new-transaction sheet. Non-blocking — can be dismissed
+    /// implicitly by clearing the queue.
+    @ViewBuilder
+    private var unallocatedIncomeBanner: some View {
+        let unallocated = GoalAnalytics.unallocatedIncomeThisMonth(context: modelContext)
+        if unallocated.count > 0, !activeGoals.isEmpty {
+            HStack(spacing: CentmondTheme.Spacing.md) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(CentmondTheme.Colors.positive)
+                    .frame(width: 32, height: 32)
+                    .background(CentmondTheme.Colors.positive.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(CurrencyFormat.compact(unallocated.total)) unallocated income this month")
+                        .font(CentmondTheme.Typography.bodyMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Text("\(unallocated.count) income transaction\(unallocated.count == 1 ? "" : "s") without goal allocation. Route some of it in with your next entry.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Button {
+                    router.showSheet(.newTransaction)
+                } label: {
+                    Text("Allocate")
+                }
+                .buttonStyle(AccentChipButtonStyle())
+            }
+            .padding(CentmondTheme.Spacing.md)
+            .background(CentmondTheme.Colors.bgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                    .stroke(CentmondTheme.Colors.positive.opacity(0.3), lineWidth: 1)
+            )
         }
     }
 
@@ -298,15 +354,16 @@ struct GoalCard: View {
     @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
             // Header: icon + name + status
-            HStack {
+            HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: goal.icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(isSelected ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textSecondary)
+                    .frame(width: 18)
 
                 Text(goal.name)
-                    .font(CentmondTheme.Typography.heading3)
+                    .font(CentmondTheme.Typography.bodyMedium)
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
 
@@ -315,10 +372,11 @@ struct GoalCard: View {
                 statusBadge
             }
 
-            // Amount progress
-            HStack(alignment: .lastTextBaseline) {
+            // Amount progress — amount is the headline; "of $X" is supporting;
+            // percentage is a small pill on the right (not another headline).
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(CurrencyFormat.compact(goal.currentAmount))
-                    .font(CentmondTheme.Typography.monoLarge)
+                    .font(.system(size: 17, weight: .semibold, design: .monospaced))
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .monospacedDigit()
 
@@ -329,9 +387,13 @@ struct GoalCard: View {
                 Spacer()
 
                 Text("\(Int(goal.progressPercentage * 100))%")
-                    .font(CentmondTheme.Typography.monoLarge)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(progressColor)
                     .monospacedDigit()
+                    .padding(.horizontal, 6)
+                    .frame(height: 18)
+                    .background(progressColor.opacity(0.12))
+                    .clipShape(Capsule())
             }
 
             // Progress bar
@@ -353,7 +415,14 @@ struct GoalCard: View {
             }
             .frame(height: 8)
 
-            // Footer: target date + contribution
+            // This-month progress row — compares this-month contributions
+            // against the stored monthly target (if any). Funding-source
+            // chips ride at the trailing edge of the same row so cards
+            // never gain an extra row when chips are present (was causing
+            // unequal card heights in the grid).
+            thisMonthRow
+
+            // Footer: target date + projected completion
             HStack {
                 if let targetDate = goal.targetDate {
                     Label {
@@ -367,15 +436,20 @@ struct GoalCard: View {
 
                 Spacer()
 
-                if let monthly = goal.monthlyContribution, monthly > 0 {
-                    Text("\(CurrencyFormat.compact(monthly))/mo")
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                        .monospacedDigit()
+                if let projected = GoalAnalytics.projectedCompletion(goal), goal.status == .active {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 9, weight: .medium))
+                        Text("~ \(projected.formatted(.dateTime.month().year()))")
+                            .monospacedDigit()
+                    }
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+                    .help("Projected completion based on the last 3 months' average contribution")
                 }
             }
         }
-        .padding(CentmondTheme.Spacing.lg)
+        .padding(CentmondTheme.Spacing.md)
         .background(CentmondTheme.Colors.bgSecondary)
         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
         .overlay(
@@ -390,6 +464,94 @@ struct GoalCard: View {
         .onHover { hovering in
             if hovering { Haptics.tick() }
             withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
+        }
+    }
+
+    private var thisMonthRow: some View {
+        let thisMonth = GoalAnalytics.thisMonthContribution(goal)
+        let target = goal.monthlyContribution ?? 0
+        let hasTarget = target > 0
+        let pct: Double = hasTarget
+            ? min(Double(truncating: (thisMonth / target) as NSDecimalNumber), 1.0)
+            : 0
+        let breakdown = GoalAnalytics.breakdownByKind(goal)
+        let chipOrder: [GoalContributionKind] = [.fromIncome, .autoRule, .fromTransfer, .manual]
+        let visibleChips = chipOrder.filter { (breakdown[$0] ?? 0) > 0 }
+
+        return HStack(spacing: 6) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 10))
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                .frame(width: 12)
+            Text("This month")
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            Text(CurrencyFormat.compact(thisMonth))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(thisMonth > 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textQuaternary)
+            if hasTarget {
+                Text("of \(CurrencyFormat.compact(target))")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+            Spacer(minLength: CentmondTheme.Spacing.xs)
+
+            // Funding-source chips ride at the trailing edge so they never
+            // create an extra row — keeps cards in the grid equal height
+            // regardless of whether a goal has any contribution history yet.
+            HStack(spacing: 3) {
+                ForEach(visibleChips, id: \.self) { kind in
+                    sourceChip(kind: kind, amount: breakdown[kind] ?? 0)
+                }
+            }
+
+            if hasTarget {
+                Text("\(Int(pct * 100))%")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(pct >= 1 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
+            }
+        }
+    }
+
+    private func sourceChip(kind: GoalContributionKind, amount: Decimal) -> some View {
+        let color: Color = {
+            switch kind {
+            case .fromIncome: return CentmondTheme.Colors.positive
+            case .autoRule: return CentmondTheme.Colors.accent
+            case .fromTransfer: return CentmondTheme.Colors.warning
+            case .manual: return CentmondTheme.Colors.textSecondary
+            }
+        }()
+        let icon: String = {
+            switch kind {
+            case .fromIncome: return "arrow.down.circle.fill"
+            case .autoRule: return "wand.and.rays"
+            case .fromTransfer: return "arrow.left.arrow.right"
+            case .manual: return "hand.tap.fill"
+            }
+        }()
+        return HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .semibold))
+            Text(CurrencyFormat.compact(amount))
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 5)
+        .frame(height: 16)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+        .help(kindLabel(kind))
+    }
+
+    private func kindLabel(_ k: GoalContributionKind) -> String {
+        switch k {
+        case .manual: return "Manual"
+        case .fromIncome: return "Routed from income"
+        case .fromTransfer: return "Transfer from account"
+        case .autoRule: return "Auto rule"
         }
     }
 
@@ -415,7 +577,10 @@ struct GoalCard: View {
         if p >= 1.0 { return CentmondTheme.Colors.positive }
         if p >= 0.7 { return CentmondTheme.Colors.accent }
         if p >= 0.4 { return CentmondTheme.Colors.warning }
-        return CentmondTheme.Colors.negative
+        // Brand-new / low-progress goals shouldn't read as alarming red —
+        // a goal at 0% is just a goal that hasn't started, not a failure.
+        // Only past-deadline goals get warning treatment via targetDateColor.
+        return CentmondTheme.Colors.textSecondary
     }
 
     private func targetDateColor(_ date: Date) -> Color {

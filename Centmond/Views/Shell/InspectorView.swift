@@ -113,6 +113,11 @@ struct TransactionInspectorView: View {
 
                         sectionDivider
 
+                        // Goal allocations — only renders if this tx funded any goals.
+                        TransactionGoalAllocationsView(transactionID: transaction.id)
+                            .padding(.horizontal, CentmondTheme.Spacing.md)
+                            .padding(.vertical, CentmondTheme.Spacing.sm)
+
                         // Tags section
                         tagsSection(transaction)
 
@@ -284,11 +289,15 @@ struct TransactionInspectorView: View {
 
     private func detailsSection(_ tx: Transaction) -> some View {
         VStack(spacing: CentmondTheme.Spacing.lg) {
-            // Date
+            // Date — include hour/minute so the user can see the time
+            // they entered (or that was imported from the CSV Time column).
+            // Without `.hour().minute()` the formatter silently dropped
+            // the time component, which made imports look like every
+            // transaction was midnight-dated even when it wasn't.
             inspectorField(
                 icon: "calendar",
                 label: "Date",
-                value: tx.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())
+                value: tx.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year().hour().minute())
             )
 
             // Category
@@ -428,9 +437,12 @@ struct TransactionInspectorView: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
             }
 
-            // Date
+            // Date + time — `.hourAndMinute` so edits preserve (and can
+            // set) the hour-of-day. Needed so behavioural signals like
+            // "late-night spending" work on both manually-created and
+            // manually-edited transactions, matching the CSV import path.
             editField("Date") {
-                DatePicker("", selection: $editDate, displayedComponents: .date)
+                DatePicker("", selection: $editDate, displayedComponents: [.date, .hourAndMinute])
                     .datePickerStyle(.field)
                     .labelsHidden()
             }
@@ -605,6 +617,26 @@ struct TransactionInspectorView: View {
                 }
                 .buttonStyle(.plainHover)
                 .padding(.leading, 32)
+            } else if tx.transferGroupID == nil {
+                // Goal transfer — no paired account leg; destination is a
+                // goal recorded as a .fromTransfer GoalContribution.
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "target")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Text("To")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Text("Goal (see below)")
+                        .font(CentmondTheme.Typography.body)
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    Spacer()
+                }
+                .padding(.horizontal, CentmondTheme.Spacing.sm)
+                .padding(.vertical, 6)
+                .background(CentmondTheme.Colors.bgTertiary)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                .padding(.leading, 32)
             } else {
                 Text("Paired leg missing")
                     .font(CentmondTheme.Typography.caption)
@@ -701,20 +733,33 @@ struct TransactionInspectorView: View {
 
     private func metadataSection(_ tx: Transaction) -> some View {
         VStack(spacing: CentmondTheme.Spacing.sm) {
+            // Section header — short title only. Earlier iteration tried
+            // to stuff a clarifying sub-caption ("when this entry was
+            // saved in the app") inline next to "Record info", but the
+            // inspector column is too narrow and the caption wrapped to
+            // two lines, pushing the whole section out of alignment. The
+            // short row labels ("Added" / "Edited") plus a `.help(...)`
+            // tooltip on the icon carry the disambiguation now.
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "info.circle")
                     .font(.system(size: 12))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 20)
-                Text("Metadata")
+                    .help("When this entry was added to or edited in the app. Not the transaction date.")
+                Text("Record info")
                     .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 Spacer()
             }
 
             VStack(spacing: CentmondTheme.Spacing.xs) {
-                metaRow("Created", value: tx.createdAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                metaRow("Updated", value: tx.updatedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                // Short single-word labels so they fit cleanly in the
+                // 56pt label column without wrapping. The sub-caption in
+                // the section header ("when this entry was saved in the
+                // app") carries the disambiguating context — no need to
+                // restate it in every row label.
+                metaRow("Added", value: tx.createdAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                metaRow("Edited", value: tx.updatedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                 metaRow("ID", value: String(tx.id.uuidString.prefix(8)))
             }
             .padding(.leading, 32)
@@ -769,7 +814,7 @@ struct TransactionInspectorView: View {
                         TransferService.deletePair(tx, in: modelContext)
                     } else {
                         let account = tx.account
-                        modelContext.delete(tx)
+                        TransactionDeletionService.delete(tx, context: modelContext)
                         if let account { BalanceService.recalculate(account: account) }
                     }
                     router.inspectorContext = .none
@@ -1885,16 +1930,19 @@ struct BudgetCategoryInspectorView: View {
 struct GoalInspectorView: View {
     let goalID: UUID
     @Query private var goals: [Goal]
+    @Query private var rulesForGoal: [GoalAllocationRule]
     @Environment(\.modelContext) private var modelContext
     @Environment(AppRouter.self) private var router
 
     @State private var contributionAmount = ""
     @State private var showDeleteConfirmation = false
+    @State private var showRulesSheet = false
 
     init(goalID: UUID) {
         self.goalID = goalID
         let id = goalID
         _goals = Query(filter: #Predicate<Goal> { $0.id == id })
+        _rulesForGoal = Query(filter: #Predicate<GoalAllocationRule> { $0.goal?.id == id })
     }
 
     private var goal: Goal? { goals.first }
@@ -1944,12 +1992,26 @@ struct GoalInspectorView: View {
 
                         divider
 
+                        // Auto-allocation rules — summary + open editor
+                        rulesSection(goal)
+
+                        divider
+
                         // Quick contribute
                         if goal.status == .active {
                             contributeSection(goal)
                         }
+
+                        divider
+
+                        // Contribution timeline — shows the last 10 rows of
+                        // history with kind-colored chips + source captions.
+                        timelineSection(goal)
                     }
                     .padding(CentmondTheme.Spacing.lg)
+                }
+                .sheet(isPresented: $showRulesSheet) {
+                    GoalAllocationRulesSheet(goal: goal)
                 }
 
                 Divider().background(CentmondTheme.Colors.strokeSubtle)
@@ -2043,6 +2105,164 @@ struct GoalInspectorView: View {
         }
     }
 
+    private func timelineSection(_ goal: Goal) -> some View {
+        let sorted = goal.contributions.sorted { $0.date > $1.date }
+        let recent = Array(sorted.prefix(10))
+        let thisMonth = GoalAnalytics.thisMonthContribution(goal)
+        let avgMonthly = GoalAnalytics.averageMonthlyContribution(goal)
+        let projected = GoalAnalytics.projectedCompletion(goal)
+
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            Text("ACTIVITY")
+                .font(CentmondTheme.Typography.overline)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .tracking(0.5)
+
+            HStack(spacing: CentmondTheme.Spacing.md) {
+                timelineStat(
+                    label: "This month",
+                    value: CurrencyFormat.compact(thisMonth),
+                    color: CentmondTheme.Colors.positive
+                )
+                timelineStat(
+                    label: "3-mo avg",
+                    value: CurrencyFormat.compact(avgMonthly),
+                    color: CentmondTheme.Colors.accent
+                )
+                if let p = projected {
+                    timelineStat(
+                        label: "At target",
+                        value: p.formatted(.dateTime.month(.abbreviated).year(.twoDigits)),
+                        color: CentmondTheme.Colors.warning
+                    )
+                }
+            }
+
+            if recent.isEmpty {
+                HStack {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11))
+                    Text("No contributions yet")
+                        .font(CentmondTheme.Typography.caption)
+                    Spacer()
+                }
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                .padding(.vertical, CentmondTheme.Spacing.sm)
+            } else {
+                VStack(spacing: 1) {
+                    ForEach(recent) { c in
+                        timelineRow(c)
+                    }
+                }
+                .background(CentmondTheme.Colors.bgSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+                if sorted.count > recent.count {
+                    Text("Showing \(recent.count) of \(sorted.count)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+        }
+    }
+
+    private func timelineStat(label: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(color)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func timelineRow(_ c: GoalContribution) -> some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
+            kindGlyph(c.kind)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(c.note ?? kindTitle(c.kind))
+                    .font(CentmondTheme.Typography.body)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    .lineLimit(1)
+                Text(c.date.formatted(.dateTime.day().month(.abbreviated).year()))
+                    .font(.system(size: 10))
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+            Spacer()
+            Text(c.amount >= 0 ? CurrencyFormat.standard(c.amount) : "-\(CurrencyFormat.standard(-c.amount))")
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(c.amount >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+        .frame(height: 38)
+    }
+
+    private func kindGlyph(_ kind: GoalContributionKind) -> some View {
+        let (icon, color): (String, Color) = {
+            switch kind {
+            case .manual: return ("hand.tap.fill", CentmondTheme.Colors.textSecondary)
+            case .fromIncome: return ("arrow.down.circle.fill", CentmondTheme.Colors.positive)
+            case .fromTransfer: return ("arrow.left.arrow.right", CentmondTheme.Colors.warning)
+            case .autoRule: return ("wand.and.rays", CentmondTheme.Colors.accent)
+            }
+        }()
+        return Image(systemName: icon)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: 22, height: 22)
+            .background(color.opacity(0.12))
+            .clipShape(Circle())
+    }
+
+    private func kindTitle(_ kind: GoalContributionKind) -> String {
+        switch kind {
+        case .manual: return "Manual contribution"
+        case .fromIncome: return "Routed from income"
+        case .fromTransfer: return "Transfer from account"
+        case .autoRule: return "Auto rule"
+        }
+    }
+
+    private func rulesSection(_ goal: Goal) -> some View {
+        let activeCount = rulesForGoal.filter { $0.isActive }.count
+        let total = rulesForGoal.count
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            Text("AUTO-ALLOCATION RULES")
+                .font(CentmondTheme.Typography.overline)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                .tracking(0.5)
+
+            Button {
+                showRulesSheet = true
+            } label: {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "wand.and.rays")
+                        .font(.system(size: 12))
+                        .foregroundStyle(CentmondTheme.Colors.accent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(total == 0 ? "No rules" : "\(activeCount) active · \(total) total")
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        Text("Propose contributions from future income")
+                            .font(.system(size: 10))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+                .padding(.horizontal, CentmondTheme.Spacing.md)
+                .frame(height: 44)
+                .background(CentmondTheme.Colors.bgSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     private func contributeSection(_ goal: Goal) -> some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
             Text("ADD CONTRIBUTION")
@@ -2073,10 +2293,12 @@ struct GoalInspectorView: View {
 
                 Button("Add") {
                     if let amount = Decimal(string: contributionAmount), amount > 0 {
-                        goal.currentAmount += amount
-                        if goal.currentAmount >= goal.targetAmount {
-                            goal.status = .completed
-                        }
+                        GoalContributionService.addContribution(
+                            to: goal,
+                            amount: amount,
+                            kind: .manual,
+                            context: modelContext
+                        )
                         contributionAmount = ""
                     }
                 }

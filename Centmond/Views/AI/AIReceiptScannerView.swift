@@ -315,6 +315,8 @@ struct AIReceiptScannerView: View {
         context.insert(txn)
         try? context.save()
 
+        SubscriptionReconciliationService.reconcile(transaction: txn, in: context)
+
         // Learn from this
         if !editMerchant.isEmpty {
             AICategorySuggester.shared.learn(note: editMerchant, categoryName: editCategoryName)

@@ -1,136 +1,87 @@
 import SwiftUI
 import SwiftData
 
+// ============================================================
+// MARK: - Insights Hub (P5)
+// ============================================================
+//
+// Single surface for every insight the engine emits. Grouped
+// by severity, filterable by domain, with a calm empty state
+// that leans on positive insights when the queue is clear.
+//
+// Data source: `AIInsightEngine.shared.insights` (in-memory,
+// refreshed on launch / scene-active / midnight). The engine
+// owns dedupe + dismissals + caps; this view just renders and
+// routes taps through `engine.apply`.
+// ============================================================
+
 struct InsightsView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Insight.createdAt, order: .reverse) private var allInsights: [Insight]
 
-    @State private var showDismissed = false
-    @State private var filterType: InsightType?
-    @State private var showDismissAllConfirmation = false
+    private let engine = AIInsightEngine.shared
 
-    private var activeInsights: [Insight] { allInsights.filter { !$0.isDismissed } }
-    private var dismissedInsights: [Insight] { allInsights.filter { $0.isDismissed } }
+    @State private var filterDomain: AIInsight.Domain?
 
-    private var visibleInsights: [Insight] {
-        var result = showDismissed ? allInsights : activeInsights
-        if let filterType {
-            result = result.filter { $0.type == filterType }
-        }
-        return result.sorted { lhs, rhs in
-            let lhsPriority = typePriority(lhs.type)
-            let rhsPriority = typePriority(rhs.type)
-            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
-            return lhs.createdAt > rhs.createdAt
-        }
+    // MARK: - Derived
+
+    private var allInsights: [AIInsight] { engine.insights }
+
+    private var visibleInsights: [AIInsight] {
+        guard let filterDomain else { return allInsights }
+        return allInsights.filter { $0.domain == filterDomain }
     }
 
-    private func typePriority(_ type: InsightType) -> Int {
-        switch type {
-        case .budgetAlert: 0
-        case .spendingAnomaly: 1
-        case .savingsOpportunity: 2
-        case .subscriptionChange: 3
-        case .goalProgress: 4
-        case .netWorthMilestone: 5
-        }
+    private var criticals: [AIInsight] { visibleInsights.filter { $0.severity == .critical } }
+    private var warnings:  [AIInsight] { visibleInsights.filter { $0.severity == .warning } }
+    private var watches:   [AIInsight] { visibleInsights.filter { $0.severity == .watch } }
+    private var positives: [AIInsight] { visibleInsights.filter { $0.severity == .positive } }
+
+    private var activeDomains: [AIInsight.Domain] {
+        AIInsight.Domain.allCases.filter { d in allInsights.contains(where: { $0.domain == d }) }
     }
 
-    private var activeTypes: [InsightType] {
-        let source = showDismissed ? allInsights : activeInsights
-        let types = Set(source.map(\.type))
-        return InsightType.allCases.filter { types.contains($0) }
+    private var nonPositiveCount: Int {
+        allInsights.filter { $0.severity != .positive }.count
     }
+
+    // MARK: - Body
 
     var body: some View {
-        Group {
-            if allInsights.isEmpty {
-                EmptyStateView(
-                    icon: "lightbulb.fill",
-                    heading: "Insights will appear here",
-                    description: "Once you have transaction and budget data, Centmond will surface spending patterns and actionable insights."
-                )
-            } else if visibleInsights.isEmpty && !showDismissed {
-                VStack(spacing: CentmondTheme.Spacing.lg) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(CentmondTheme.Colors.positive)
+        content
+            .background(CentmondTheme.Colors.bgPrimary)
+            .onAppear { engine.refresh(context: modelContext) }
+    }
 
-                    Text("All caught up")
-                        .font(CentmondTheme.Typography.heading2)
-                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+    @ViewBuilder
+    private var content: some View {
+        if allInsights.isEmpty {
+            emptyState
+        } else {
+            VStack(spacing: 0) {
+                toolbar
+                Divider().background(CentmondTheme.Colors.strokeSubtle)
 
-                    Text("You've reviewed all \(dismissedInsights.count) insight\(dismissedInsights.count == 1 ? "" : "s").")
-                        .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
-
-                    Button("Show Dismissed") {
-                        showDismissed = true
+                ScrollView {
+                    VStack(spacing: CentmondTheme.Spacing.xl) {
+                        section("Needs action", insights: criticals, tint: CentmondTheme.Colors.negative)
+                        section("Worth a look", insights: warnings,  tint: CentmondTheme.Colors.warning)
+                        section("Keep an eye on", insights: watches,  tint: CentmondTheme.Colors.accent)
+                        section("Going well",    insights: positives, tint: CentmondTheme.Colors.positive)
                     }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                VStack(spacing: 0) {
-                    insightsToolbar
-
-                    Divider().background(CentmondTheme.Colors.strokeSubtle)
-
-                    ScrollView {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg),
-                            GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg)
-                        ], spacing: CentmondTheme.Spacing.lg) {
-                            ForEach(visibleInsights) { insight in
-                                InsightCard(
-                                    insight: insight,
-                                    onDismiss: {
-                                        withAnimation(CentmondTheme.Motion.layout) {
-                                            insight.isDismissed = true
-                                        }
-                                    },
-                                    onRestore: {
-                                        withAnimation(CentmondTheme.Motion.layout) {
-                                            insight.isDismissed = false
-                                        }
-                                    },
-                                    onDelete: {
-                                        withAnimation(CentmondTheme.Motion.layout) {
-                                            modelContext.delete(insight)
-                                        }
-                                    },
-                                    onNavigate: { navigateForInsight(insight) }
-                                )
-                            }
-                        }
-                        .padding(CentmondTheme.Spacing.xxl)
-                    }
+                    .padding(CentmondTheme.Spacing.xxl)
                 }
             }
-        }
-        .alert("Dismiss All Insights", isPresented: $showDismissAllConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Dismiss All") {
-                withAnimation(CentmondTheme.Motion.layout) {
-                    for insight in activeInsights {
-                        insight.isDismissed = true
-                    }
-                }
-            }
-        } message: {
-            Text("Mark all \(activeInsights.count) active insight\(activeInsights.count == 1 ? "" : "s") as dismissed?")
         }
     }
 
     // MARK: - Toolbar
 
-    private var insightsToolbar: some View {
+    private var toolbar: some View {
         HStack(spacing: CentmondTheme.Spacing.lg) {
-            // Count badge
             HStack(spacing: CentmondTheme.Spacing.sm) {
-                if activeInsights.count > 0 {
-                    Text("\(activeInsights.count)")
+                if nonPositiveCount > 0 {
+                    Text("\(nonPositiveCount)")
                         .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
@@ -138,60 +89,40 @@ struct InsightsView: View {
                         .background(CentmondTheme.Colors.accent)
                         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                 }
-                Text("\(activeInsights.count) active")
+                Text("\(allInsights.count) active")
                     .font(CentmondTheme.Typography.body)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
             }
 
-            if !dismissedInsights.isEmpty {
-                Text("\(dismissedInsights.count) dismissed")
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-            }
-
             Spacer()
 
-            // Type filter chips
-            if activeTypes.count > 1 {
+            if activeDomains.count > 1 {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
-                    filterChip(label: "All", type: nil)
-                    ForEach(activeTypes, id: \.self) { type in
-                        filterChip(label: type.shortLabel, type: type)
+                    filterChip(label: "All", domain: nil)
+                    ForEach(activeDomains, id: \.self) { d in
+                        filterChip(label: d.displayName, domain: d)
                     }
                 }
             }
 
-            // Actions
-            if activeInsights.count > 1 {
-                Button {
-                    showDismissAllConfirmation = true
-                } label: {
-                    Text("Dismiss All")
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                }
-                .buttonStyle(.plainHover)
-            }
-
-            if !dismissedInsights.isEmpty {
-                Toggle("Show dismissed", isOn: $showDismissed)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .font(CentmondTheme.Typography.caption)
+            Button {
+                engine.refresh(context: modelContext)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
+            .buttonStyle(.plainHover)
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.lg)
         .background(CentmondTheme.Colors.bgSecondary)
     }
 
-    private func filterChip(label: String, type: InsightType?) -> some View {
-        let isActive = filterType == type
+    private func filterChip(label: String, domain: AIInsight.Domain?) -> some View {
+        let isActive = filterDomain == domain
         return Button {
-            withAnimation(CentmondTheme.Motion.micro) {
-                filterType = type
-            }
+            withAnimation(CentmondTheme.Motion.micro) { filterDomain = domain }
         } label: {
             Text(label)
                 .font(CentmondTheme.Typography.caption)
@@ -204,158 +135,75 @@ struct InsightsView: View {
         .buttonStyle(.plainHover)
     }
 
-    // MARK: - Navigation
+    // MARK: - Section
 
-    private func navigateForInsight(_ insight: Insight) {
-        switch insight.type {
-        case .budgetAlert:
-            router.navigate(to: .budget)
-        case .spendingAnomaly:
-            router.navigate(to: .transactions)
-        case .subscriptionChange:
-            router.navigate(to: .subscriptions)
-        case .savingsOpportunity:
-            router.navigate(to: .budget)
-        case .goalProgress:
-            router.navigate(to: .goals)
-        case .netWorthMilestone:
-            router.navigate(to: .netWorth)
-        }
-    }
-}
-
-// MARK: - Insight Card
-
-struct InsightCard: View {
-    let insight: Insight
-    var onDismiss: () -> Void
-    var onRestore: () -> Void
-    var onDelete: () -> Void
-    var onNavigate: () -> Void
-    @State private var isHovered = false
-
-    private var typeColor: Color {
-        Color(hex: insight.type.colorHex)
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
-            // Left accent border
-            Rectangle()
-                .fill(typeColor)
-                .frame(width: 3)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-
-            // Icon
-            Image(systemName: insight.type.iconName)
-                .font(.system(size: 20))
-                .foregroundStyle(typeColor)
-                .frame(width: 32, height: 32)
-                .background(typeColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
-
-            // Content
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
-                // Type label
-                Text(insight.type.displayName.uppercased())
-                    .font(CentmondTheme.Typography.overline)
-                    .foregroundStyle(typeColor)
-                    .tracking(0.5)
-
-                Text(insight.title)
-                    .font(CentmondTheme.Typography.heading3)
-                    .foregroundStyle(insight.isDismissed ? CentmondTheme.Colors.textTertiary : CentmondTheme.Colors.textPrimary)
-                    .lineLimit(2)
-
-                Text(insight.body)
-                    .font(CentmondTheme.Typography.body)
-                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
-                    .lineLimit(4)
-
-                HStack(spacing: CentmondTheme.Spacing.md) {
-                    Text(insight.createdAt.formatted(.relative(presentation: .named)))
+    @ViewBuilder
+    private func section(_ title: String, insights: [AIInsight], tint: Color) -> some View {
+        if !insights.isEmpty {
+            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Circle().fill(tint).frame(width: 8, height: 8)
+                    Text(title)
+                        .font(CentmondTheme.Typography.overline)
+                        .foregroundStyle(tint)
+                        .tracking(0.5)
+                    Text("\(insights.count)")
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-
                     Spacer()
+                }
 
-                    Button {
-                        onNavigate()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text("View")
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 9))
-                        }
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.accent)
-                    }
-                    .buttonStyle(.plainHover)
-
-                    if insight.isDismissed {
-                        Button("Restore") {
-                            onRestore()
-                        }
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .buttonStyle(.plainHover)
-                    } else {
-                        Button("Dismiss") {
-                            onDismiss()
-                        }
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .buttonStyle(.plainHover)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg),
+                    GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg)
+                ], spacing: CentmondTheme.Spacing.lg) {
+                    ForEach(insights) { insight in
+                        AIInsightBanner(insight: insight)
                     }
                 }
-            }
-        }
-        .padding(CentmondTheme.Spacing.lg)
-        .background(CentmondTheme.Colors.bgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
-                .stroke(isHovered ? CentmondTheme.Colors.strokeDefault : CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
-        )
-        .shadow(color: isHovered ? .black.opacity(0.3) : .clear, radius: 8, y: 2)
-        .opacity(insight.isDismissed ? 0.6 : 1.0)
-        .onHover { hovering in
-            if hovering { Haptics.tick() }
-            withAnimation(CentmondTheme.Motion.micro) { isHovered = hovering }
-        }
-        .contextMenu {
-            if !insight.isDismissed {
-                Button { onNavigate() } label: {
-                    Label("Go to \(insight.type.displayName)", systemImage: "arrow.right.circle")
-                }
-                Divider()
-                Button { onDismiss() } label: {
-                    Label("Dismiss", systemImage: "xmark.circle")
-                }
-            } else {
-                Button { onRestore() } label: {
-                    Label("Restore", systemImage: "arrow.uturn.backward")
-                }
-            }
-            Divider()
-            Button(role: .destructive) { onDelete() } label: {
-                Label("Delete", systemImage: "trash")
             }
         }
     }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: CentmondTheme.Spacing.lg) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(CentmondTheme.Colors.positive)
+
+            Text("All clear")
+                .font(CentmondTheme.Typography.heading2)
+                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+
+            Text("Nothing needs your attention right now. Keep logging transactions and Centmond will flag anything worth acting on.")
+                .font(CentmondTheme.Typography.body)
+                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 480)
+
+            Button("Refresh now") {
+                engine.refresh(context: modelContext)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 
-// MARK: - InsightType extensions
+// MARK: - Domain display names
 
-extension InsightType {
-    var shortLabel: String {
+extension AIInsight.Domain {
+    var displayName: String {
         switch self {
-        case .spendingAnomaly: "Spending"
-        case .budgetAlert: "Budget"
-        case .subscriptionChange: "Subscriptions"
-        case .savingsOpportunity: "Savings"
-        case .goalProgress: "Goals"
-        case .netWorthMilestone: "Net Worth"
+        case .budget:       return "Budget"
+        case .subscription: return "Subscriptions"
+        case .goal:         return "Goals"
+        case .recurring:    return "Recurring"
+        case .anomaly:      return "Anomalies"
+        case .cashflow:     return "Cashflow"
+        case .duplicate:    return "Duplicates"
         }
     }
 }

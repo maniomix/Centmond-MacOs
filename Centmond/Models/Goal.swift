@@ -7,12 +7,21 @@ final class Goal {
     var name: String
     var icon: String
     var targetAmount: Decimal
+
+    /// Cache of `contributions.reduce(0, +).amount`. The contribution history is
+    /// authoritative — always write through `GoalContributionService` so this
+    /// field stays in sync. Reading it directly is fine and fast.
     var currentAmount: Decimal
+
     var targetDate: Date?
     var monthlyContribution: Decimal?
     var status: GoalStatus
+    var priority: Int = 0
     var createdAt: Date
     var updatedAt: Date = Date.now
+
+    @Relationship(deleteRule: .cascade, inverse: \GoalContribution.goal)
+    var contributions: [GoalContribution] = []
 
     init(
         name: String,
@@ -21,7 +30,8 @@ final class Goal {
         currentAmount: Decimal = 0,
         targetDate: Date? = nil,
         monthlyContribution: Decimal? = nil,
-        status: GoalStatus = .active
+        status: GoalStatus = .active,
+        priority: Int = 0
     ) {
         self.id = UUID()
         self.name = name
@@ -31,6 +41,7 @@ final class Goal {
         self.targetDate = targetDate
         self.monthlyContribution = monthlyContribution
         self.status = status
+        self.priority = priority
         self.createdAt = .now
         self.updatedAt = .now
     }

@@ -3,6 +3,7 @@ import SwiftData
 
 struct EditGoalSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let goal: Goal
 
     @State private var name: String
@@ -301,21 +302,31 @@ struct EditGoalSheet: View {
         goal.name = TextNormalization.trimmed(name)
         goal.icon = icon
         goal.targetAmount = target
-        goal.currentAmount = DecimalInput.parseNonNegative(currentAmount) ?? 0
         goal.monthlyContribution = DecimalInput.parsePositive(monthlyContribution)
         goal.targetDate = hasTargetDate ? targetDate : nil
 
-        // Auto-transition between active and completed both ways. Without
-        // the reverse case, a user who corrects a typo (e.g. saved-so-far
-        // entered too high) would leave the goal stuck in `.completed`.
-        // Paused/archived states are user-driven and never auto-flipped.
+        // "Saved so far" is a derived value now. Edits to it are expressed as
+        // a signed adjustment contribution so history stays authoritative.
+        let desired = DecimalInput.parseNonNegative(currentAmount) ?? 0
+        let delta = desired - goal.currentAmount
+        if delta != 0 {
+            GoalContributionService.addContribution(
+                to: goal,
+                amount: delta,
+                kind: .manual,
+                note: delta > 0 ? "Manual adjustment" : "Manual correction",
+                context: modelContext
+            )
+        } else {
+            goal.updatedAt = .now
+        }
+
+        // Target may have moved even when the saved amount didn't — re-sync status.
         if goal.status == .active, goal.currentAmount >= goal.targetAmount {
             goal.status = .completed
         } else if goal.status == .completed, goal.currentAmount < goal.targetAmount {
             goal.status = .active
         }
-
-        goal.updatedAt = .now
         dismiss()
     }
 }

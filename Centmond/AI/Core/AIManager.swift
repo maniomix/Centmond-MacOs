@@ -263,6 +263,23 @@ final class AIManager {
         // re-arm its idle timer when this generation completes.
         cancelIdleUnload()
 
+        // CRITICAL: cancel any in-flight generation BEFORE starting a
+        // new one. Without this, rapid view-switching (e.g. AI Chat
+        // → AI Predictions → back) stacks concurrent generations — both
+        // call `LlamaBackend.generate(...)`, corrupt the inference
+        // state, and crash at `llama_hparams::n_embd_inp`. User
+        // report: "when i fast changing between ai chat and ai
+        // prediction . it got stucke and laggy ."
+        //
+        // `cancelGeneration` synchronously cancels the previous Task
+        // and flips `isGenerating = false`; LlamaBackend's actor-
+        // isolated `shouldStop` flag (per the `Llama Unload Race`
+        // memory) lets the in-flight work wind down before the next
+        // generate() call actually executes on the backend actor.
+        if isGenerating {
+            cancelGeneration()
+        }
+
         self.isGenerating = true
         self.status = .generating
 

@@ -270,7 +270,26 @@ struct NewGoalSheet: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 appeared = true
             }
+            applyOnboardingPresetIfAny()
         }
+    }
+
+    /// Ephemeral handoff from the onboarding flow. Step 4 writes
+    /// `onboarding.goalPreset.name` / `onboarding.goalPreset.icon` into
+    /// UserDefaults before routing to this sheet; we consume-and-clear on
+    /// appear so the prefill doesn't leak into a later manual "New Goal".
+    private func applyOnboardingPresetIfAny() {
+        let defaults = UserDefaults.standard
+        if let presetName = defaults.string(forKey: "onboarding.goalPreset.name"),
+           !presetName.isEmpty {
+            name = presetName
+        }
+        if let presetIcon = defaults.string(forKey: "onboarding.goalPreset.icon"),
+           iconOptions.contains(presetIcon) {
+            icon = presetIcon
+        }
+        defaults.removeObject(forKey: "onboarding.goalPreset.name")
+        defaults.removeObject(forKey: "onboarding.goalPreset.icon")
     }
 
     // MARK: - Components
@@ -303,12 +322,25 @@ struct NewGoalSheet: View {
             name: trimmedName,
             icon: icon,
             targetAmount: target,
-            currentAmount: current,
+            currentAmount: 0,
             targetDate: hasTargetDate ? targetDate : nil,
             monthlyContribution: monthly,
-            status: current >= target ? .completed : .active
+            status: .active
         )
         modelContext.insert(goal)
+
+        // Capture the starting balance as a seed contribution so history is
+        // authoritative from day one. Service also auto-completes the goal if
+        // the seed already hits the target.
+        if current > 0 {
+            GoalContributionService.addContribution(
+                to: goal,
+                amount: current,
+                kind: .manual,
+                note: "Starting balance",
+                context: modelContext
+            )
+        }
         dismiss()
     }
 }

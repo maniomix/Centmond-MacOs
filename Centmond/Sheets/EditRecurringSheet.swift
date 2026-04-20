@@ -12,7 +12,6 @@ struct EditRecurringSheet: View {
     @State private var isIncome: Bool
     @State private var frequency: RecurrenceFrequency
     @State private var nextOccurrence: Date
-    @State private var autoCreate: Bool
     @State private var selectedAccount: Account?
     @State private var selectedCategory: BudgetCategory?
 
@@ -23,7 +22,6 @@ struct EditRecurringSheet: View {
         _isIncome = State(initialValue: item.isIncome)
         _frequency = State(initialValue: item.frequency)
         _nextOccurrence = State(initialValue: item.nextOccurrence)
-        _autoCreate = State(initialValue: item.autoCreate)
         _selectedAccount = State(initialValue: item.account)
         _selectedCategory = State(initialValue: item.category)
     }
@@ -122,9 +120,14 @@ struct EditRecurringSheet: View {
                         }
                     }
 
-                    Toggle("Auto-create transaction when due", isOn: $autoCreate)
-                        .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        Image(systemName: "bolt.badge.automatic.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CentmondTheme.Colors.positive)
+                        Text("Transactions are created automatically on each due date.")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    }
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.xxl)
                 .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -171,7 +174,7 @@ struct EditRecurringSheet: View {
         item.isIncome = isIncome
         item.frequency = frequency
         item.nextOccurrence = nextOccurrence
-        item.autoCreate = autoCreate
+        item.autoCreate = true
         item.account = selectedAccount
         item.category = selectedCategory
         dismiss()

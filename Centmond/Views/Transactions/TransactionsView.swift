@@ -498,7 +498,7 @@ struct TransactionsView: View {
                                         TransferService.deletePair(transaction, in: modelContext)
                                     } else {
                                         let account = transaction.account
-                                        modelContext.delete(transaction)
+                                        TransactionDeletionService.delete(transaction, context: modelContext)
                                         if let account { BalanceService.recalculate(account: account) }
                                     }
                                 },
@@ -737,7 +737,7 @@ struct TransactionsView: View {
         // relationship reads, no recalcs — just context.delete(...).
         for tx in primary + pairedLegs {
             guard !tx.isDeleted, tx.modelContext != nil else { continue }
-            modelContext.delete(tx)
+            TransactionDeletionService.delete(tx, context: modelContext)
         }
 
         // Phase 3: save atomically. If this throws we surface it in the
@@ -796,6 +796,14 @@ struct TransactionRowView: View {
     var onDuplicate: () -> Void
 
     @State private var isHovered = false
+    @AppStorage("tableDensity") private var tableDensity = "default"
+
+    /// Vertical padding driven by the user's Settings → Appearance →
+    /// Table Density preference. "compact" halves the padding for a
+    /// denser list; "default" keeps the original spacious layout.
+    private var rowVerticalPadding: CGFloat {
+        tableDensity == "compact" ? 6 : CentmondTheme.Spacing.md
+    }
 
     var body: some View {
         if transaction.isDeleted || transaction.modelContext == nil {
@@ -888,6 +896,10 @@ struct TransactionRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
             }
 
+            // Goal allocation chip — only renders if this transaction
+            // funded one or more goals via income allocation.
+            TransactionGoalChip(transactionID: transaction.id)
+
             // Status badge
             statusBadge
 
@@ -899,15 +911,16 @@ struct TransactionRowView: View {
                     .monospacedDigit()
 
                 if transaction.isIncome {
-                    Text("income")
-                        .font(.system(size: 9))
-                        .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
+                    IncomeAllocationSubLabel(
+                        transactionID: transaction.id,
+                        totalAmount: transaction.amount
+                    )
                 }
             }
             .frame(width: 100, alignment: .trailing)
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
-        .padding(.vertical, CentmondTheme.Spacing.md)
+        .padding(.vertical, rowVerticalPadding)
         .background(
             isSelected ? CentmondTheme.Colors.accentMuted :
             isHovered ? CentmondTheme.Colors.bgQuaternary : .clear

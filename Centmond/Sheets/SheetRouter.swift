@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SheetRouter: View {
     let sheet: SheetType
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
@@ -16,6 +17,10 @@ struct SheetRouter: View {
                 NewGoalSheet()
             case .newSubscription:
                 NewSubscriptionSheet()
+            case .detectedSubscriptions:
+                DetectedSubscriptionsSheet()
+            case .detectedRecurring:
+                DetectedRecurringSheet()
             case .newBudgetCategory:
                 NewBudgetCategorySheet()
             case .newRecurring:
@@ -40,8 +45,16 @@ struct SheetRouter: View {
                 BudgetPlannerSheet()
             }
         }
-        .frame(width: sheet.isCompact ? 360 : CentmondTheme.Sizing.sheetWidth)
-        .background(CentmondTheme.Colors.bgTertiary)
+        .frame(width: sheet.preferredWidth)
+        .background {
+            // Tap-to-dismiss: any click not consumed by a form control
+            // (rows, buttons, fields, menus, pickers) bubbles to this
+            // background and closes the sheet. Mirrors the shell-level
+            // empty-click behavior for persistent panels.
+            CentmondTheme.Colors.bgTertiary
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
+        }
         .preferredColorScheme(.dark)
     }
 }

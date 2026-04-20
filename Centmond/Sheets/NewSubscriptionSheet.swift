@@ -42,6 +42,7 @@ struct NewSubscriptionSheet: View {
         case .quarterly: return amt * 4
         case .semiannual: return amt * 2
         case .annual: return amt
+        case .custom: return amt * 12
         }
     }
 
@@ -317,6 +318,15 @@ struct NewSubscriptionSheet: View {
             nextPaymentDate: nextPaymentDate,
             account: selectedAccount
         )
+        // Impulse window: 22:00–03:59 local. Matches the emotional-spending
+        // engine's late-night definition so flagging stays consistent across
+        // features. Only set on manual entry — auto-detected subs inherit
+        // their creation time from historical transactions, so this check
+        // would be meaningless there.
+        let hour = Calendar.current.component(.hour, from: .now)
+        if hour >= 22 || hour < 4 {
+            subscription.wasImpulseSignup = true
+        }
         modelContext.insert(subscription)
         dismiss()
     }

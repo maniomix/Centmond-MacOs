@@ -52,6 +52,7 @@ struct EditSubscriptionSheet: View {
         case .quarterly: return amt * 4
         case .semiannual: return amt * 2
         case .annual: return amt
+        case .custom: return amt * 12
         }
     }
 

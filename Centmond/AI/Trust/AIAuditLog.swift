@@ -121,6 +121,12 @@ struct AuditAction: Codable {
             return "Add subscription: \(p.subscriptionName ?? "?")"
         case .cancelSubscription:
             return "Cancel: \(p.subscriptionName ?? "?")"
+        case .pauseSubscription:
+            return "Pause: \(p.subscriptionName ?? "?")"
+        case .resumeSubscription:
+            return "Resume: \(p.subscriptionName ?? "?")"
+        case .detectSubscriptions:
+            return "Detect subscriptions"
         case .updateBalance:
             return "Update balance: \(p.accountName ?? "?")"
         case .transfer:

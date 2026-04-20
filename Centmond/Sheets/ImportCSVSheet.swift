@@ -322,7 +322,12 @@ extension ImportCSVSheet {
 
             Divider().background(CentmondTheme.Colors.strokeSubtle)
 
-            // Rows
+            // Rows — capped height so the sheet doesn't stretch to the
+            // full 1,356 rows. Without the cap the ScrollView reports its
+            // ideal size as "all rows visible" and the sheet obligingly
+            // grows to match, producing a 2,000pt-tall dialog. The cap
+            // lets the scroll view fit ~8 rows comfortably; everything
+            // below scrolls in place.
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(parsedRows.enumerated()), id: \.offset) { index, row in
@@ -334,15 +339,34 @@ extension ImportCSVSheet {
                 }
             }
             .scrollIndicators(.automatic)
+            .frame(maxHeight: 360)
         }
     }
 
+    // Preview row layout:
+    //   Date       Description                Category     Amount
+    //   (92pt)     (flex)                     (120pt)      (110pt)
+    //
+    // Column widths sized to hold the realistic worst-case content in
+    // ONE line without truncating on common values:
+    //   - Date 92pt: fits "Nov 1 · 08:14" (the time-aware formatter
+    //     added by the Time-column feature). Earlier 44pt width pushed
+    //     every row with a time into a two-line wrap and broke the
+    //     alignment across the whole list.
+    //   - Category 120pt: fits "Bills & Utilities" and "Gifts & Donations".
+    //     Earlier 68pt truncated to "Bills & Util…" / "Gifts & Do…".
+    //   - Amount 110pt: fits European-locale amounts like "+4.091,74 US$"
+    //     in monospaced digits. Earlier 80pt wrapped them to two lines.
+    // `.lineLimit(1)` on every column + truncation-tail keeps row height
+    // uniform even when a value just barely exceeds its column.
+    private static let previewColWidths = (date: CGFloat(92), category: CGFloat(120), amount: CGFloat(110))
+
     private var previewHeaderRow: some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
-            Text("Date").frame(width: 44, alignment: .leading)
+            Text("Date").frame(width: Self.previewColWidths.date, alignment: .leading)
             Text("Description").frame(maxWidth: .infinity, alignment: .leading)
-            Text("Category").frame(width: 68, alignment: .leading)
-            Text("Amount").frame(width: 80, alignment: .trailing)
+            Text("Category").frame(width: Self.previewColWidths.category, alignment: .leading)
+            Text("Amount").frame(width: Self.previewColWidths.amount, alignment: .trailing)
         }
         .font(CentmondTheme.Typography.captionMedium)
         .foregroundStyle(CentmondTheme.Colors.textTertiary)
@@ -351,18 +375,23 @@ extension ImportCSVSheet {
     private func previewRow(_ row: CSVRow) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Text(row.displayDate)
-                .frame(width: 44, alignment: .leading)
+                .frame(width: Self.previewColWidths.date, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
             Text(row.payee)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
             Text(row.category?.capitalized ?? "—")
-                .frame(width: 68, alignment: .leading)
+                .frame(width: Self.previewColWidths.category, alignment: .leading)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
             Text(row.amountString)
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: Self.previewColWidths.amount, alignment: .trailing)
+                .lineLimit(1)
                 .monospacedDigit()
                 .foregroundStyle(row.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative.opacity(0.85))
         }
@@ -738,6 +767,7 @@ extension ImportCSVSheet {
         let category: String?
         let parsedDate: Date?
         let monthlyBudget: Decimal?   // Whole-month budget override pulled from "Monthly Budget" column
+        let isSubscriptionHint: Bool  // "Subscription"/"Recurring" column → true (P9 integration)
     }
 
     private struct ColumnMap {
@@ -748,6 +778,16 @@ extension ImportCSVSheet {
         var typeIndex: Int?
         var noteIndex: Int?
         var monthlyBudgetIndex: Int?
+        /// Optional Subscription/Recurring column — accepts yes/true/1/y
+        /// as positive. Hint fans out to the post-import review flow so
+        /// the user sees these merchants at the top of the Detected sheet.
+        var subscriptionHintIndex: Int?
+        /// Optional `Time`/`Hour` column — combined with the Date column
+        /// to produce a Date with a real hour-of-day. Without this the
+        /// imported transactions default to 00:00 (midnight), which
+        /// triggers false "late-night" flags in the AI's emotional
+        /// profile since the engine treats hour ∈ [22, 4] as late-night.
+        var timeIndex: Int?
 
         var isValid: Bool { dateIndex != nil && amountIndex != nil }
         var descriptionIndex: Int? { payeeIndex ?? noteIndex }
@@ -774,6 +814,12 @@ extension ImportCSVSheet {
         let displayFormatter = DateFormatter()
         displayFormatter.dateFormat = "MMM d"
         displayFormatter.locale = Locale(identifier: "en_US")
+        // Second formatter that includes the time when present in the
+        // source CSV, so the preview row shows "Nov 1 · 08:14" and the
+        // user can tell their Time column was picked up.
+        let displayFormatterWithTime = DateFormatter()
+        displayFormatterWithTime.dateFormat = "MMM d · HH:mm"
+        displayFormatterWithTime.locale = Locale(identifier: "en_US")
 
         let currencyFormatter = NumberFormatter()
         currencyFormatter.numberStyle = .currency
@@ -816,11 +862,33 @@ extension ImportCSVSheet {
                 else if typeStr == "expense" || typeStr == "debit" || typeStr == "withdrawal" { isIncome = false }
             }
 
+            // Optional time column (HH:MM / HH:MM:SS / 12-hour with am/pm).
+            // If present and valid, combine with the parsed date so the
+            // resulting Date carries a real hour-of-day. If absent or
+            // unparseable, fall back to just the date (defaults to 00:00).
+            var timeString: String = ""
+            if let tIdx = columnMap.timeIndex, tIdx < fields.count {
+                timeString = fields[tIdx].trimmingCharacters(in: .whitespaces)
+            }
+
             let absAmount = abs(amount)
-            let parsedDate = Self.parseDate(dateString)
+            let parsedDate = Self.parseDate(dateString, timeString: timeString)
             let prefix = isIncome ? "+" : "-"
             let formatted = prefix + (currencyFormatter.string(from: absAmount as NSDecimalNumber) ?? "\(absAmount)")
-            let displayDate = parsedDate.map { displayFormatter.string(from: $0) } ?? dateString
+            let hasTime = !timeString.isEmpty && parsedDate != nil
+            let formatterForRow = hasTime ? displayFormatterWithTime : displayFormatter
+            let displayDate = parsedDate.map { formatterForRow.string(from: $0) } ?? dateString
+
+            // Subscription hint — "yes"/"true"/"1"/"y" anywhere in the column
+            // value means the user has pre-labelled this row as a recurring
+            // charge. Used downstream to surface these merchants at the top
+            // of the Detected sheet after import.
+            var isSubscriptionHint = false
+            if let sIdx = columnMap.subscriptionHintIndex, sIdx < fields.count {
+                let raw = fields[sIdx].trimmingCharacters(in: .whitespaces).lowercased()
+                let positives: Set<String> = ["yes", "y", "true", "1", "t", "subscription", "recurring"]
+                if positives.contains(raw) { isSubscriptionHint = true }
+            }
 
             // Monthly budget column — only non-empty values produce a value.
             var monthlyBudget: Decimal? = nil
@@ -846,7 +914,8 @@ extension ImportCSVSheet {
                 isIncome: isIncome,
                 category: category,
                 parsedDate: parsedDate,
-                monthlyBudget: monthlyBudget
+                monthlyBudget: monthlyBudget,
+                isSubscriptionHint: isSubscriptionHint
             ))
         }
 
@@ -863,6 +932,8 @@ extension ImportCSVSheet {
         let typeAliases:    Set<String> = ["type","kind","transaction_type","trans_type","direction"]
         let noteAliases:    Set<String> = ["note","notes","memo","comment","remarks","details"]
         let budgetAliases:  Set<String> = ["monthly budget","monthly_budget","month budget","month_budget","budget"]
+        let subHintAliases: Set<String> = ["subscription","is_subscription","is subscription","recurring","is_recurring","is recurring"]
+        let timeAliases:    Set<String> = ["time","hour","hours","transaction_time","transaction time","timestamp","tx_time"]
 
         for (index, h) in headers.enumerated() {
             if map.dateIndex == nil    && dateAliases.contains(h)    { map.dateIndex = index }
@@ -875,6 +946,8 @@ extension ImportCSVSheet {
             else if map.categoryIndex == nil && categoryAliases.contains(h) { map.categoryIndex = index }
             else if map.noteIndex == nil     && noteAliases.contains(h)     { map.noteIndex = index }
             else if map.monthlyBudgetIndex == nil && budgetAliases.contains(h) { map.monthlyBudgetIndex = index }
+            else if map.subscriptionHintIndex == nil && subHintAliases.contains(h) { map.subscriptionHintIndex = index }
+            else if map.timeIndex == nil && timeAliases.contains(h) { map.timeIndex = index }
         }
 
         return map
@@ -896,13 +969,78 @@ extension ImportCSVSheet {
     private static let dateFormatters: [DateFormatter] = {
         ["yyyy-MM-dd","MM/dd/yyyy","dd/MM/yyyy","yyyy/MM/dd","MM-dd-yyyy","dd-MM-yyyy",
          "MMM dd, yyyy","MMMM dd, yyyy","dd MMM yyyy","dd.MM.yyyy","yyyy.MM.dd"].map {
-            let f = DateFormatter(); f.dateFormat = $0
-            f.locale = Locale(identifier: "en_US_POSIX"); return f
+            let f = DateFormatter()
+            f.dateFormat = $0
+            f.locale = Locale(identifier: "en_US_POSIX")
+            // Explicit local timezone — default is already local, but pinning
+            // prevents any accidental UTC-parsing surprise if the process
+            // locale/tz changes under us.
+            f.timeZone = TimeZone.current
+            f.isLenient = false
+            return f
         }
     }()
 
-    private static func parseDate(_ string: String) -> Date? {
-        dateFormatters.lazy.compactMap { $0.date(from: string) }.first
+    /// Accepts `08:14`, `08:14:30`, `8:14 AM`, `8:14 PM`, `08:14:30 PM`.
+    /// 24-hour patterns listed FIRST so CSVs using `HH:MM` (the common
+    /// machine-readable format, and what the provided sample file uses)
+    /// are matched unambiguously. Putting `h:mm a` first was subtly
+    /// wrong: on some locales/macOS versions DateFormatter leniency
+    /// could accept `"08:14"` as "hour 8 AM" with an implied AM, making
+    /// `"13:00"` wrap to 1 AM. Reordering + explicit `isLenient = false`
+    /// makes that impossible — `h:mm a` now strictly requires an AM/PM
+    /// suffix and only runs after the numeric 24-hour patterns fail.
+    private static let timeFormatters: [DateFormatter] = {
+        ["HH:mm", "H:mm", "HH:mm:ss", "H:mm:ss", "h:mm a", "h:mm:ss a"].map {
+            let f = DateFormatter()
+            f.dateFormat = $0
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = TimeZone.current
+            f.isLenient = false
+            return f
+        }
+    }()
+
+    private static func parseDate(_ string: String, timeString: String = "") -> Date? {
+        guard let date = dateFormatters.lazy.compactMap({ $0.date(from: string) }).first else {
+            return nil
+        }
+        let trimmedTime = timeString.trimmingCharacters(in: .whitespaces)
+        guard !trimmedTime.isEmpty else { return date }
+
+        // Parse the time string into hour/minute components. A
+        // DateFormatter on just the time string returns a Date on a
+        // reference day (Jan 1 2000 etc.) — we only want its
+        // hour/minute/second.
+        guard let t = timeFormatters.lazy.compactMap({ $0.date(from: trimmedTime) }).first else {
+            return date
+        }
+
+        // Combine via explicit components rather than
+        // `Calendar.date(bySettingHour:minute:second:of:)`. The
+        // `bySettingHour` API uses `matchingPolicy: .nextTime` by
+        // default, which searches FORWARD for the next occurrence of
+        // the requested time — if the parsed date happened to be at
+        // noon (some DateFormatter quirks default to 12:00 instead of
+        // 00:00 to sidestep DST edge cases), asking for hour 8 would
+        // return TOMORROW's 8:00, not today's. That explains the
+        // "time doesn't match" symptom. Explicit component combination
+        // is unambiguous: take year/month/day from the date, take
+        // hour/minute/second from the time, build a new Date.
+        let cal = Calendar.current
+        let dateParts = cal.dateComponents([.year, .month, .day], from: date)
+        let timeParts = cal.dateComponents([.hour, .minute, .second], from: t)
+
+        var combined = DateComponents()
+        combined.year   = dateParts.year
+        combined.month  = dateParts.month
+        combined.day    = dateParts.day
+        combined.hour   = timeParts.hour ?? 0
+        combined.minute = timeParts.minute ?? 0
+        combined.second = timeParts.second ?? 0
+        combined.timeZone = TimeZone.current
+
+        return cal.date(from: combined) ?? date
     }
 }
 
@@ -1122,9 +1260,7 @@ extension ImportCSVSheet {
             do {
                 let descriptor = FetchDescriptor<Transaction>()
                 let all = try modelContext.fetch(descriptor)
-                for tx in all {
-                    modelContext.delete(tx)
-                }
+                TransactionDeletionService.delete(all, context: modelContext)
             } catch {
                 importError = "Failed to delete existing transactions: \(error.localizedDescription)"
                 withAnimation(CentmondTheme.Motion.default) { step = .preview }
@@ -1163,6 +1299,26 @@ extension ImportCSVSheet {
             importError = "Failed to save: \(error.localizedDescription)"
             withAnimation(CentmondTheme.Motion.default) { step = .preview }
             return
+        }
+
+        // After bulk insert, sweep new transactions against existing active
+        // subscriptions in one pass. Same SwiftData-flush rule as the
+        // monthly-budget block above — runs only after the import save has
+        // committed.
+        SubscriptionReconciliationService.reconcileAll(in: modelContext)
+
+        // P9 integration: merchants the user pre-labelled as subscriptions in
+        // the CSV get stashed for the Detected sheet, which boosts their
+        // confidence + lowers the minimum-charge threshold so they surface on
+        // the first review pass. Cleared by the sheet on load.
+        let hintedKeys: Set<String> = Set(
+            parsedRows
+                .filter { $0.isSubscriptionHint }
+                .map { Subscription.merchantKey(for: $0.payee) }
+                .filter { !$0.isEmpty }
+        )
+        if !hintedKeys.isEmpty {
+            SubscriptionDetector.stashHintedKeys(hintedKeys)
         }
 
         // Now that transactions are durably saved, upsert whole-month budgets

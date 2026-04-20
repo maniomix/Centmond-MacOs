@@ -158,7 +158,7 @@ enum BackupService {
         deleteAll(Goal.self, in: context)
         deleteAll(Subscription.self, in: context)
         deleteAll(RecurringTransaction.self, in: context)
-        deleteAll(Insight.self, in: context)
+        deleteAll(DismissedInsight.self, in: context)
         deleteAll(HouseholdMember.self, in: context)
         deleteAll(Tag.self, in: context)
         deleteAll(SmartFolder.self, in: context)

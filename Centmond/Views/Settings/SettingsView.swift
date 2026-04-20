@@ -30,6 +30,12 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.data)
 
+            RecurringSettingsView()
+                .tabItem {
+                    Label("Recurring", systemImage: "repeat.circle")
+                }
+                .tag(SettingsTab.recurring)
+
             AboutSettingsView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
@@ -41,7 +47,7 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: String {
-    case general, appearance, security, data, about
+    case general, appearance, security, data, recurring, about
 }
 
 // MARK: - General
@@ -359,5 +365,138 @@ struct AboutSettingsView: View {
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .frame(width: 160, alignment: .leading)
         }
+    }
+}
+
+// MARK: - Recurring
+
+/// Tunables for the recurring automation pipeline. Every key is read at
+/// the call-site of the corresponding service method (no observers, no
+/// notifications) so a settings change takes effect on the next
+/// `RecurringScheduler.tick` — which fires on launch, scene-active, and
+/// midnight rollover.
+struct RecurringSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("recurringDetectionEnabled") private var detectionEnabled = true
+    @AppStorage("recurringAutoConfirmThreshold") private var autoConfirmThreshold: Double = 0.85
+    @AppStorage("recurringAutoApproveDays") private var autoApproveDays: Int = 7
+    @AppStorage("recurringDriftEnabled") private var driftEnabled = true
+    @AppStorage("recurringDriftThreshold") private var driftThreshold: Double = 0.10
+    @AppStorage("recurringStaleAutoPauseEnabled") private var staleAutoPauseEnabled = true
+    @AppStorage("recurringStaleMissCount") private var staleMissCount: Int = 3
+    @AppStorage("recurringNotificationsEnabled") private var notificationsEnabled = false
+    @AppStorage("recurringNotificationsThreshold") private var notificationsThreshold: Double = 100
+
+    var body: some View {
+        Form {
+            Section("Detection") {
+                Toggle("Auto-detect recurring transactions", isOn: $detectionEnabled)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Auto-add confidence")
+                        Spacer()
+                        Text("\(Int(autoConfirmThreshold * 100))%")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $autoConfirmThreshold, in: 0.7...0.95, step: 0.05)
+                        .disabled(!detectionEnabled)
+                    Text("Patterns at or above this confidence are added automatically. Lower values catch more, but may add false positives.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+
+            Section("Review queue") {
+                Stepper(value: $autoApproveDays, in: 0...30) {
+                    HStack {
+                        Text("Auto-approve after")
+                        Spacer()
+                        Text(autoApproveDays == 0 ? "Off" : "\(autoApproveDays) day\(autoApproveDays == 1 ? "" : "s")")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                }
+                Text("Auto-created transactions sit in the review queue for this many days, then quietly mark themselves reviewed. Set to 0 to require manual approval.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+            Section("Drift correction") {
+                Toggle("Auto-update template amount when prices change", isOn: $driftEnabled)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Sensitivity")
+                        Spacer()
+                        Text("\(Int(driftThreshold * 100))%")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $driftThreshold, in: 0.05...0.25, step: 0.01)
+                        .disabled(!driftEnabled)
+                    Text("Templates self-update when 3 consecutive linked transactions all land at a new price differing from the template by at least this percentage.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+
+            Section("Stale templates") {
+                Toggle("Auto-pause templates with no recent activity", isOn: $staleAutoPauseEnabled)
+
+                Stepper(value: $staleMissCount, in: 2...12) {
+                    HStack {
+                        Text("Pause after missed cycles")
+                        Spacer()
+                        Text("\(staleMissCount)")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                }
+                .disabled(!staleAutoPauseEnabled)
+                Text("Templates with this many consecutive expected occurrences and zero linked transactions get paused. Resume manually from the templates list.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+            Section("Notifications") {
+                Toggle("Notify the day before a recurring expense", isOn: $notificationsEnabled)
+                    .onChange(of: notificationsEnabled) { _, enabled in
+                        if enabled {
+                            RecurringNotificationScheduler.requestAuthorization { _ in
+                                RecurringNotificationScheduler.rescheduleAll(context: modelContext)
+                            }
+                        } else {
+                            RecurringNotificationScheduler.rescheduleAll(context: modelContext)
+                        }
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Only when amount is at least")
+                        Spacer()
+                        Text("$\(Int(notificationsThreshold))")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $notificationsThreshold, in: 0...500, step: 10)
+                        .disabled(!notificationsEnabled)
+                        .onChange(of: notificationsThreshold) { _, _ in
+                            RecurringNotificationScheduler.rescheduleAll(context: modelContext)
+                        }
+                    Text("Skips small recurring charges so notifications stay rare and meaningful. Set to $0 to alert on every recurring expense.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Recurring")
     }
 }

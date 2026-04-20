@@ -230,6 +230,60 @@ struct AccentChipButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Secondary Chip (neutral sibling to AccentChipButtonStyle — same dimensions)
+
+/// Neutral-tinted chip that matches `AccentChipButtonStyle`'s geometry
+/// (28pt tall, 12pt h-padding, 12pt medium font). Use when a secondary
+/// action lives next to an Add chip so the pair reads as one cluster
+/// instead of a Secondary (30pt) + Accent chip (28pt) size mismatch.
+struct SecondaryChipButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SecondaryChipBody(configuration: configuration)
+    }
+
+    private struct SecondaryChipBody: View {
+        let configuration: ButtonStyle.Configuration
+        @State private var isHovered = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    isHovered
+                    ? CentmondTheme.Colors.textPrimary
+                    : CentmondTheme.Colors.textSecondary
+                )
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(isHovered ? 0.09 : 0.06),
+                                    Color.white.opacity(isHovered ? 0.05 : 0.03)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .overlay {
+                            Capsule(style: .continuous)
+                                .strokeBorder(
+                                    Color.white.opacity(isHovered ? 0.14 : 0.08),
+                                    lineWidth: 0.5
+                                )
+                        }
+                }
+                .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+                .opacity(configuration.isPressed ? 0.85 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
+                .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
+                .onHover { isHovered = $0 }
+        }
+    }
+}
+
 // MARK: - Muted Chip (small date preset / filter buttons)
 
 struct MutedChipButtonStyle: ButtonStyle {

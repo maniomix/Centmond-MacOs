@@ -21,6 +21,7 @@ enum TransferService {
         from source: Account,
         to destination: Account,
         notes: String?,
+        status: TransactionStatus = .cleared,
         in context: ModelContext
     ) -> (out: Transaction, `in`: Transaction)? {
         guard amount > 0 else { return nil }
@@ -35,6 +36,7 @@ enum TransferService {
             amount: amount,
             notes: trimmedNotes,
             isIncome: false,
+            status: status,
             account: source,
             category: nil
         )
@@ -47,6 +49,7 @@ enum TransferService {
             amount: amount,
             notes: trimmedNotes,
             isIncome: true,
+            status: status,
             account: destination,
             category: nil
         )
@@ -57,6 +60,54 @@ enum TransferService {
         context.insert(inLeg)
         BalanceService.recalculate(source, destination)
         return (outLeg, inLeg)
+    }
+
+    /// Create a goal-destined transfer. Unlike account-to-account transfers
+    /// this is a single-leg outflow on the source account paired with a
+    /// `GoalContribution(.fromTransfer, sourceTransactionID: tx.id)` so the
+    /// goal balance tracks the movement. `transferGroupID` stays nil to
+    /// signal "no paired account leg" — `pairedLeg` already returns nil in
+    /// that case, and `TransactionDeletionService` cascades the contribution
+    /// out via sourceTransactionID on delete.
+    @discardableResult
+    static func createTransferToGoal(
+        amount: Decimal,
+        date: Date,
+        from source: Account,
+        to goal: Goal,
+        notes: String?,
+        status: TransactionStatus = .cleared,
+        in context: ModelContext
+    ) -> Transaction? {
+        guard amount > 0 else { return nil }
+
+        let trimmedNotes = notes.flatMap(TextNormalization.trimmedOrNil)
+        let tx = Transaction(
+            date: date,
+            payee: "Transfer to \(goal.name)",
+            amount: amount,
+            notes: trimmedNotes,
+            isIncome: false,
+            status: status,
+            account: source,
+            category: nil
+        )
+        tx.isTransfer = true
+        tx.transferGroupID = nil
+        context.insert(tx)
+
+        GoalContributionService.addContribution(
+            to: goal,
+            amount: amount,
+            kind: .fromTransfer,
+            date: date,
+            note: trimmedNotes ?? "Transfer from \(source.name)",
+            sourceTransactionID: tx.id,
+            context: context
+        )
+
+        BalanceService.recalculate(account: source)
+        return tx
     }
 
     /// Find the other leg of a transfer pair, if any. Returns `nil` for
@@ -78,9 +129,9 @@ enum TransferService {
         let otherAccount = pairedLeg(of: tx, in: context)?.account
         let txAccount = tx.account
         if let other = pairedLeg(of: tx, in: context) {
-            context.delete(other)
+            TransactionDeletionService.delete(other, context: context)
         }
-        context.delete(tx)
+        TransactionDeletionService.delete(tx, context: context)
         BalanceService.recalculate(txAccount, otherAccount)
     }
 }

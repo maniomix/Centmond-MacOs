@@ -65,6 +65,12 @@ enum AIActionExecutor {
             return addSubscription(action, context: context)
         case .cancelSubscription:
             return cancelSubscription(action, context: context)
+        case .pauseSubscription:
+            return setSubscriptionStatus(action, to: .paused, verb: "Paused", context: context)
+        case .resumeSubscription:
+            return setSubscriptionStatus(action, to: .active, verb: "Resumed", context: context)
+        case .detectSubscriptions:
+            return detectSubscriptions(action, context: context)
 
         // ── Accounts ──
         case .updateBalance:
@@ -122,6 +128,11 @@ enum AIActionExecutor {
 
         context.insert(txn)
 
+        // Link to a matching active Subscription if one exists. Same hook the
+        // manual New Transaction sheet uses — keeps AI-added expenses in step
+        // with the rest of the ledger.
+        SubscriptionReconciliationService.reconcile(transaction: txn, in: context)
+
         let label = isIncome ? "income" : "expense"
         let catName = category?.name ?? "uncategorized"
         return ExecutionResult(
@@ -160,7 +171,7 @@ enum AIActionExecutor {
             return ExecutionResult(action: action, success: false, summary: "Transaction not found")
         }
 
-        context.delete(txn)
+        TransactionDeletionService.delete(txn, context: context)
         return ExecutionResult(action: action, success: true, summary: "Deleted transaction")
     }
 
@@ -302,11 +313,13 @@ enum AIActionExecutor {
             return ExecutionResult(action: action, success: false, summary: "Goal \"\(name)\" not found")
         }
 
-        goal.currentAmount += Decimal(amount)
-        goal.updatedAt = Date()
-        if goal.currentAmount >= goal.targetAmount {
-            goal.status = .completed
-        }
+        GoalContributionService.addContribution(
+            to: goal,
+            amount: Decimal(amount),
+            kind: .manual,
+            note: "Added via AI action",
+            context: context
+        )
 
         return ExecutionResult(
             action: action, success: true,
@@ -374,6 +387,47 @@ enum AIActionExecutor {
         sub.updatedAt = Date()
 
         return ExecutionResult(action: action, success: true, summary: "Cancelled \(name)")
+    }
+
+    private static func setSubscriptionStatus(
+        _ action: AIAction,
+        to newStatus: SubscriptionStatus,
+        verb: String,
+        context: ModelContext
+    ) -> ExecutionResult {
+        let p = action.params
+        guard let name = p.subscriptionName else {
+            return ExecutionResult(action: action, success: false, summary: "Missing subscription name")
+        }
+        let descriptor = FetchDescriptor<Subscription>()
+        guard let subs = try? context.fetch(descriptor),
+              let sub = subs.first(where: { $0.serviceName.localizedCaseInsensitiveCompare(name) == .orderedSame }) else {
+            return ExecutionResult(action: action, success: false, summary: "Subscription \"\(name)\" not found")
+        }
+        sub.status = newStatus
+        sub.updatedAt = .now
+        return ExecutionResult(action: action, success: true, summary: "\(verb) \(name)")
+    }
+
+    /// Read-only enumeration of detection candidates. Returned as a summary
+    /// string so the chat surface can show the user what was found without
+    /// the model having to format it. Does NOT mutate — confirming each
+    /// candidate still requires the user opening the Detected sheet.
+    private static func detectSubscriptions(_ action: AIAction, context: ModelContext) -> ExecutionResult {
+        let candidates = SubscriptionDetector.detect(context: context)
+        if candidates.isEmpty {
+            return ExecutionResult(action: action, success: true, summary: "No new subscription patterns detected.")
+        }
+        let top = candidates.prefix(5).map { c in
+            let pct = Int((c.confidence * 100).rounded())
+            return "\(c.displayName) — \(formatDollars(NSDecimalNumber(decimal: c.amount).doubleValue))/\(c.billingCycle.rawValue) (\(pct)% confident)"
+        }
+        let suffix = candidates.count > 5 ? "\n…and \(candidates.count - 5) more — open the Detected sheet to confirm." : "\nOpen the Detected sheet to confirm."
+        return ExecutionResult(
+            action: action,
+            success: true,
+            summary: "Found \(candidates.count) candidate\(candidates.count == 1 ? "" : "s"):\n  • " + top.joined(separator: "\n  • ") + suffix
+        )
     }
 
     // MARK: - Account Handlers
