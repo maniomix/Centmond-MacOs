@@ -5,6 +5,11 @@ struct RecurringView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RecurringTransaction.nextOccurrence) private var items: [RecurringTransaction]
+    @Query private var liveCategories: [BudgetCategory]
+
+    private var liveCategoryIDs: Set<PersistentIdentifier> {
+        Set(liveCategories.map(\.persistentModelID))
+    }
 
     @State private var filterType: FilterType = .all
     @State private var showDeleteConfirmation = false
@@ -309,6 +314,7 @@ struct RecurringView: View {
                             item: item,
                             monthlyAmount: monthlyAmount(item),
                             projectedOccurrence: projectedOccurrence(for: item),
+                            liveCategoryIDs: liveCategoryIDs,
                             onToggleActive: { item.isActive.toggle() },
                             onEdit: { router.showSheet(.editRecurring(item)) },
                             onDelete: {
@@ -344,6 +350,7 @@ struct RecurringRow: View {
     let item: RecurringTransaction
     let monthlyAmount: Decimal
     var projectedOccurrence: Date? = nil
+    var liveCategoryIDs: Set<PersistentIdentifier> = []
     var onToggleActive: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
@@ -369,7 +376,7 @@ struct RecurringRow: View {
                         .foregroundStyle(item.isActive ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textTertiary)
                         .lineLimit(1)
 
-                    if let cat = item.category {
+                    if let cat = item.category, liveCategoryIDs.contains(cat.persistentModelID) {
                         Text(cat.name)
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textQuaternary)

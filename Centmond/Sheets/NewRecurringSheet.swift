@@ -423,7 +423,11 @@ struct NewRecurringSheet: View {
             nextOccurrence: nextOccurrence,
             autoCreate: true,
             account: selectedAccount,
-            category: selectedCategory
+            category: selectedCategory,
+            householdMember: HouseholdService.resolveMember(
+                forPayee: name,
+                in: modelContext
+            )
         )
         modelContext.insert(item)
         Haptics.impact()

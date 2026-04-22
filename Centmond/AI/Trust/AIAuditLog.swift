@@ -142,6 +142,8 @@ struct AuditAction: Codable {
             return "Analysis: \(action.type.rawValue)"
         case .assignMember:
             return "Assign member: \(p.memberName ?? "?")"
+        case .simulatePayoff:
+            return "Simulate debt payoff"
         }
     }
 

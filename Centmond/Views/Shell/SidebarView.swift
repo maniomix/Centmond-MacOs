@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct SidebarView: View {
     @Environment(AppRouter.self) private var router
     @AppStorage("sidebarIconOnly") private var sidebarIconOnly = false
+    @Query(sort: \HouseholdMember.joinedAt) private var householdMembers: [HouseholdMember]
     /// Which compact-sidebar screen the cursor is hovering. Drives the
     /// dock-style magnification ripple — hovered icon scales up, its
     /// immediate neighbors scale up a bit less.
@@ -44,6 +46,11 @@ struct SidebarView: View {
                     .padding(.horizontal, CentmondTheme.Spacing.md)
                     .padding(.vertical, CentmondTheme.Spacing.sm)
             }
+
+            // Household scope chips previously lived here; moved 2026-04-22
+            // into the Transactions top bar because that's the only place the
+            // scope actually filters today. Keeping it global in the sidebar
+            // made it feel app-wide while only biting on Transactions.
 
             Divider().background(CentmondTheme.Colors.strokeSubtle)
 
@@ -110,23 +117,51 @@ struct SidebarView: View {
                     Spacer(minLength: 0)
                 }
             } else {
-                List(selection: $router.selectedScreen) {
-                    ForEach(SidebarSection.allCases) { section in
-                        Section {
-                            ForEach(section.screens) { screen in
-                                sidebarItem(for: screen)
-                                    .tag(screen)
+                // ScrollViewReader wraps the List so we can override macOS's
+                // default auto-scroll-to-selected-row behavior. Without this,
+                // selecting `.household` (near the bottom of the list) scrolls
+                // the top section headers out of view — visually pushing every
+                // row "up" and hiding the first 6-8 items behind the titlebar
+                // area. We intercept selection changes and reset scroll to the
+                // first item instead so the sidebar always starts at the top.
+                ScrollViewReader { proxy in
+                    List(selection: $router.selectedScreen) {
+                        ForEach(SidebarSection.allCases) { section in
+                            Section {
+                                ForEach(section.screens) { screen in
+                                    sidebarItem(for: screen)
+                                        .tag(screen)
+                                        .id(screen)
+                                }
+                            } header: {
+                                Text(section.displayName)
+                                    .font(CentmondTheme.Typography.overline)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                    .tracking(0.5)
                             }
-                        } header: {
-                            Text(section.displayName)
-                                .font(CentmondTheme.Typography.overline)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                                .tracking(0.5)
+                        }
+                    }
+                    .listStyle(.sidebar)
+                    .scrollContentBackground(.hidden)
+                    // Pull the first section's native headroom in tighter —
+                    // `.sidebar` style adds a chunky top inset before the
+                    // first header which felt like dead space. Negative
+                    // content-margin at the scroll-content layer trims it
+                    // back to a small breathing gap without affecting
+                    // inter-section spacing.
+                    .contentMargins(.top, -12, for: .scrollContent)
+                    .onChange(of: router.selectedScreen) { _, _ in
+                        // Keep the sidebar anchored at the top item when the
+                        // user changes screens. Prevents List's auto-scroll
+                        // from hiding the first section behind the titlebar
+                        // when later items (Household / Settings) are selected.
+                        if let first = SidebarSection.allCases.first?.screens.first {
+                            withAnimation(nil) {
+                                proxy.scrollTo(first, anchor: .top)
+                            }
                         }
                     }
                 }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
             }
 
             // Toggle button pinned to the bottom — reversible escape
@@ -215,6 +250,72 @@ struct SidebarView: View {
             }
         }
         .buttonStyle(.plainHover)
+    }
+
+    // MARK: - Household scope strip (P6)
+
+    private var activeHouseholdMembers: [HouseholdMember] {
+        householdMembers.filter(\.isActive)
+    }
+
+    private var memberScopeStrip: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("HOUSEHOLD")
+                .font(CentmondTheme.Typography.overline)
+                .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                .tracking(0.5)
+            HStack(spacing: 4) {
+                scopeAllPill
+                ForEach(activeHouseholdMembers) { m in
+                    scopeAvatar(m)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// Fixed chip size shared by the "All" pill and every member avatar so
+    /// the strip doesn't end up with mixed heights (22pt circles next to a
+    /// taller text pill). Both render as a 22pt-tall capsule — "All" gets a
+    /// bit of horizontal padding for its 3-letter label, avatars stay square.
+    private static let scopeChipHeight: CGFloat = 22
+
+    private var scopeAllPill: some View {
+        let isActive = router.selectedMemberID == nil
+        return Button {
+            router.selectedMemberID = nil
+        } label: {
+            Text("All")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isActive ? Color.white : CentmondTheme.Colors.textTertiary)
+                .padding(.horizontal, 8)
+                .frame(height: Self.scopeChipHeight)
+                .background(isActive ? CentmondTheme.Colors.accent : CentmondTheme.Colors.bgTertiary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Show everyone")
+    }
+
+    private func scopeAvatar(_ m: HouseholdMember) -> some View {
+        let isActive = router.selectedMemberID == m.id
+        return Button {
+            // Click active → clear. Click inactive → scope to this member.
+            router.selectedMemberID = isActive ? nil : m.id
+        } label: {
+            Text(String(m.name.prefix(1)))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: Self.scopeChipHeight, height: Self.scopeChipHeight)
+                .background(Color(hex: m.avatarColor))
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(isActive ? CentmondTheme.Colors.accent : .clear, lineWidth: 2)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(m.name)
     }
 
     /// Minimal month navigator for compact mode. No day bubble, no

@@ -5,6 +5,7 @@ struct EditAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Account.sortOrder) private var existingAccounts: [Account]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
 
     let account: Account
 
@@ -25,6 +26,11 @@ struct EditAccountSheet: View {
     // Credit card fields
     @State private var creditLimit: String
 
+    // Liability payoff fields (P6)
+    @State private var interestRate: String
+    @State private var minimumPayment: String
+    @State private var selectedOwner: HouseholdMember?
+
     // Validation & animation
     @State private var hasAttemptedSave = false
     @State private var appeared = false
@@ -44,6 +50,9 @@ struct EditAccountSheet: View {
         _includeInNetWorth = State(initialValue: account.includeInNetWorth)
         _includeInBudgeting = State(initialValue: account.includeInBudgeting)
         _creditLimit = State(initialValue: account.creditLimit.map { "\($0)" } ?? "")
+        _interestRate = State(initialValue: account.interestRatePercent.map { String(format: "%g", $0) } ?? "")
+        _minimumPayment = State(initialValue: account.minimumPaymentMonthly.map { "\($0)" } ?? "")
+        _selectedOwner = State(initialValue: account.ownerMember)
     }
 
     // MARK: - Validation
@@ -232,12 +241,54 @@ struct EditAccountSheet: View {
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                             .monospacedDigit()
                     }
+                    fieldRow {
+                        fieldIcon("percent")
+                        TextField("APR (e.g. 19.99)", text: $interestRate)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
+                    fieldRow {
+                        fieldIcon("calendar.badge.clock")
+                        Text(currency.symbol)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        TextField("Minimum monthly payment", text: $minimumPayment)
+                            .textFieldStyle(.plain)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
                 }
                 .background(CentmondTheme.Colors.bgSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
                 .padding(.horizontal, CentmondTheme.Spacing.lg)
                 .padding(.top, CentmondTheme.Spacing.sm)
                 .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // Owner (P4 — only shown if any household members exist)
+            if !members.isEmpty {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Text("Owner")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Spacer()
+                    Picker("", selection: $selectedOwner) {
+                        Text("Joint / household").tag(nil as HouseholdMember?)
+                        ForEach(members.filter(\.isActive)) { m in
+                            Text(m.name).tag(m as HouseholdMember?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+                .padding(.horizontal, CentmondTheme.Spacing.xxl)
+                .padding(.top, CentmondTheme.Spacing.md)
             }
 
             // Options
@@ -332,6 +383,9 @@ struct EditAccountSheet: View {
         account.includeInNetWorth = includeInNetWorth
         account.includeInBudgeting = includeInBudgeting
         account.creditLimit = Decimal(string: creditLimit)
+        account.interestRatePercent = interestRate.isEmpty ? nil : Double(interestRate)
+        account.minimumPaymentMonthly = minimumPayment.isEmpty ? nil : Decimal(string: minimumPayment)
+        account.ownerMember = selectedOwner
         dismiss()
     }
 }

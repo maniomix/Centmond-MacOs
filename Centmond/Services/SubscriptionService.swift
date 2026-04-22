@@ -30,6 +30,9 @@ enum SubscriptionService {
             account: subscription.account,
             category: category
         )
+        // Inherit household attribution from the subscription (P2).
+        tx.householdMember = subscription.householdMember
+            ?? HouseholdService.resolveMember(forPayee: subscription.serviceName, in: context)
         context.insert(tx)
 
         subscription.nextPaymentDate = nextDate(from: subscription.nextPaymentDate, cycle: subscription.billingCycle)

@@ -188,6 +188,7 @@ struct AIActionCard: View {
         case .updateBalance: return "banknote.fill"
         case .assignMember: return "person.badge.plus"
         case .analyze, .compare, .forecast, .advice: return "chart.bar.xaxis"
+        case .simulatePayoff: return "creditcard.trianglebadge.exclamationmark"
         }
     }
 
@@ -227,6 +228,7 @@ struct AIActionCard: View {
         case .updateBalance: return "Update Balance"
         case .assignMember: return "Assign Member"
         case .analyze, .compare, .forecast, .advice: return "Analysis"
+        case .simulatePayoff: return "Simulate Debt Payoff"
         }
     }
 

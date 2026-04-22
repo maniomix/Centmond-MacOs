@@ -5,6 +5,7 @@ struct EditRecurringSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
     let item: RecurringTransaction
 
     @State private var name: String
@@ -14,6 +15,7 @@ struct EditRecurringSheet: View {
     @State private var nextOccurrence: Date
     @State private var selectedAccount: Account?
     @State private var selectedCategory: BudgetCategory?
+    @State private var selectedMember: HouseholdMember?
 
     init(item: RecurringTransaction) {
         self.item = item
@@ -24,6 +26,7 @@ struct EditRecurringSheet: View {
         _nextOccurrence = State(initialValue: item.nextOccurrence)
         _selectedAccount = State(initialValue: item.account)
         _selectedCategory = State(initialValue: item.category)
+        _selectedMember = State(initialValue: item.householdMember)
     }
 
     private var isValid: Bool {
@@ -108,6 +111,18 @@ struct EditRecurringSheet: View {
                         }
                     }
 
+                    if !members.isEmpty {
+                        recEditField("MEMBER") {
+                            Picker("", selection: $selectedMember) {
+                                Text("Household (unassigned)").tag(nil as HouseholdMember?)
+                                ForEach(members.filter(\.isActive)) { m in
+                                    Text(m.name).tag(m as HouseholdMember?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+
                     if !accounts.isEmpty {
                         recEditField("ACCOUNT") {
                             Picker("", selection: $selectedAccount) {
@@ -147,6 +162,12 @@ struct EditRecurringSheet: View {
             .padding(.vertical, CentmondTheme.Spacing.lg)
         }
         .frame(minHeight: 520)
+        .task {
+            if let cat = selectedCategory,
+               !categories.contains(where: { $0.persistentModelID == cat.persistentModelID }) {
+                selectedCategory = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -177,6 +198,7 @@ struct EditRecurringSheet: View {
         item.autoCreate = true
         item.account = selectedAccount
         item.category = selectedCategory
+        item.householdMember = selectedMember
         dismiss()
     }
 }

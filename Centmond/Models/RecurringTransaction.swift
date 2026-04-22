@@ -22,6 +22,10 @@ final class RecurringTransaction {
     @Relationship var account: Account?
     @Relationship var category: BudgetCategory?
 
+    // Household payer (P2). Inherited by every materialized Transaction so a
+    // recurring bill stays attributed without the user picking on each run.
+    @Relationship var householdMember: HouseholdMember?
+
     init(
         name: String,
         amount: Decimal,
@@ -30,7 +34,8 @@ final class RecurringTransaction {
         nextOccurrence: Date,
         autoCreate: Bool = false,
         account: Account? = nil,
-        category: BudgetCategory? = nil
+        category: BudgetCategory? = nil,
+        householdMember: HouseholdMember? = nil
     ) {
         self.id = UUID()
         self.name = name
@@ -42,6 +47,7 @@ final class RecurringTransaction {
         self.isActive = true
         self.account = account
         self.category = category
+        self.householdMember = householdMember
         self.createdAt = .now
     }
 }

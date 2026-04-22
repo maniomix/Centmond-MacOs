@@ -768,6 +768,7 @@ extension ImportCSVSheet {
         let parsedDate: Date?
         let monthlyBudget: Decimal?   // Whole-month budget override pulled from "Monthly Budget" column
         let isSubscriptionHint: Bool  // "Subscription"/"Recurring" column → true (P9 integration)
+        let memberName: String?       // "Member"/"Paid By" column — resolved to HouseholdMember at insert time (P8)
     }
 
     private struct ColumnMap {
@@ -788,6 +789,12 @@ extension ImportCSVSheet {
         /// triggers false "late-night" flags in the AI's emotional
         /// profile since the engine treats hour ∈ [22, 4] as late-night.
         var timeIndex: Int?
+
+        /// Optional `Member`/`Household Member`/`Paid By` column — if the
+        /// value matches a known HouseholdMember name (case-insensitive),
+        /// the imported transaction is attributed to them. No auto-create —
+        /// unmatched names fall through to the payee-learner.
+        var memberIndex: Int?
 
         var isValid: Bool { dateIndex != nil && amountIndex != nil }
         var descriptionIndex: Int? { payeeIndex ?? noteIndex }
@@ -890,6 +897,15 @@ extension ImportCSVSheet {
                 if positives.contains(raw) { isSubscriptionHint = true }
             }
 
+            // Member column (P8) — captured as a raw string; resolved to an
+            // actual HouseholdMember at insert time so we can fall back to
+            // the payee-learner without having to duplicate the lookup here.
+            var memberName: String? = nil
+            if let mIdx = columnMap.memberIndex, mIdx < fields.count {
+                let raw = fields[mIdx].trimmingCharacters(in: .whitespaces)
+                if !raw.isEmpty { memberName = raw }
+            }
+
             // Monthly budget column — only non-empty values produce a value.
             var monthlyBudget: Decimal? = nil
             if let bIdx = columnMap.monthlyBudgetIndex, bIdx < fields.count {
@@ -915,7 +931,8 @@ extension ImportCSVSheet {
                 category: category,
                 parsedDate: parsedDate,
                 monthlyBudget: monthlyBudget,
-                isSubscriptionHint: isSubscriptionHint
+                isSubscriptionHint: isSubscriptionHint,
+                memberName: memberName
             ))
         }
 
@@ -934,6 +951,7 @@ extension ImportCSVSheet {
         let budgetAliases:  Set<String> = ["monthly budget","monthly_budget","month budget","month_budget","budget"]
         let subHintAliases: Set<String> = ["subscription","is_subscription","is subscription","recurring","is_recurring","is recurring"]
         let timeAliases:    Set<String> = ["time","hour","hours","transaction_time","transaction time","timestamp","tx_time"]
+        let memberAliases:  Set<String> = ["member","household member","household_member","paid by","paid_by","paidby","person","owner","paidfor","paid for","paid_for"]
 
         for (index, h) in headers.enumerated() {
             if map.dateIndex == nil    && dateAliases.contains(h)    { map.dateIndex = index }
@@ -948,9 +966,23 @@ extension ImportCSVSheet {
             else if map.monthlyBudgetIndex == nil && budgetAliases.contains(h) { map.monthlyBudgetIndex = index }
             else if map.subscriptionHintIndex == nil && subHintAliases.contains(h) { map.subscriptionHintIndex = index }
             else if map.timeIndex == nil && timeAliases.contains(h) { map.timeIndex = index }
+            else if map.memberIndex == nil && memberAliases.contains(h) { map.memberIndex = index }
         }
 
         return map
+    }
+
+    /// Look up a HouseholdMember by name (case- and whitespace-insensitive)
+    /// from the current store. No auto-create — unknown names return nil and
+    /// the caller falls back to the payee-learner. (P8 CSV member column.)
+    private func findHouseholdMember(named raw: String) -> HouseholdMember? {
+        let key = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty else { return nil }
+        let descriptor = FetchDescriptor<HouseholdMember>()
+        let all = (try? modelContext.fetch(descriptor)) ?? []
+        return all.first {
+            $0.isActive && $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == key
+        }
     }
 
     private func parseCSVLine(_ line: String) -> [String] {
@@ -1284,6 +1316,19 @@ extension ImportCSVSheet {
                 category: matchedCategory
             )
             modelContext.insert(transaction)
+            // Attribute household member: prefer an explicit CSV column match
+            // (P8 — case-insensitive name lookup against existing members, no
+            // auto-create). Fall back to the payee-learner if the column is
+            // missing or the value doesn't resolve (P2).
+            if let rawMember = row.memberName,
+               let explicit = findHouseholdMember(named: rawMember) {
+                transaction.householdMember = explicit
+            } else {
+                transaction.householdMember = HouseholdService.resolveMember(
+                    forPayee: row.payee,
+                    in: modelContext
+                )
+            }
             count += 1
         }
 

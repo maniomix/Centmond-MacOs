@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct TransactionsView: View {
     @Environment(AppRouter.self) private var router
@@ -8,6 +9,7 @@ struct TransactionsView: View {
     @Query(sort: \BudgetCategory.sortOrder) private var categories: [BudgetCategory]
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
     @Query(sort: \Tag.name) private var allTags: [Tag]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
 
     @State private var searchText = ""
     @State private var selectedTransactions: Set<UUID> = []
@@ -47,73 +49,99 @@ struct TransactionsView: View {
         }
     }
 
-    private var filteredTransactions: [Transaction] {
-        var result = transactions.filter { !$0.isDeleted && $0.modelContext != nil }
+    // MARK: - Snapshot cache
+    //
+    // Body referenced `filteredTransactions`, `groupedTransactions`,
+    // `totalIncome`, `totalExpenses` multiple times per render. Each call
+    // re-ran the 8-step filter pipeline over all transactions. Snapshot
+    // runs it once per filter-state or data-state change.
+    @State private var snapshot = TransactionsSnapshot()
 
-        // Search filter
-        if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter {
-                $0.payee.lowercased().contains(query) ||
-                ($0.category?.name.lowercased().contains(query) ?? false) ||
-                ($0.notes?.lowercased().contains(query) ?? false) ||
-                ($0.account?.name.lowercased().contains(query) ?? false) ||
-                $0.tags.contains(where: { $0.name.lowercased().contains(query) })
+    struct TransactionsSnapshot {
+        var filtered: [Transaction] = []
+        var grouped: [(date: Date, transactions: [Transaction])] = []
+        var totalIncome: Decimal = 0
+        var totalExpenses: Decimal = 0
+        var incomeCount: Int = 0
+        var expenseCount: Int = 0
+    }
+
+    private var filteredTransactions: [Transaction] { snapshot.filtered }
+    private var incomeCount: Int { snapshot.incomeCount }
+    private var expenseCount: Int { snapshot.expenseCount }
+    private var totalIncome: Decimal { snapshot.totalIncome }
+    private var totalExpenses: Decimal { snapshot.totalExpenses }
+    private var groupedTransactions: [(date: Date, transactions: [Transaction])] { snapshot.grouped }
+
+    private func rebuildSnapshot() {
+        let query = searchText.lowercased()
+        let acctID = selectedAccountFilter?.id
+        let catID = selectedCategoryFilter?.id
+        let tagID = selectedTagFilter?.id
+        let scopedID = router.selectedMemberID
+        let rangeStart: Date? = {
+            if dateRange == .custom { return customStart }
+            if dateRange == .thisMonth { return router.selectedMonthStart }
+            return dateRange.startDate
+        }()
+        let rangeEnd: Date? = {
+            if dateRange == .custom { return customEnd }
+            if dateRange == .thisMonth { return router.selectedMonthEnd }
+            return nil
+        }()
+
+        var result: [Transaction] = []
+        var incomeCountAll = 0
+        var expenseCountAll = 0
+        var totIn: Decimal = 0
+        var totEx: Decimal = 0
+        result.reserveCapacity(transactions.count)
+
+        for tx in transactions {
+            if tx.isDeleted || tx.modelContext == nil { continue }
+            if tx.isIncome { incomeCountAll += 1 } else { expenseCountAll += 1 }
+
+            if !query.isEmpty {
+                let payee = tx.payee.lowercased().contains(query)
+                let cat = tx.category?.name.lowercased().contains(query) ?? false
+                let notes = tx.notes?.lowercased().contains(query) ?? false
+                let acct = tx.account?.name.lowercased().contains(query) ?? false
+                let tagMatch = tx.tags.contains { $0.name.lowercased().contains(query) }
+                if !(payee || cat || notes || acct || tagMatch) { continue }
             }
+
+            switch typeFilter {
+            case .all: break
+            case .income: if !tx.isIncome { continue }
+            case .expense: if tx.isIncome { continue }
+            }
+
+            if let acctID, tx.account?.id != acctID { continue }
+            if let catID, tx.category?.id != catID { continue }
+            if let tagID, !tx.tags.contains(where: { $0.id == tagID }) { continue }
+            if let scopedID, tx.householdMember?.id != scopedID { continue }
+
+            if let s = rangeStart, tx.date < s { continue }
+            if let e = rangeEnd, tx.date >= e { continue }
+
+            result.append(tx)
+            if tx.isIncome { totIn += tx.amount } else { totEx += tx.amount }
         }
 
-        // Type filter
-        switch typeFilter {
-        case .all: break
-        case .income: result = result.filter { $0.isIncome }
-        case .expense: result = result.filter { !$0.isIncome }
-        }
-
-        // Account filter
-        if let account = selectedAccountFilter {
-            result = result.filter { $0.account?.id == account.id }
-        }
-
-        // Category filter
-        if let category = selectedCategoryFilter {
-            result = result.filter { $0.category?.id == category.id }
-        }
-
-        // Tag filter
-        if let tag = selectedTagFilter {
-            result = result.filter { $0.tags.contains(where: { $0.id == tag.id }) }
-        }
-
-        // Date filter
-        if dateRange == .custom {
-            result = result.filter { $0.date >= customStart && $0.date <= customEnd }
-        } else if dateRange == .thisMonth {
-            result = result.filter { $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
-        } else if let start = dateRange.startDate {
-            result = result.filter { $0.date >= start }
-        }
-
-        return result
-    }
-
-    private var incomeCount: Int { transactions.filter { $0.isIncome }.count }
-    private var expenseCount: Int { transactions.filter { !$0.isIncome }.count }
-
-    private var totalIncome: Decimal {
-        filteredTransactions.filter { $0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
-    }
-    private var totalExpenses: Decimal {
-        filteredTransactions.filter { !$0.isIncome }.reduce(Decimal.zero) { $0 + $1.amount }
-    }
-
-    // Group transactions by date
-    private var groupedTransactions: [(date: Date, transactions: [Transaction])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: filteredTransactions) { tx in
-            calendar.startOfDay(for: tx.date)
-        }
-        return grouped.sorted { $0.key > $1.key }
+        let byDay = Dictionary(grouping: result) { calendar.startOfDay(for: $0.date) }
+        let grouped = byDay
+            .sorted { $0.key > $1.key }
             .map { (date: $0.key, transactions: $0.value.sorted { $0.date > $1.date }) }
+
+        var next = TransactionsSnapshot()
+        next.filtered = result
+        next.grouped = grouped
+        next.totalIncome = totIn
+        next.totalExpenses = totEx
+        next.incomeCount = incomeCountAll
+        next.expenseCount = expenseCountAll
+        snapshot = next
     }
 
     var body: some View {
@@ -156,6 +184,17 @@ struct TransactionsView: View {
                 dateRange = .thisMonth
             }
         }
+        .task(id: snapshotKey) { rebuildSnapshot() }
+    }
+
+    /// Composite key — any change here fires rebuildSnapshot once.
+    /// Bundled so the body's modifier chain stays short (12 individual
+    /// .onChange blew the SwiftUI type-checker).
+    private var snapshotKey: String {
+        // Hash amount array (not just count) so in-place amount edits
+        // also trigger a rebuild. [Decimal] is Hashable.
+        let txHash = transactions.map(\.amount).hashValue
+        return "\(transactions.count):\(txHash)|\(searchText)|\(typeFilter.rawValue)|\(selectedAccountFilter?.id.uuidString ?? "-")|\(selectedCategoryFilter?.id.uuidString ?? "-")|\(selectedTagFilter?.id.uuidString ?? "-")|\(dateRange.rawValue)|\(customStart.timeIntervalSince1970)|\(customEnd.timeIntervalSince1970)|\(router.selectedMemberID?.uuidString ?? "-")|\(router.selectedMonthStart.timeIntervalSince1970)"
     }
 
     // MARK: - Filter Bar
@@ -295,18 +334,72 @@ struct TransactionsView: View {
             .padding(.top, CentmondTheme.Spacing.md)
             .padding(.bottom, CentmondTheme.Spacing.sm)
 
-            // Row 2: Date range chips
+            // Row 2: Date range chips + household member scope.
+            // Household chips moved here 2026-04-22 from the sidebar — they
+            // only actually filtered Transactions, and hiding them in the
+            // sidebar made the scope feel app-wide. Keeping them inline with
+            // the date range reads as what they are: a transaction filter.
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 ForEach(DateRange.allCases, id: \.self) { range in
                     dateChip(range)
                 }
 
                 Spacer()
+
+                let activeMembers = members.filter(\.isActive)
+                if !activeMembers.isEmpty {
+                    Divider()
+                        .frame(height: 18)
+                        .padding(.horizontal, CentmondTheme.Spacing.xs)
+                    memberScopeAllChip
+                    ForEach(activeMembers) { m in
+                        memberScopeAvatarChip(m)
+                    }
+                }
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.bottom, CentmondTheme.Spacing.md)
         }
         .background(CentmondTheme.Colors.bgSecondary)
+    }
+
+    private static let memberChipHeight: CGFloat = 22
+
+    private var memberScopeAllChip: some View {
+        let isActive = router.selectedMemberID == nil
+        return Button {
+            router.selectedMemberID = nil
+        } label: {
+            Text("All")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isActive ? Color.white : CentmondTheme.Colors.textTertiary)
+                .padding(.horizontal, 8)
+                .frame(height: Self.memberChipHeight)
+                .background(isActive ? CentmondTheme.Colors.accent : CentmondTheme.Colors.bgTertiary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Show everyone")
+    }
+
+    private func memberScopeAvatarChip(_ m: HouseholdMember) -> some View {
+        let isActive = router.selectedMemberID == m.id
+        return Button {
+            router.selectedMemberID = isActive ? nil : m.id
+        } label: {
+            Text(String(m.name.prefix(1)))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: Self.memberChipHeight, height: Self.memberChipHeight)
+                .background(Color(hex: m.avatarColor))
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(isActive ? CentmondTheme.Colors.accent : .clear, lineWidth: 2)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(m.name)
     }
 
     private func dateChip(_ range: DateRange) -> some View {
@@ -733,12 +826,14 @@ struct TransactionsView: View {
             if let acc = tx.account { accountsToRecalc[acc.id] = acc }
         }
 
-        // Phase 2: delete everything in one flat pass. No fetches, no
-        // relationship reads, no recalcs — just context.delete(...).
-        for tx in primary + pairedLegs {
-            guard !tx.isDeleted, tx.modelContext != nil else { continue }
-            TransactionDeletionService.delete(tx, context: modelContext)
-        }
+        // Phase 2: hand the entire batch (primary + paired legs) to the
+        // deletion service in ONE call. Earlier per-tx iteration here
+        // crashed: the first call's cascade (shares, settlements, goal
+        // contributions) tombstoned related backing data; the second
+        // iteration's `tx.id`, `tx.shares`, even `tx.isDeleted` then
+        // faulted with "backing data could no longer be found in the
+        // store." Batching makes the service's snapshot+cascade run once.
+        TransactionDeletionService.delete(primary + pairedLegs, context: modelContext)
 
         // Phase 3: save atomically. If this throws we surface it in the
         // console — prior "try?" silently swallowed constraint errors and
@@ -770,6 +865,7 @@ struct TransactionsView: View {
         )
         modelContext.insert(dupe)
         dupe.tags = transaction.tags
+        dupe.householdMember = transaction.householdMember
         if let account = transaction.account {
             BalanceService.recalculate(account: account)
         }
@@ -783,6 +879,10 @@ enum TransactionSortOrder {
 // MARK: - Transaction Row View
 
 struct TransactionRowView: View {
+    @Environment(AppRouter.self) private var router
+    @Query(sort: \Account.sortOrder) private var rowAccounts: [Account]
+    @Query(sort: \HouseholdMember.joinedAt) private var rowMembers: [HouseholdMember]
+
     let transaction: Transaction
     let isSelected: Bool
     /// True whenever any row in the list is currently selected. Drives the
@@ -803,6 +903,17 @@ struct TransactionRowView: View {
     /// denser list; "default" keeps the original spacious layout.
     private var rowVerticalPadding: CGFloat {
         tableDensity == "compact" ? 6 : CentmondTheme.Spacing.md
+    }
+
+    /// Copy the transaction's amount to the system pasteboard as a plain
+    /// decimal string (no currency symbol) so it pastes cleanly into other
+    /// apps, spreadsheets, or Centmond's own amount fields.
+    private func copyAmountToPasteboard() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        let number = NSDecimalNumber(decimal: transaction.amount)
+        pb.setString(number.stringValue, forType: .string)
+        Haptics.tap()
     }
 
     var body: some View {
@@ -956,7 +1067,34 @@ struct TransactionRowView: View {
             Button { onDuplicate() } label: {
                 Label("Duplicate", systemImage: "doc.on.doc")
             }
+            Button {
+                copyAmountToPasteboard()
+            } label: {
+                Label("Copy Amount", systemImage: "doc.on.clipboard")
+            }
+
             Divider()
+
+            // Split / share — only for non-transfer rows. Transfers are
+            // legs of a pair and their amount is already account-scoped.
+            if !transaction.isTransfer {
+                Button {
+                    router.showSheet(.splitTransaction(transaction))
+                } label: {
+                    Label(transaction.splits.isEmpty ? "Split by Category" : "Edit Category Split",
+                          systemImage: "rectangle.split.3x1")
+                }
+
+                if !rowMembers.filter(\.isActive).isEmpty {
+                    Button {
+                        router.showSheet(.shareTransaction(transaction))
+                    } label: {
+                        Label(transaction.shares.isEmpty ? "Share Across Members" : "Edit Member Shares",
+                              systemImage: "person.2")
+                    }
+                }
+            }
+
             Menu("Change Category") {
                 Button("Uncategorized") {
                     transaction.category = nil
@@ -970,7 +1108,42 @@ struct TransactionRowView: View {
                     }
                 }
             }
+
+            if !rowAccounts.filter({ !$0.isArchived }).isEmpty {
+                Menu("Change Account") {
+                    Button("No account") {
+                        transaction.account = nil
+                    }
+                    Divider()
+                    ForEach(rowAccounts.filter { !$0.isArchived }) { account in
+                        Button {
+                            transaction.account = account
+                        } label: {
+                            Text(account.name)
+                        }
+                    }
+                }
+            }
+
+            let activeMembers = rowMembers.filter(\.isActive)
+            if !activeMembers.isEmpty {
+                Menu("Assign To") {
+                    Button("Unassigned") {
+                        transaction.householdMember = nil
+                    }
+                    Divider()
+                    ForEach(activeMembers) { m in
+                        Button {
+                            transaction.householdMember = m
+                        } label: {
+                            Label(m.name, systemImage: "person.fill")
+                        }
+                    }
+                }
+            }
+
             Divider()
+
             if !transaction.isReviewed {
                 Button {
                     transaction.isReviewed = true
@@ -983,7 +1156,9 @@ struct TransactionRowView: View {
             } label: {
                 Label(transaction.status == .cleared ? "Mark Pending" : "Mark Cleared", systemImage: "circle.inset.filled")
             }
+
             Divider()
+
             Button(role: .destructive) { onDelete() } label: {
                 Label("Delete", systemImage: "trash")
             }

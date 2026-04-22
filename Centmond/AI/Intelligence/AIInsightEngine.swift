@@ -109,6 +109,18 @@ final class AIInsightEngine {
         new.append(contentsOf: InsightDetectors.newLargeMerchant(context: context))
         new.append(contentsOf: InsightDetectors.duplicateTransactions(context: context))
 
+        // P8 (Net Worth rebuild) — net-worth detectors. Namespaced
+        // dedupe keys under "networth:" so dismissals stay siloed.
+        new.append(contentsOf: NetWorthInsightDetectors.all(context: context))
+
+        // P7 (Household rebuild) — imbalance/unpaid-share/unattributed-recurring/
+        // spender-spike. All dedupe keys under "household:" per the silo rule.
+        new.append(contentsOf: HouseholdInsightDetectors.all(context: context))
+
+        // Review Queue hidden — skip its insight detectors too.
+        // Uncomment when restoring the section.
+        // new.append(contentsOf: ReviewQueueInsightDetectors.all(context: context))
+
         // P3 — orchestration pipeline: sort → expire → dedupe → dismiss → cap.
         new.sort { a, b in
             if a.severity != b.severity { return a.severity < b.severity }
@@ -294,21 +306,27 @@ final class AIInsightEngine {
 
         // Spending anomaly — transaction much larger than category average
         let catName = txn.category?.name
-        if let catName {
+        let catID = txn.category?.id
+        if let catName, let catID {
             let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: month))!
             let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart)!
             let txnId = txn.id
+            // Pre-filter by category at the store level so we only hydrate
+            // same-category txns — was fetching ALL non-income this month
+            // then filtering by catName in memory on every insert.
             let descriptor = FetchDescriptor<Transaction>(
                 predicate: #Predicate {
-                    !$0.isIncome && $0.date >= monthStart && $0.date < monthEnd && $0.id != txnId
+                    !$0.isIncome
+                        && $0.date >= monthStart
+                        && $0.date < monthEnd
+                        && $0.id != txnId
+                        && $0.category?.id == catID
                 }
             )
-            if let others = try? context.fetch(descriptor) {
-                let sameCat = others.filter { $0.category?.name == catName }
-                if !sameCat.isEmpty {
-                    let total = sameCat.reduce(Decimal.zero) { $0 + $1.amount }
-                    let avg = total / Decimal(sameCat.count)
-                    if txn.amount > avg * 3 && txn.amount > 10 {
+            if let sameCat = try? context.fetch(descriptor), !sameCat.isEmpty {
+                let total = sameCat.reduce(Decimal.zero) { $0 + $1.amount }
+                let avg = total / Decimal(sameCat.count)
+                if txn.amount > avg * 3 && txn.amount > 10 {
                         let multiplier = NSDecimalNumber(decimal: txn.amount / max(avg, 1)).intValue
                         eventInsight = AIInsight(
                             kind: .spendingAnomaly,
@@ -319,8 +337,7 @@ final class AIInsightEngine {
                             dedupeKey: "anomaly:\(txn.id.uuidString)",
                             deeplink: .transactions(txn.id)
                         )
-                        return
-                    }
+                    return
                 }
             }
         }

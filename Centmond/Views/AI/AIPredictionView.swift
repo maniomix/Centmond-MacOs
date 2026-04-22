@@ -128,92 +128,11 @@ struct AIPredictionView: View {
 
             ScrollView {
                 if phase == .ready, let data = predictionData, let ai = aiPredictions {
-                HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
-                    // LEFT: main content column
-                    VStack(spacing: CentmondTheme.Spacing.sm) {
-                        // Row 0: Analysis window picker
-                        timeRangePickerBar
-
-                        // Row 1: Compact forecast strip
-                        compactForecastStrip(data.forecast, ai: ai)
-
-                        // Row 2: THE CHART
-                        chartWithModeSwitcher(data: data, ai: ai)
-
-                        // Row 3: Three intelligence cards side by side.
-                        // `maxHeight: .infinity` + a floor on the HStack
-                        // makes every card match the tallest one. Without
-                        // this, a 2-item Behavioral card ran ~210pt while
-                        // a 1-item Anomaly card stopped around ~130pt,
-                        // producing the visibly uneven row the user reported.
-                        // The inner `minHeight: 160` on each card's content
-                        // VStack was doing nothing useful here — it's the
-                        // HStack that has to coordinate heights, not the
-                        // cards themselves.
-                        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
-                            behavioralTriggersCard(ai.triggers)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            anomalyDetectionCard(ai.anomalies)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            interactiveCombatPlanCard(ai.combatPlan)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        }
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        // Row 3b: Help captions explaining what each card does.
-                        // Aligned column-for-column with the three cards above
-                        // so each tip sits directly under its card.
-                        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
-                            intelligenceCardHelp(
-                                icon: "hand.point.up.left.fill",
-                                title: "Hover to highlight",
-                                body: "Hover any pattern to highlight the days it happened on the chart above.",
-                                accent: CentmondTheme.Colors.warning
-                            )
-                            intelligenceCardHelp(
-                                icon: "magnifyingglass",
-                                title: "Spending spikes",
-                                body: "Unusual jumps the AI flagged. Review what triggered them — these are usually the easiest wins.",
-                                accent: CentmondTheme.Colors.negative
-                            )
-                            intelligenceCardHelp(
-                                icon: "cursorarrow.click.2",
-                                title: "Click to simulate",
-                                body: "Click any action to commit. A green “If you cut” line appears on the chart with your projected savings.",
-                                accent: CentmondTheme.Colors.positive
-                            )
-                        }
-                        .padding(.top, CentmondTheme.Spacing.xs)
-
-                        // Row 4: Categories + Merchants
-                        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
-                            categoryProjectionsCard(ai.categoryPredictions.isEmpty ? data.categoryProjections : applyCategoryPredictions(base: data.categoryProjections, ai: ai.categoryPredictions))
-                            topMerchantsCard(data.topMerchants)
-                        }
-
-                        // Row 5: Accounts + Subscriptions
-                        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
-                            accountHealthCard(data.accountSnapshots)
-                            if let sub = data.subscriptionPressure {
-                                subscriptionCard(sub)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    // RIGHT: sidebar (stats + Deep Analysis)
-                    VStack(spacing: CentmondTheme.Spacing.sm) {
-                        sidebarStatsCards(data.forecast)
-                        aiAnalysisCard
-                    }
-                    .frame(width: 340)
+                    readyContent(data: data, ai: ai)
+                } else {
+                    loadingPhaseContent
                 }
-                .padding(CentmondTheme.Spacing.sm)
-                .environment(\.riskLevel, ai.riskLevel)
-            } else {
-                loadingPhaseContent
             }
-        }
         .background(CentmondTheme.Colors.bgPrimary)
         .animation(CentmondTheme.Motion.layout, value: phase)
         .task {
@@ -273,6 +192,109 @@ struct AIPredictionView: View {
             }
         }
         } // VStack wrapping BetaBanner + ScrollView
+    }
+
+    // MARK: - Ready Content Layout
+    //
+    // Extracted out of `body` to narrow the type-checker's expression
+    // scope. body was a single ~80-line HStack + many modifier chains,
+    // which is slow-to-typecheck and slow-to-diff under incremental
+    // builds. Sub-views also give SwiftUI a narrower invalidation
+    // boundary — state that only affects the left column doesn't
+    // invalidate the sidebar column and vice versa.
+
+    @ViewBuilder
+    private func readyContent(data: PredictionData, ai: AIPredictionResult) -> some View {
+        HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+            readyLeftColumn(data: data, ai: ai)
+                .frame(maxWidth: .infinity)
+
+            readyRightColumn(data: data)
+                .frame(width: 340)
+        }
+        .padding(CentmondTheme.Spacing.sm)
+        .environment(\.riskLevel, ai.riskLevel)
+    }
+
+    @ViewBuilder
+    private func readyLeftColumn(data: PredictionData, ai: AIPredictionResult) -> some View {
+        VStack(spacing: CentmondTheme.Spacing.sm) {
+            // Row 0: Analysis window picker
+            timeRangePickerBar
+
+            // Row 1: Compact forecast strip
+            compactForecastStrip(data.forecast, ai: ai)
+
+            // Row 2: THE CHART
+            chartWithModeSwitcher(data: data, ai: ai)
+
+            // Row 3: Three intelligence cards side by side.
+            // `maxHeight: .infinity` + a floor on the HStack
+            // makes every card match the tallest one. Without
+            // this, a 2-item Behavioral card ran ~210pt while
+            // a 1-item Anomaly card stopped around ~130pt,
+            // producing the visibly uneven row the user reported.
+            // The inner `minHeight: 160` on each card's content
+            // VStack was doing nothing useful here — it's the
+            // HStack that has to coordinate heights, not the
+            // cards themselves.
+            HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                behavioralTriggersCard(ai.triggers)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                anomalyDetectionCard(ai.anomalies)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                interactiveCombatPlanCard(ai.combatPlan)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            // Row 3b: Help captions explaining what each card does.
+            // Aligned column-for-column with the three cards above
+            // so each tip sits directly under its card.
+            HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                intelligenceCardHelp(
+                    icon: "hand.point.up.left.fill",
+                    title: "Hover to highlight",
+                    body: "Hover any pattern to highlight the days it happened on the chart above.",
+                    accent: CentmondTheme.Colors.warning
+                )
+                intelligenceCardHelp(
+                    icon: "magnifyingglass",
+                    title: "Spending spikes",
+                    body: "Unusual jumps the AI flagged. Review what triggered them — these are usually the easiest wins.",
+                    accent: CentmondTheme.Colors.negative
+                )
+                intelligenceCardHelp(
+                    icon: "cursorarrow.click.2",
+                    title: "Click to simulate",
+                    body: "Click any action to commit. A green “If you cut” line appears on the chart with your projected savings.",
+                    accent: CentmondTheme.Colors.positive
+                )
+            }
+            .padding(.top, CentmondTheme.Spacing.xs)
+
+            // Row 4: Categories + Merchants
+            HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                categoryProjectionsCard(ai.categoryPredictions.isEmpty ? data.categoryProjections : applyCategoryPredictions(base: data.categoryProjections, ai: ai.categoryPredictions))
+                topMerchantsCard(data.topMerchants)
+            }
+
+            // Row 5: Accounts + Subscriptions
+            HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
+                accountHealthCard(data.accountSnapshots)
+                if let sub = data.subscriptionPressure {
+                    subscriptionCard(sub)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func readyRightColumn(data: PredictionData) -> some View {
+        VStack(spacing: CentmondTheme.Spacing.sm) {
+            sidebarStatsCards(data.forecast)
+            aiAnalysisCard
+        }
     }
 
     // MARK: - Time Range Picker

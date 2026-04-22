@@ -12,70 +12,104 @@ struct BudgetView: View {
     @State private var showDeleteConfirmation = false
     @State private var categoryToDelete: BudgetCategory?
 
-    private var monthStart: Date { router.selectedMonthStart }
-    private var monthEnd: Date { router.selectedMonthEnd }
-    private var selectedYear: Int { Calendar.current.component(.year, from: router.selectedMonth) }
-    private var selectedMonthNum: Int { Calendar.current.component(.month, from: router.selectedMonth) }
+    // MARK: - Snapshot cache
+    //
+    // Pattern mirrors DashboardSnapshot: body was re-filtering monthly
+    // transactions per-category per-body-render (spentInCategory + txCount
+    // inside a ForEach). Snapshot rebuilds on @Query / month changes only.
+    @State private var snapshot = BudgetSnapshot()
 
-    private var monthlyTransactions: [Transaction] {
-        transactions.filter { !$0.isIncome && $0.date >= monthStart && $0.date < monthEnd }
+    struct CategoryRow {
+        let categoryID: UUID
+        let spent: Decimal
+        let txCount: Int
+        let budget: Decimal
     }
 
-    // MARK: - Main Monthly Budget
-
-    /// The total budget the user has set for this month (nil = not set yet).
-    private var monthlyTotalBudget: MonthlyTotalBudget? {
-        totalBudgets.first { $0.year == selectedYear && $0.month == selectedMonthNum }
+    struct BudgetSnapshot {
+        var totalBudgetAmount: Decimal = 0
+        var totalAllocated: Decimal = 0
+        var unallocated: Decimal = 0
+        var totalSpent: Decimal = 0
+        var uncategorizedSpent: Decimal = 0
+        var uncategorizedCount: Int = 0
+        var monthlyTransactionsEmpty: Bool = true
+        var spentByCategoryID: [UUID: (spent: Decimal, count: Int)] = [:]
+        var budgetByCategoryID: [UUID: Decimal] = [:]
     }
 
-    /// The total budget amount, 0 if not set.
-    private var totalBudgetAmount: Decimal {
-        monthlyTotalBudget?.amount ?? 0
-    }
+    private var totalBudgetAmount: Decimal { snapshot.totalBudgetAmount }
+    private var totalAllocated: Decimal { snapshot.totalAllocated }
+    private var unallocated: Decimal { snapshot.unallocated }
+    private var totalSpent: Decimal { snapshot.totalSpent }
+    private var uncategorizedSpent: Decimal { snapshot.uncategorizedSpent }
+    private var uncategorizedCount: Int { snapshot.uncategorizedCount }
 
-    // MARK: - Category Budgets
-
-    /// Returns the budget amount for a category in the selected month.
     private func effectiveBudget(for category: BudgetCategory) -> Decimal {
-        monthlyBudgets.first(where: {
-            $0.categoryID == category.id && $0.year == selectedYear && $0.month == selectedMonthNum
-        })?.amount ?? category.budgetAmount
-    }
-
-    /// Sum of all category budget allocations.
-    private var totalAllocated: Decimal {
-        categories.reduce(0) { $0 + effectiveBudget(for: $1) }
-    }
-
-    /// How much of the main budget is not yet allocated to categories.
-    private var unallocated: Decimal {
-        totalBudgetAmount - totalAllocated
+        snapshot.budgetByCategoryID[category.id] ?? category.budgetAmount
     }
 
     private func spentInCategory(_ category: BudgetCategory) -> Decimal {
-        monthlyTransactions
-            .filter { $0.category?.id == category.id }
-            .reduce(0) { $0 + $1.amount }
+        snapshot.spentByCategoryID[category.id]?.spent ?? 0
     }
 
     private func transactionCountInCategory(_ category: BudgetCategory) -> Int {
-        monthlyTransactions
-            .filter { $0.category?.id == category.id }
-            .count
+        snapshot.spentByCategoryID[category.id]?.count ?? 0
     }
 
-    private var totalSpent: Decimal {
-        monthlyTransactions.reduce(0) { $0 + $1.amount }
-    }
+    private func rebuildSnapshot() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: router.selectedMonth)
+        let monthNum = cal.component(.month, from: router.selectedMonth)
+        let monthStart = router.selectedMonthStart
+        let monthEnd = router.selectedMonthEnd
 
-    private var uncategorizedSpent: Decimal {
-        monthlyTransactions
-            .filter { $0.category == nil }
-            .reduce(0) { $0 + $1.amount }
-    }
+        // Single pass over transactions
+        var spentByCat: [UUID: (spent: Decimal, count: Int)] = [:]
+        var totalSpent: Decimal = 0
+        var uncatSpent: Decimal = 0
+        var uncatCount = 0
+        var txsEmpty = true
+        for tx in transactions {
+            guard !tx.isIncome, tx.date >= monthStart, tx.date < monthEnd else { continue }
+            txsEmpty = false
+            totalSpent += tx.amount
+            if let cid = tx.category?.id {
+                var entry = spentByCat[cid] ?? (0, 0)
+                entry.spent += tx.amount
+                entry.count += 1
+                spentByCat[cid] = entry
+            } else {
+                uncatSpent += tx.amount
+                uncatCount += 1
+            }
+        }
 
-    private var uncategorizedCount: Int {
-        monthlyTransactions.filter { $0.category == nil }.count
+        // Budget lookups — build a dict once
+        var budgetByCat: [UUID: Decimal] = [:]
+        var totalAllocated: Decimal = 0
+        for cat in categories {
+            let override = monthlyBudgets.first(where: {
+                $0.categoryID == cat.id && $0.year == year && $0.month == monthNum
+            })?.amount
+            let amt = override ?? cat.budgetAmount
+            budgetByCat[cat.id] = amt
+            totalAllocated += amt
+        }
+
+        let totalAmt = totalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
+
+        var next = BudgetSnapshot()
+        next.totalBudgetAmount = totalAmt
+        next.totalAllocated = totalAllocated
+        next.unallocated = totalAmt - totalAllocated
+        next.totalSpent = totalSpent
+        next.uncategorizedSpent = uncatSpent
+        next.uncategorizedCount = uncatCount
+        next.monthlyTransactionsEmpty = txsEmpty
+        next.spentByCategoryID = spentByCat
+        next.budgetByCategoryID = budgetByCat
+        snapshot = next
     }
 
     private var selectedCategoryID: UUID? {
@@ -143,6 +177,12 @@ struct BudgetView: View {
                 Text("This will delete this category.")
             }
         }
+        .onAppear { rebuildSnapshot() }
+        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: categories.map(\.budgetAmount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: monthlyBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: totalBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: router.selectedMonthStart) { _, _ in rebuildSnapshot() }
     }
 
     // MARK: - Header Bar
@@ -364,7 +404,7 @@ struct BudgetView: View {
             }
 
             // No transactions hint
-            if totalBudgetAmount > 0 && monthlyTransactions.isEmpty {
+            if totalBudgetAmount > 0 && snapshot.monthlyTransactionsEmpty {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 12))

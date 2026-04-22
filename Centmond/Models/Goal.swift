@@ -23,6 +23,11 @@ final class Goal {
     @Relationship(deleteRule: .cascade, inverse: \GoalContribution.goal)
     var contributions: [GoalContribution] = []
 
+    // Household ownership (P4). Nil = shared/household goal. Non-nil = private
+    // to that member. Filter predicates in GoalsView use this when the app is
+    // scoped to a single member (P6 global member-scope).
+    @Relationship var householdMember: HouseholdMember?
+
     init(
         name: String,
         icon: String = "target",

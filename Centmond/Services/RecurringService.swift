@@ -117,28 +117,66 @@ enum RecurringService {
         var linked = 0
         let cal = Calendar.current
 
+        // Pre-bucket candidates: split by isIncome, pre-normalize payees,
+        // sort by date ascending. The inner-loop used to walk the full
+        // candidate array for every (template, occurrence) pair and call
+        // `normalize` on both strings every match — O(T × O × C) with a
+        // heavy allocation per hop. With this prep, each occurrence walks
+        // only same-sign candidates, compares normalized strings, and
+        // an O(log C) date lower-bound trims even that.
+        struct PreppedCandidate {
+            let tx: Transaction
+            let date: Date
+            let amount: Decimal
+            let isIncome: Bool
+            let normalizedPayee: String
+        }
+        let prepped: [PreppedCandidate] = candidates
+            .map { PreppedCandidate(tx: $0, date: $0.date, amount: $0.amount, isIncome: $0.isIncome, normalizedPayee: normalize($0.payee)) }
+            .sorted { $0.date < $1.date }
+
+        // Split by sign so each template only scans the matching half.
+        let incomeBucket = prepped.filter { $0.isIncome }
+        let expenseBucket = prepped.filter { !$0.isIncome }
+
+        // Mark-linked set so the inner scans don't re-match an already-
+        // linked candidate across templates.
+        var consumedTxIDs: Set<UUID> = []
+
         for template in templates {
-            // Walk forward through the template's projected occurrences
-            // looking for a manual transaction that lines up. We stop
-            // once `nextOccurrence` overtakes `asOf` — anything beyond
-            // that is a future cycle and not eligible for linking yet.
+            let bucket = template.isIncome ? incomeBucket : expenseBucket
+            if bucket.isEmpty { continue }
+            let templateKey = normalize(template.name)
+            if templateKey.isEmpty { continue }
+
             var advanced = 0
             while template.nextOccurrence <= asOf && advanced < maxOccurrencesPerRun {
                 let target = template.nextOccurrence
                 guard let lower = cal.date(byAdding: .day, value: -dateToleranceDays, to: target),
                       let upper = cal.date(byAdding: .day, value:  dateToleranceDays, to: target) else { break }
 
-                let match = candidates.first { tx in
-                    tx.recurringTemplateID == nil
-                    && tx.isIncome == template.isIncome
-                    && tx.date >= lower && tx.date <= upper
-                    && amountMatches(tx.amount, template.amount)
-                    && payeeMatches(tx.payee, template.name)
+                // Date-sorted bucket + linear scan with break-on-date.
+                // (Binary search would trim further but bucket is usually
+                // a few hundred items; this already removes the O(N×M).)
+                var match: PreppedCandidate?
+                for c in bucket {
+                    if c.date < lower { continue }
+                    if c.date > upper { break }
+                    if consumedTxIDs.contains(c.tx.id) { continue }
+                    if c.tx.recurringTemplateID != nil { continue }
+                    if !amountMatches(c.amount, template.amount) { continue }
+                    let na = c.normalizedPayee
+                    if na.isEmpty { continue }
+                    if na == templateKey || na.contains(templateKey) || templateKey.contains(na) {
+                        match = c
+                        break
+                    }
                 }
 
                 guard let hit = match else { break }
-                hit.recurringTemplateID = template.id
-                hit.updatedAt = .now
+                hit.tx.recurringTemplateID = template.id
+                hit.tx.updatedAt = .now
+                consumedTxIDs.insert(hit.tx.id)
                 template.lastMaterializedDate = target
                 template.nextOccurrence = template.frequency.nextDate(after: target)
                 linked += 1
@@ -196,6 +234,11 @@ enum RecurringService {
                 category: template.category
             )
             tx.recurringTemplateID = template.id
+            // Inherit household attribution from the template (P2). Falls back
+            // to the payee-learner so long-running templates benefit from any
+                // manual corrections the user made to past materializations.
+            tx.householdMember = template.householdMember
+                ?? HouseholdService.resolveMember(forPayee: template.name, in: context)
             context.insert(tx)
             template.lastMaterializedDate = occurrenceDate
             template.nextOccurrence = template.frequency.nextDate(after: occurrenceDate)

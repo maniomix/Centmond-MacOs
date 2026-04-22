@@ -32,6 +32,15 @@ struct RootView: View {
         .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
         .task {
             GoalContributionService.migrateLegacyBalances(context: modelContext)
+            CategoryReferenceRepair.run(context: modelContext)
+            NetWorthReferenceRepair.run(context: modelContext)
+            // Run transaction-ref repair BEFORE HouseholdReferenceRepair so
+            // orphan ExpenseShare rows referencing dead Transactions are
+            // killed first — otherwise HouseholdReferenceRepair's
+            // `share.parentTransaction == nil` check misses them (they
+            // have a dangling ref, not a nil one).
+            TransactionReferenceRepair.run(context: modelContext)
+            HouseholdReferenceRepair.run(context: modelContext)
         }
     }
 }

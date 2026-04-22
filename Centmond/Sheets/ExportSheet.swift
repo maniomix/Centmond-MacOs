@@ -13,6 +13,7 @@ struct ExportSheet: View {
     @State private var includeCategories = true
     @State private var includeAccounts = true
     @State private var includeNotes = true
+    @State private var includeHouseholdMembers = true
     @State private var exportError: String?
 
     var body: some View {
@@ -56,6 +57,10 @@ struct ExportSheet: View {
                             .foregroundStyle(CentmondTheme.Colors.textSecondary)
 
                         Toggle("Accounts", isOn: $includeAccounts)
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+
+                        Toggle("Household members", isOn: $includeHouseholdMembers)
                             .font(CentmondTheme.Typography.body)
                             .foregroundStyle(CentmondTheme.Colors.textSecondary)
 
@@ -126,7 +131,8 @@ struct ExportSheet: View {
             dateRange: dateRange,
             includeCategories: includeCategories,
             includeAccounts: includeAccounts,
-            includeNotes: includeNotes
+            includeNotes: includeNotes,
+            includeHouseholdMembers: includeHouseholdMembers
         )
 
         do {

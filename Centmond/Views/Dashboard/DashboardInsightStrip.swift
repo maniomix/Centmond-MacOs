@@ -31,13 +31,14 @@ struct DashboardInsightStrip: View {
             HStack(alignment: .top, spacing: CentmondTheme.Spacing.lg) {
                 ForEach(topInsights) { insight in
                     AIInsightBanner(insight: insight)
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
                 if engine.insights.count > topInsights.count {
                     seeAllChip
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 

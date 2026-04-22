@@ -83,6 +83,10 @@ enum AIActionExecutor {
         // ── Analysis (no mutation) ──
         case .analyze, .compare, .forecast, .advice:
             return ExecutionResult(action: action, success: true, summary: "")
+
+        // ── Net Worth (analysis-only, P9) ──
+        case .simulatePayoff:
+            return simulatePayoff(action, context: context)
         }
     }
 
@@ -121,9 +125,16 @@ enum AIActionExecutor {
             category: category
         )
 
-        // Assign household member if specified
+        // Assign household member if specified; otherwise fall back to the
+        // payee-learner so AI-entered expenses inherit attribution the same
+        // way manual/CSV entries do (P2).
         if let memberName = p.memberName {
             txn.householdMember = findMember(memberName, context: context)
+        } else {
+            txn.householdMember = HouseholdService.resolveMember(
+                forPayee: txn.payee,
+                in: context
+            )
         }
 
         context.insert(txn)
@@ -184,12 +195,15 @@ enum AIActionExecutor {
         let category = resolveCategory(p.category, context: context)
         let date = resolveDate(p.date)
         let ratio = p.splitRatio ?? 0.5
-        let myShare = amount * ratio
 
+        // Insert the full-amount transaction attributed to the user (or the
+        // household default owner if we can find one); the split is recorded
+        // as ExpenseShare rows so the ledger stays in sync with cash-out and
+        // "who owes what" is derived from the shares.
         let txn = Transaction(
             date: date,
             payee: p.note ?? "Split with \(memberName)",
-            amount: Decimal(myShare),
+            amount: Decimal(amount),
             notes: p.note ?? "Split with \(memberName)",
             isIncome: false,
             status: .cleared,
@@ -197,17 +211,45 @@ enum AIActionExecutor {
             account: defaultAccount(context: context),
             category: category
         )
+        // Payer = owner member if we have one, else the first active member —
+        // needed so the settle-up ledger has a counterparty for the partner's share.
+        let payer = defaultOwner(context: context)
+        txn.householdMember = payer
+        context.insert(txn)
 
-        if let member = findMember(memberName, context: context) {
-            txn.householdMember = member
+        guard let partner = findMember(memberName, context: context) else {
+            return ExecutionResult(
+                action: action, success: true,
+                summary: "Added \(formatDollars(amount)) but couldn't find member \(memberName) — not split"
+            )
         }
 
-        context.insert(txn)
+        // Write shares: payer + partner. ratio is the partner's share fraction.
+        let clamped = max(0.0, min(1.0, ratio))
+        let partnerAmount = Decimal(amount * clamped)
+        let payerAmount = Decimal(amount) - partnerAmount
+        var amounts: [Decimal] = []
+        var members: [HouseholdMember] = []
+        if let payer {
+            members.append(payer); amounts.append(payerAmount)
+        }
+        members.append(partner); amounts.append(partnerAmount)
+        HouseholdService.applyExactSplit(
+            to: txn, members: members, amounts: amounts, in: context
+        )
 
         return ExecutionResult(
             action: action, success: true,
-            summary: "Split \(formatDollars(amount)) with \(memberName) — your share: \(formatDollars(myShare))"
+            summary: "Split \(formatDollars(amount)) with \(memberName) — their share: \(formatDollars(amount * clamped))"
         )
+    }
+
+    private static func defaultOwner(context: ModelContext) -> HouseholdMember? {
+        let descriptor = FetchDescriptor<HouseholdMember>(
+            sortBy: [SortDescriptor(\.joinedAt, order: .forward)]
+        )
+        let all = (try? context.fetch(descriptor)) ?? []
+        return all.first(where: { $0.isOwner && $0.isActive }) ?? all.first(where: { $0.isActive })
     }
 
     // MARK: - Budget Handlers
@@ -658,5 +700,39 @@ enum AIActionExecutor {
 
     private static func formatDollars(_ amount: Double) -> String {
         String(format: "$%.2f", amount)
+    }
+
+    // MARK: - Net Worth (P9)
+
+    /// Read-only: runs `PayoffSimulator` across all three strategies
+    /// and returns a one-line summary the chat layer can render. The
+    /// optional `extraMonthly` parameter (in dollars) flows through
+    /// `ActionParams.amount` so the model can say e.g. "what if I add
+    /// $200/mo?". Defaults to $0 when not provided.
+    private static func simulatePayoff(_ action: AIAction, context: ModelContext) -> ExecutionResult {
+        let extra = Decimal(action.params.amount ?? 0)
+        let descriptor = FetchDescriptor<Account>(
+            predicate: #Predicate { !$0.isArchived && !$0.isClosed }
+        )
+        let accounts = (try? context.fetch(descriptor)) ?? []
+        let liabilities = accounts.filter { $0.type.isLiability && abs($0.currentBalance) > 0 }
+
+        guard !liabilities.isEmpty else {
+            return ExecutionResult(action: action, success: true, summary: "No active liabilities to simulate.")
+        }
+
+        let plans = PayoffStrategy.allCases.map {
+            PayoffSimulator.simulate(accounts: liabilities, strategy: $0, extraMonthly: extra)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        let lines = plans.map { plan -> String in
+            let date = plan.payoffDate.map { formatter.string(from: $0) } ?? "never"
+            return "  • \(plan.strategy.label): clear by \(date) (\(plan.months)mo, interest \(formatDollars(NSDecimalNumber(decimal: plan.totalInterest).doubleValue)))"
+        }
+        let extraNote = extra > 0 ? " with \(formatDollars(NSDecimalNumber(decimal: extra).doubleValue))/mo extra" : ""
+        let summary = "Payoff simulation\(extraNote):\n" + lines.joined(separator: "\n")
+        return ExecutionResult(action: action, success: true, summary: summary)
     }
 }

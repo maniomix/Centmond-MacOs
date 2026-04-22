@@ -15,6 +15,8 @@ final class BudgetCategory {
     @Relationship var parentCategory: BudgetCategory?
     @Relationship(inverse: \BudgetCategory.parentCategory) var subcategories: [BudgetCategory]
     @Relationship(inverse: \Transaction.category) var transactions: [Transaction]
+    @Relationship(inverse: \RecurringTransaction.category) var recurrings: [RecurringTransaction] = []
+    @Relationship(inverse: \TransactionSplit.category) var splits: [TransactionSplit] = []
 
     init(
         name: String,
@@ -33,6 +35,8 @@ final class BudgetCategory {
         self.sortOrder = sortOrder
         self.subcategories = []
         self.transactions = []
+        self.recurrings = []
+        self.splits = []
         self.updatedAt = .now
     }
 }

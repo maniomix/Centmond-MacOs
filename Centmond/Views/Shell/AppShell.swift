@@ -8,6 +8,13 @@ struct AppShell: View {
     @State private var router = AppRouter()
     @State private var showCommandPalette = false
     @Query private var transactions: [Transaction]
+    // Debounce for the scheduled-services pipeline. Scene-active fires on
+    // every foreground return (cmd-tab, notification, spotlight, etc.).
+    // Without this gate each wake ran Recurring + NetWorth + AIInsight +
+    // ReportSchedule — four full-table scans — no matter how recent the
+    // last run. 30s gate keeps intent (catch new day) but kills churn.
+    @State private var lastPipelineRun: Date?
+    private static let pipelineDebounceSeconds: TimeInterval = 30
     /// Explicit control of sidebar visibility. Default `.all` = sidebar
     /// always shown on launch. Without this binding the system could
     /// auto-collapse the sidebar (window too narrow, previous-session
@@ -17,6 +24,22 @@ struct AppShell: View {
     /// can `columnVisibility = .all` programmatically and the sidebar
     /// re-appears.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+    /// Runs the scheduled-services pipeline (Recurring + NetWorth history +
+    /// AI insights + Report schedules). `force=true` skips the debounce
+    /// (used for launch + midnight ticks). `force=false` respects the
+    /// 30-second gate so scene-active foreground returns don't thrash.
+    private func runScheduledPipeline(force: Bool) {
+        if !force, let last = lastPipelineRun,
+           Date.now.timeIntervalSince(last) < Self.pipelineDebounceSeconds {
+            return
+        }
+        _ = RecurringScheduler.tick(in: modelContext)
+        NetWorthHistoryService.tick(context: modelContext)
+        AIInsightEngine.shared.refresh(context: modelContext)
+        ReportScheduleService.runDueSchedules(context: modelContext)
+        lastPipelineRun = .now
+    }
 
     private var inspectorBinding: Binding<Bool> {
         Binding(
@@ -93,18 +116,26 @@ struct AppShell: View {
             // scenePhase observer below covers wake-from-background.
             // RecurringScheduler.tick is idempotent so overlapping fires
             // are harmless.
+            // First launch on a fresh store: fill a year of daily
+            // Net Worth history from current balances + transaction
+            // deltas so the trend chart isn't empty on day zero.
+            NetWorthHistoryService.backfillIfNeeded(context: modelContext)
+
             while !Task.isCancelled {
-                _ = RecurringScheduler.tick(in: modelContext)
-                AIInsightEngine.shared.refresh(context: modelContext)
+                runScheduledPipeline(force: true)
                 let delay = RecurringScheduler.secondsUntilNextMidnight()
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            _ = RecurringScheduler.tick(in: modelContext)
-            AIInsightEngine.shared.refresh(context: modelContext)
+            runScheduledPipeline(force: false)
         }
+        // Review Queue hidden — transaction churn no longer needs to
+        // repoll its count.
+        // .onChange(of: transactions.count) { _, _ in
+        //     refreshReviewQueueCount()
+        // }
         .onAppear {
             // Guarantee the sidebar is visible on app launch. macOS
             // auto-restores the previous session's column visibility
@@ -126,6 +157,22 @@ struct AppShell: View {
 // MARK: - Panel Dismissal
 
 extension AppShell {
+    /// Rebuilds the review queue count on a background dispatch so the
+    /// main thread is free to render the sidebar + dashboard while the
+    /// scan runs. Result is published back onto the router on MainActor.
+    ///
+    /// Why not synchronous: on a multi-thousand-row store the scan is
+    /// still non-trivial (detectors traverse faulting relationships)
+    /// and synchronous calls on launch + scene-active caused jank that
+    /// looked like the Review Queue screen hanging.
+    func refreshReviewQueueCount() {
+        let ctx = modelContext
+        Task { @MainActor in
+            let count = ReviewQueueService.buildQueue(in: ctx).count
+            router.reviewQueueCount = count
+        }
+    }
+
     /// Closes any shell-level panels that are currently open. Returns
     /// whether anything was actually closed, so callers (Esc key,
     /// background tap) can decide if the event was consumed.

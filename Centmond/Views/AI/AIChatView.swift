@@ -2296,6 +2296,11 @@ struct AIChatView: View {
             case .updateBalance: return "I'll update \(p.accountName ?? "account") balance."
             case .assignMember: return "I'll assign \(p.memberName ?? "member") to that transaction."
             case .analyze, .compare, .forecast, .advice: return nil
+            case .simulatePayoff:
+                if let extra = p.amount, extra > 0 {
+                    return "I'll simulate paying off your debt with $\(Int(extra))/mo extra."
+                }
+                return "I'll run a debt-payoff simulation across all three strategies."
             }
         }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")

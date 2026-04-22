@@ -26,10 +26,13 @@ enum AIContextBuilder {
         sections.append(categoryBreakdown(context: context, month: now))
         sections.append(goalSection(context: context))
         sections.append(accountSection(context: context))
+        sections.append(netWorthSection(context: context))
         sections.append(subscriptionSection(context: context))
         sections.append(recurringSection(context: context))
         sections.append(forecastSection(context: context))
         sections.append(householdSection(context: context))
+        // Review Queue hidden — keep it out of the AI context for now.
+        // sections.append(reviewQueueSection(context: context))
 
         return sections
             .filter { !$0.isEmpty }
@@ -70,8 +73,16 @@ enum AIContextBuilder {
         accountSection(context: context)
     }
 
+    static func buildNetWorthOnly(context: ModelContext) -> String {
+        netWorthSection(context: context)
+    }
+
     static func buildForecastOnly(context: ModelContext, horizonDays: Int = 30) -> String {
         forecastSection(context: context, horizonDays: horizonDays)
+    }
+
+    static func buildReviewQueueOnly(context: ModelContext) -> String {
+        reviewQueueSection(context: context)
     }
 
     // MARK: - Forecast
@@ -337,6 +348,114 @@ enum AIContextBuilder {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Net Worth
+
+    /// Snapshot-driven net-worth block. Rolling deltas (30/90/365d),
+    /// trend slope, runway months from cash, asset/liability mix as
+    /// % shares, and any open milestones derived from history. Only
+    /// emitted when there are at least 7 snapshots — otherwise the
+    /// numbers would be too volatile to reason over.
+    private static func netWorthSection(context: ModelContext) -> String {
+        let snaps = (try? context.fetch(FetchDescriptor<NetWorthSnapshot>(
+            sortBy: [SortDescriptor(\.date)]
+        ))) ?? []
+        guard let latest = snaps.last, snaps.count >= 7 else { return "" }
+
+        var lines = ["NET WORTH"]
+        lines.append("  Current: \(dollars(latest.netWorth)) (assets \(dollars(latest.totalAssets)) − liabilities \(dollars(latest.totalLiabilities)))")
+
+        // Rolling deltas
+        for (label, days) in [("30d", 30), ("90d", 90), ("1y", 365)] {
+            if let baseline = closestSnapshot(snaps, daysBack: days, from: latest.date) {
+                let delta = latest.netWorth - baseline.netWorth
+                let pct: Double = baseline.netWorth != 0
+                    ? Double(truncating: (delta / abs(baseline.netWorth)) as NSDecimalNumber) * 100
+                    : 0
+                let sign = delta >= 0 ? "+" : "−"
+                lines.append("  \(label): \(sign)\(dollars(abs(delta))) (\(String(format: "%+.1f%%", pct)))")
+            }
+        }
+
+        // Trend slope ($/day over last 30d, simple endpoints)
+        if let baseline30 = closestSnapshot(snaps, daysBack: 30, from: latest.date),
+           latest.date > baseline30.date {
+            let days = max(1.0, latest.date.timeIntervalSince(baseline30.date) / 86_400)
+            let slope = (latest.netWorth - baseline30.netWorth) / Decimal(days)
+            lines.append("  Slope (30d): \(dollars(slope))/day")
+        }
+
+        // Asset / liability mix
+        let accounts = (try? context.fetch(FetchDescriptor<Account>(
+            predicate: #Predicate { !$0.isArchived && !$0.isClosed && $0.includeInNetWorth }
+        ))) ?? []
+        let assetMix = mixLine(accounts: accounts.filter { !$0.type.isLiability },
+                               total: latest.totalAssets,
+                               liabilities: false)
+        if !assetMix.isEmpty { lines.append("  Asset mix: \(assetMix)") }
+
+        let liabMix = mixLine(accounts: accounts.filter { $0.type.isLiability },
+                              total: latest.totalLiabilities,
+                              liabilities: true)
+        if !liabMix.isEmpty { lines.append("  Liability mix: \(liabMix)") }
+
+        // Cash runway in months (cash-like balance / 30d avg burn × 30)
+        if let runway = runwayMonths(context: context, accounts: accounts) {
+            lines.append("  Cash runway: \(String(format: "%.1f", runway)) months")
+        }
+
+        // Open milestones in the last 30d (compact)
+        let recent = NetWorthMilestoneDetector.detect(from: snaps).filter {
+            Calendar.current.dateComponents([.day], from: $0.date, to: latest.date).day ?? 0 <= 30
+        }
+        if !recent.isEmpty {
+            let titles = recent.prefix(3).map(\.title).joined(separator: ", ")
+            lines.append("  Recent milestones (30d): \(titles)")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private static func closestSnapshot(_ snaps: [NetWorthSnapshot], daysBack: Int, from date: Date) -> NetWorthSnapshot? {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -daysBack, to: date) ?? .distantPast
+        return snaps.last(where: { $0.date <= cutoff })
+    }
+
+    private static func mixLine(accounts: [Account], total: Decimal, liabilities: Bool) -> String {
+        guard total > 0, !accounts.isEmpty else { return "" }
+        var totals: [AccountType: Decimal] = [:]
+        for a in accounts {
+            let v = liabilities ? abs(a.currentBalance) : a.currentBalance
+            guard v > 0 else { continue }
+            totals[a.type, default: 0] += v
+        }
+        let parts = totals
+            .sorted { $0.value > $1.value }
+            .prefix(4)
+            .map { type, value -> String in
+                let pct = Double(truncating: (value / total) as NSDecimalNumber) * 100
+                return "\(type.displayName) \(Int(pct))%"
+            }
+        return parts.joined(separator: ", ")
+    }
+
+    private static func runwayMonths(context: ModelContext, accounts: [Account]) -> Double? {
+        let cash = accounts
+            .filter { $0.type == .checking || $0.type == .savings || $0.type == .cash }
+            .reduce(Decimal.zero) { $0 + $1.currentBalance }
+        guard cash > 0 else { return nil }
+
+        let cal = Calendar.current
+        let cutoff = cal.date(byAdding: .day, value: -30, to: .now) ?? .distantPast
+        let txDesc = FetchDescriptor<Transaction>(predicate: #Predicate {
+            $0.date >= cutoff && !$0.isIncome && !$0.isTransfer
+        })
+        guard let txns = try? context.fetch(txDesc), !txns.isEmpty else { return nil }
+        let monthly = txns.reduce(Decimal.zero) { $0 + $1.amount }
+        guard monthly > 0 else { return nil }
+        let ratio = (cash / monthly) as NSDecimalNumber
+        return ratio.doubleValue
+    }
+
     // MARK: - Subscriptions
 
     private static func subscriptionSection(context: ModelContext) -> String {
@@ -472,7 +591,9 @@ enum AIContextBuilder {
         let descriptor = FetchDescriptor<HouseholdMember>(
             sortBy: [SortDescriptor(\.joinedAt)]
         )
-        guard let members = try? context.fetch(descriptor), !members.isEmpty else { return "" }
+        guard let all = try? context.fetch(descriptor), !all.isEmpty else { return "" }
+        let members = all.filter(\.isActive)
+        guard !members.isEmpty else { return "" }
 
         let names = members.map(\.name).joined(separator: ", ")
         var lines = ["HOUSEHOLD MEMBERS: \(names)"]
@@ -486,11 +607,74 @@ enum AIContextBuilder {
             let memberSpend = txns
                 .filter { $0.householdMember?.id == member.id }
                 .reduce(Decimal.zero) { $0 + $1.amount }
-            if memberSpend > 0 {
-                lines.append("  \(member.name): \(dollars(memberSpend)) this month")
+            let netWorth = HouseholdService.netWorth(for: member, in: context)
+            var tail: [String] = []
+            if memberSpend > 0 { tail.append("\(dollars(memberSpend)) spent") }
+            if netWorth != 0 { tail.append("net worth \(dollars(netWorth))") }
+            if !tail.isEmpty {
+                lines.append("  \(member.name): \(tail.joined(separator: "; "))")
             }
         }
 
+        // Settle-up ledger (P7): show members with outstanding balances.
+        let balances = HouseholdService.balances(in: context)
+        let owed = balances.filter { $0.amount > 0 }
+        let owes = balances.filter { $0.amount < 0 }
+        if !owed.isEmpty || !owes.isEmpty {
+            lines.append("SETTLE-UP:")
+            for b in owed {
+                lines.append("  \(b.member.name) is owed \(dollars(b.amount))")
+            }
+            for b in owes {
+                lines.append("  \(b.member.name) owes \(dollars(-b.amount))")
+            }
+        }
+
+        // Open splits summary.
+        let shareDescriptor = FetchDescriptor<ExpenseShare>()
+        let shares = (try? context.fetch(shareDescriptor)) ?? []
+        let openShares = shares.filter { $0.status == .owed }
+        if !openShares.isEmpty {
+            lines.append("OPEN SPLITS: \(openShares.count) share row\(openShares.count == 1 ? "" : "s") awaiting settle-up")
+        }
+
+        // Members with no attribution at all — useful hint for AI advice.
+        let unattributed = members.filter { $0.transactions.isEmpty }
+        if !unattributed.isEmpty {
+            lines.append("UNATTRIBUTED MEMBERS: " + unattributed.map(\.name).joined(separator: ", "))
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Review Queue
+
+    /// One-paragraph snapshot of what the Review Queue currently holds.
+    /// Lets chat answer "what needs my attention?" without pulling raw
+    /// detector output. Empty string when there's nothing in the queue
+    /// (no section rather than a noisy "0 items" line).
+    private static func reviewQueueSection(context: ModelContext) -> String {
+        let items = ReviewQueueService.buildQueue(in: context)
+        guard !items.isEmpty else { return "" }
+
+        let total = items.count
+        let byReason = Dictionary(grouping: items, by: \.reason)
+        let blockers = items.filter { $0.severity == .blocker }.count
+
+        var lines = ["REVIEW QUEUE: \(total) \(total == 1 ? "item" : "items") awaiting review"]
+        if blockers > 0 {
+            lines.append("  \(blockers) blocker\(blockers == 1 ? "" : "s") — resolve before relying on balance math")
+        }
+
+        let breakdown = ReviewReasonCode.allCases
+            .compactMap { reason -> String? in
+                guard let count = byReason[reason]?.count, count > 0 else { return nil }
+                return "\(reason.title): \(count)"
+            }
+            .prefix(6)
+        if !breakdown.isEmpty {
+            lines.append("  By reason — " + breakdown.joined(separator: ", "))
+        }
         return lines.joined(separator: "\n")
     }
 

@@ -27,7 +27,18 @@ final class Account {
     // Credit card fields
     var creditLimit: Decimal?
 
+    // Liability payoff fields (P6) — optional so existing stores migrate
+    // cleanly per SwiftData enum-migration trap rule (optionals are safe).
+    var interestRatePercent: Double?      // APR, e.g. 19.99
+    var minimumPaymentMonthly: Decimal?   // dollar amount; if nil falls back to 2% of balance
+
+    // Household ownership (P4). Nil = joint / shared, non-nil = belongs to
+    // that member. Used by per-member net worth + transaction scoping. Stored
+    // as an optional relationship so existing stores migrate cleanly.
+    @Relationship var ownerMember: HouseholdMember?
+
     @Relationship(inverse: \Transaction.account) var transactions: [Transaction]
+    @Relationship(deleteRule: .cascade, inverse: \AccountBalancePoint.account) var balanceHistory: [AccountBalancePoint] = []
 
     init(
         name: String,

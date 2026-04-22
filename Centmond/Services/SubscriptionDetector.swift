@@ -153,6 +153,13 @@ enum SubscriptionDetector {
         sub.source = .detected
         sub.autoDetected = true
         sub.detectionConfidence = candidate.confidence
+        // Carry over attribution from the detected charges — if this merchant
+        // has a dominant payer in ledger history the subscription inherits it
+        // (P2). Conservative threshold in HouseholdService avoids false picks.
+        sub.householdMember = HouseholdService.resolveMember(
+            forPayee: candidate.displayName,
+            in: context
+        )
         context.insert(sub)
 
         // Backfill charge history so the detail timeline is populated from

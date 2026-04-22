@@ -327,6 +327,12 @@ struct NewSubscriptionSheet: View {
         if hour >= 22 || hour < 4 {
             subscription.wasImpulseSignup = true
         }
+        // Inherit payer from charge history so new entries for an existing
+        // service pick up attribution without the user re-picking (P2).
+        subscription.householdMember = HouseholdService.resolveMember(
+            forPayee: subscription.serviceName,
+            in: modelContext
+        )
         modelContext.insert(subscription)
         dismiss()
     }

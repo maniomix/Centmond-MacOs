@@ -26,10 +26,17 @@ struct CentmondApp: App {
             DismissedInsight.self,
             RecurringTransaction.self,
             HouseholdMember.self,
+            HouseholdGroup.self,
+            HouseholdSettlement.self,
+            ExpenseShare.self,
             Tag.self,
             SmartFolder.self,
             ChatSession.self,
             ChatMessageRecord.self,
+            NetWorthSnapshot.self,
+            AccountBalancePoint.self,
+            SavedReport.self,
+            ScheduledReport.self,
         ])
         let config = ModelConfiguration(schema: schema)
         do {

@@ -43,6 +43,10 @@ struct SheetRouter: View {
                 EditRecurringSheet(item: item)
             case .budgetPlanner:
                 BudgetPlannerSheet()
+            case .shareTransaction(let transaction):
+                HouseholdShareSheet(transaction: transaction)
+            case .householdSettleUp:
+                HouseholdSettleUpSheet()
             }
         }
         .frame(width: sheet.preferredWidth)

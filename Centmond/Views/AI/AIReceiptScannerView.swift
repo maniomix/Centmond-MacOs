@@ -257,9 +257,30 @@ struct AIReceiptScannerView: View {
 
         if panel.runModal() == .OK, let url = panel.url,
            let image = NSImage(contentsOf: url) {
-            scannedImage = image
+            // Preview-only copy is downsampled so iPhone photos (10+ MB)
+            // don't sit in @State for the sheet's lifetime. Scanner still
+            // gets the full-resolution image for OCR accuracy.
+            scannedImage = Self.downsample(image, maxDimension: 640) ?? image
             startScan(image: image)
         }
+    }
+
+    /// Downsamples an NSImage to `maxDimension` on its longest side, preserving
+    /// aspect ratio. Returns nil if the image is already smaller.
+    private static func downsample(_ image: NSImage, maxDimension: CGFloat) -> NSImage? {
+        let size = image.size
+        let longest = max(size.width, size.height)
+        guard longest > maxDimension else { return nil }
+        let scale = maxDimension / longest
+        let target = NSSize(width: size.width * scale, height: size.height * scale)
+        let out = NSImage(size: target)
+        out.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: target),
+                   from: NSRect(origin: .zero, size: size),
+                   operation: .copy,
+                   fraction: 1.0)
+        out.unlockFocus()
+        return out
     }
 
     private func startScan(image: NSImage) {
@@ -311,6 +332,11 @@ struct AIReceiptScannerView: View {
             isIncome: false,
             account: account,
             category: category
+        )
+        // Attribute by payee history if a dominant member exists (P2).
+        txn.householdMember = HouseholdService.resolveMember(
+            forPayee: txn.payee,
+            in: context
         )
         context.insert(txn)
         try? context.save()

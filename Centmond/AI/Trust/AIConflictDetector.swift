@@ -318,7 +318,8 @@ enum AIConflictDetector {
             case .cancelRecurring, .analyze, .compare, .forecast, .advice,
                  .createGoal, .addSubscription, .addRecurring, .editRecurring,
                  .assignMember,
-                 .pauseSubscription, .resumeSubscription, .detectSubscriptions:
+                 .pauseSubscription, .resumeSubscription, .detectSubscriptions,
+                 .simulatePayoff:
                 break
             }
 
@@ -417,7 +418,7 @@ enum AIConflictDetector {
         case .cancelSubscription, .cancelRecurring, .updateGoal,
              .updateBalance, .transfer, .assignMember:
             return false
-        case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
+        case .analyze, .compare, .forecast, .advice, .detectSubscriptions, .simulatePayoff:
             return true
         }
     }

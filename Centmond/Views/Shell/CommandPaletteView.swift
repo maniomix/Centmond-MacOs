@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct CommandPaletteView: View {
     @Binding var isPresented: Bool
     let router: AppRouter
+    @Environment(\.modelContext) private var modelContext
     @State private var searchText = ""
     @State private var selectedIndex = 0
     @State private var hoveredID: UUID?
@@ -159,6 +161,27 @@ struct CommandPaletteView: View {
             router.showSheet(sheetType)
         case .toggleInspector:
             router.isInspectorVisible.toggle()
+        case .triageReviewQueue:
+            router.requestTriage = true
+            router.navigate(to: .reviewQueue)
+        case .clearMemberScope:
+            router.selectedMemberID = nil
+        case .acceptAllPending:
+            // "Accept all pending" — only the pendingTxn reason so we
+            // don't silently resolve things like missingAccount or
+            // duplicateCandidate. Each row gets isReviewed + status
+            // flipped, matching the per-row Accept behaviour.
+            let items = ReviewQueueService.buildQueue(in: modelContext)
+                .filter { $0.reason == .pendingTxn }
+            let descriptor = FetchDescriptor<Transaction>()
+            let allTxs = (try? modelContext.fetch(descriptor)) ?? []
+            let byID = Dictionary(uniqueKeysWithValues: allTxs.map { ($0.id, $0) })
+            for item in items {
+                guard let txID = item.transactionID, let tx = byID[txID] else { continue }
+                tx.isReviewed = true
+                if tx.status == .pending { tx.status = .cleared }
+                tx.updatedAt = .now
+            }
         }
     }
 }
@@ -177,6 +200,9 @@ struct PaletteCommand: Identifiable {
         case navigate(Screen)
         case sheet(SheetType)
         case toggleInspector
+        case triageReviewQueue
+        case acceptAllPending
+        case clearMemberScope
     }
 
     static let allCommands: [PaletteCommand] = [
@@ -192,8 +218,14 @@ struct PaletteCommand: Identifiable {
         PaletteCommand(title: "Go to Insights", icon: "lightbulb.fill", category: "Navigation", shortcutHint: "⌘9", action: .navigate(.insights)),
         PaletteCommand(title: "Go to Net Worth", icon: "chart.bar.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.netWorth)),
         PaletteCommand(title: "Go to Reports", icon: "doc.text.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.reports)),
-        PaletteCommand(title: "Go to Review Queue", icon: "tray.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.reviewQueue)),
+        // Review Queue commands temporarily hidden. Uncomment to
+        // restore them — the switch cases below are kept compiled.
+        // PaletteCommand(title: "Go to Review Queue", icon: "tray.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.reviewQueue)),
+        // PaletteCommand(title: "Triage Review Queue", icon: "bolt.fill", category: "Review Queue", shortcutHint: nil, action: .triageReviewQueue),
+        // PaletteCommand(title: "Accept All Pending", icon: "checkmark.circle.fill", category: "Review Queue", shortcutHint: nil, action: .acceptAllPending),
         PaletteCommand(title: "Go to Household", icon: "person.2.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.household)),
+        PaletteCommand(title: "Record Payment", icon: "arrow.left.arrow.right.circle", category: "Household", shortcutHint: nil, action: .sheet(.householdSettleUp)),
+        PaletteCommand(title: "Clear Member Scope", icon: "person.crop.circle.badge.xmark", category: "Household", shortcutHint: nil, action: .clearMemberScope),
         PaletteCommand(title: "Go to Settings", icon: "gearshape.fill", category: "Navigation", shortcutHint: nil, action: .navigate(.settings)),
 
         // Quick Actions

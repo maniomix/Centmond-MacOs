@@ -17,6 +17,7 @@ enum BackupService {
         var includeCategories: Bool
         var includeAccounts: Bool
         var includeNotes: Bool
+        var includeHouseholdMembers: Bool = true
     }
 
     // MARK: - Transaction export
@@ -67,6 +68,7 @@ enum BackupService {
         var headers = ["Date", "Payee", "Amount", "Type"]
         if options.includeCategories { headers.append("Category") }
         if options.includeAccounts { headers.append("Account") }
+        if options.includeHouseholdMembers { headers.append("Member") }
         if options.includeNotes { headers.append("Notes") }
         headers.append("Transfer")
 
@@ -83,6 +85,7 @@ enum BackupService {
             ]
             if options.includeCategories { fields.append(csvEscape(tx.category?.name ?? "")) }
             if options.includeAccounts { fields.append(csvEscape(tx.account?.name ?? "")) }
+            if options.includeHouseholdMembers { fields.append(csvEscape(tx.householdMember?.name ?? "")) }
             if options.includeNotes { fields.append(csvEscape(tx.notes ?? "")) }
             fields.append(tx.isTransfer ? "yes" : "")
             lines.append(fields.joined(separator: ","))

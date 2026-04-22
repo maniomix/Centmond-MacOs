@@ -41,6 +41,12 @@ final class Transaction {
     @Relationship(deleteRule: .cascade, inverse: \TransactionSplit.parentTransaction)
     var splits: [TransactionSplit]
 
+    // Per-member shares of a shared expense (Household P1). Cascade-delete so a
+    // removed transaction cleans up its share rows; the HouseholdMember side
+    // is nullify (see HouseholdMember.shares).
+    @Relationship(deleteRule: .cascade, inverse: \ExpenseShare.parentTransaction)
+    var shares: [ExpenseShare] = []
+
     init(
         date: Date = .now,
         payee: String,

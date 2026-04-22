@@ -133,7 +133,13 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     }
 
     var screens: [Screen] {
-        Screen.allCases.filter { $0.section == self }
+        Screen.allCases
+            .filter { $0.section == self }
+            // Review Queue is temporarily hidden from the sidebar. Uncomment
+            // the filter below to bring it back; the screen itself, its
+            // service layer, detectors, telemetry, and settings tab all
+            // still live in the project.
+            .filter { $0 != .reviewQueue }
     }
 }
 
@@ -149,6 +155,8 @@ enum SheetType: Identifiable {
     case newRecurring
     case importCSV
     case splitTransaction(Transaction)
+    case shareTransaction(Transaction)
+    case householdSettleUp
     case proUpgrade
     case export
     case editAccount(Account)
@@ -170,6 +178,8 @@ enum SheetType: Identifiable {
         case .newRecurring: "newRecurring"
         case .importCSV: "importCSV"
         case .splitTransaction: "splitTransaction"
+        case .shareTransaction: "shareTransaction"
+        case .householdSettleUp: "householdSettleUp"
         case .proUpgrade: "proUpgrade"
         case .export: "export"
         case .editAccount: "editAccount"
@@ -196,6 +206,8 @@ enum SheetType: Identifiable {
         case .newBudgetCategory: 400
         case .detectedSubscriptions: 640
         case .detectedRecurring: 640
+        case .shareTransaction: 520
+        case .householdSettleUp: 560
         default: CentmondTheme.Sizing.sheetWidth
         }
     }
@@ -227,11 +239,23 @@ final class AppRouter {
     var isInspectorVisible: Bool = false
     var reviewQueueCount: Int = 0
 
+    /// Set by the command palette "Triage Review Queue" action. The
+    /// Review Queue hub consumes + resets this in `onAppear` to open
+    /// triage mode directly instead of landing on the list view.
+    var requestTriage: Bool = false
+
     /// Drives the onboarding overlay in `AppShell`. Not persisted — the
     /// persistent flag is `UserDefaults["hasCompletedOnboarding"]`. This
     /// Observable var exists so the overlay can be shown/hidden during a
     /// single session (first launch + replay from Settings).
     var isOnboardingVisible: Bool = false
+
+    /// Global member scope. `nil` = all members (household-wide). Non-nil =
+    /// the whole app is scoped to that member: Transactions list filters,
+    /// Dashboard cards narrow, Reports default to that member. Set from the
+    /// Sidebar member chip strip or the command palette. Consumers read it
+    /// via `AppRouter.memberPredicate(_:)` or directly for aggregate math.
+    var selectedMemberID: UUID?
     var selectedMonth: Date = .now {
         didSet { recomputeMonthBounds() }
     }
@@ -302,6 +326,10 @@ final class AppRouter {
         case .transactions:     screen = .transactions
         case .cashflow:         screen = .forecasting
         case .netWorth:         screen = .netWorth
+        case .household:        screen = .household
+        case .householdSettleUp:
+            screen = .household
+            activeSheet = .householdSettleUp
         }
         navigate(to: screen)
     }

@@ -14,7 +14,20 @@ struct NewTransactionSheet: View {
     @Query private var allSubscriptions: [Subscription]
     /// Powers payee autocomplete + category auto-suggestion. Sorted by
     /// date desc so more-recent entries dominate frequency ties.
-    @Query(sort: \Transaction.date, order: .reverse) private var historicalTransactions: [Transaction]
+    ///
+    /// Bounded to the last 365 days — type-ahead needs recent payees, not
+    /// full history. Unbounded before: a multi-year database materialized
+    /// thousands of Transaction objects on every sheet present even though
+    /// >99% of suggestions come from the trailing year.
+    @Query(filter: Self.lastYearPredicate, sort: \Transaction.date, order: .reverse)
+    private var historicalTransactions: [Transaction]
+
+    /// Static predicate capturing "within the last year". Declared static
+    /// so the macro can resolve `Date.now` offset at property-wrapper init.
+    private static var lastYearPredicate: Predicate<Transaction> {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -365, to: .now) ?? .now
+        return #Predicate<Transaction> { $0.date >= cutoff }
+    }
     /// Active goals surface in the "Allocate to Goals" panel when income is selected.
     @Query(sort: [SortDescriptor(\Goal.priority, order: .reverse), SortDescriptor(\Goal.createdAt)])
     private var allGoals: [Goal]
@@ -536,6 +549,13 @@ struct NewTransactionSheet: View {
             .padding(.horizontal, CentmondTheme.Spacing.lg)
             .animation(.easeInOut(duration: 0.2), value: payeeSuggestions)
             .animation(.easeInOut(duration: 0.2), value: budgetImpactCaption?.text)
+            // Income↔expense layout changes (category filter swap, budget
+            // impact caption toggling) need the same symmetric spring the
+            // type chips already use. Without this the fields panel jumps
+            // in one direction (income→expense) because the caption
+            // removal happens without an animation transaction covering
+            // siblings that only depend on isIncome.
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isIncome)
             .offset(y: appeared ? 0 : 8)
             .opacity(appeared ? 1 : 0)
             .animation(CentmondTheme.Motion.default.delay(0.1), value: appeared)
@@ -544,18 +564,25 @@ struct NewTransactionSheet: View {
             // this income into active goals. Writes GoalContributions with
             // .fromIncome kind + this transaction's id on save so deleting
             // the income cascades the goal adjustment back out.
+            // Symmetric `asymmetric` transitions so insertion and removal
+            // each slide from the same edge — matches the type-chip spring.
+            // Earlier `.move(edge: .top)` removed by sliding UP, which
+            // looked fine going expense→income (panel slid in from top)
+            // but felt abrupt going income→expense (everything below
+            // snapped up). Pure opacity + a small scale gives a calm
+            // symmetric fade that reads cleanly in both directions.
             if isIncome && !activeGoals.isEmpty {
                 goalAllocationPanel
                     .padding(.horizontal, CentmondTheme.Spacing.lg)
                     .padding(.top, CentmondTheme.Spacing.md)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
             if let sub = candidateSubscription {
                 subscriptionLinkChip(for: sub)
                     .padding(.horizontal, CentmondTheme.Spacing.lg)
                     .padding(.top, CentmondTheme.Spacing.md)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
             Spacer(minLength: CentmondTheme.Spacing.lg)
@@ -578,6 +605,16 @@ struct NewTransactionSheet: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 appeared = true
                 focusedField = .amount
+            }
+            // Default payer (P9) — if Settings specifies a default household
+            // payer AND the user hasn't picked yet, seed the member picker.
+            // Empty/unmatched UUIDs fall through to nil (Unassigned).
+            if selectedMember == nil {
+                let raw = UserDefaults.standard.string(forKey: "householdDefaultPayerID") ?? ""
+                if let uuid = UUID(uuidString: raw),
+                   let defaultMember = members.first(where: { $0.id == uuid && $0.isActive }) {
+                    selectedMember = defaultMember
+                }
             }
         }
         // Auto-suggest category when the payee EXACTLY matches a
@@ -864,7 +901,11 @@ struct NewTransactionSheet: View {
         var opts: [CentmondDropdownOption] = [
             CentmondDropdownOption(id: "__reset__", name: "Unassigned", isResetOption: true)
         ]
-        opts.append(contentsOf: members.map { m in
+        // Only active members show up in the picker. Archived members stay
+        // in the store (their historical attribution is preserved) but they
+        // must NOT appear as selectable options — otherwise the same name
+        // duplicates in the menu for every restore/re-archive cycle.
+        opts.append(contentsOf: members.filter(\.isActive).map { m in
             CentmondDropdownOption(
                 id: m.id.uuidString,
                 name: m.name,
@@ -1016,6 +1057,16 @@ struct NewTransactionSheet: View {
         )
         modelContext.insert(transaction)
         transaction.householdMember = selectedMember
+        // Auto-split new expenses across the household (P9 Settings toggle).
+        // Skipped for income and transfers — those aren't shared costs.
+        let autoSplit = UserDefaults.standard.bool(forKey: "householdAutoSplitNewExpenses")
+        if autoSplit, !isIncome, !transaction.isTransfer, members.filter(\.isActive).count >= 2 {
+            HouseholdService.applyEqualSplit(
+                to: transaction,
+                members: members.filter(\.isActive),
+                in: modelContext
+            )
+        }
         let resolved = TagService.resolve(input: tagsInput, in: modelContext, existing: existingTags)
         if !resolved.isEmpty {
             transaction.tags = resolved

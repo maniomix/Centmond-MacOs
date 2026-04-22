@@ -113,6 +113,11 @@ struct TransactionInspectorView: View {
 
                         sectionDivider
 
+                        // Household shares section (P3)
+                        sharesSection(transaction)
+
+                        sectionDivider
+
                         // Goal allocations — only renders if this tx funded any goals.
                         TransactionGoalAllocationsView(transactionID: transaction.id)
                             .padding(.horizontal, CentmondTheme.Spacing.md)
@@ -729,6 +734,86 @@ struct TransactionInspectorView: View {
         .padding(.vertical, CentmondTheme.Spacing.md)
     }
 
+    // MARK: - Household Shares Section (P3)
+
+    private func sharesSection(_ tx: Transaction) -> some View {
+        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
+            HStack {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 12))
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        .frame(width: 20)
+                    Text("Shared with")
+                        .font(CentmondTheme.Typography.captionMedium)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    if !tx.shares.isEmpty {
+                        Text("\(tx.shares.count)")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(CentmondTheme.Colors.bgTertiary)
+                            .clipShape(Capsule())
+                    }
+                }
+                Spacer()
+                Button {
+                    router.showSheet(.shareTransaction(tx))
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: tx.shares.isEmpty ? "plus" : "pencil")
+                            .font(.system(size: 10, weight: .medium))
+                        Text(tx.shares.isEmpty ? "Share" : "Edit")
+                    }
+                    .font(CentmondTheme.Typography.caption)
+                }
+                .buttonStyle(GhostButtonStyle())
+                .disabled(isEditing || tx.isTransfer)
+                .help(tx.isTransfer
+                      ? "Transfers cannot be shared"
+                      : (isEditing ? "Finish editing first" : (tx.shares.isEmpty ? "Split across household members" : "Edit shares")))
+            }
+
+            if tx.shares.isEmpty {
+                Text("Not shared")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    .padding(.leading, 32)
+            } else {
+                VStack(spacing: CentmondTheme.Spacing.xs) {
+                    ForEach(tx.shares.sorted(by: { ($0.member?.name ?? "") < ($1.member?.name ?? "") })) { share in
+                        HStack(spacing: CentmondTheme.Spacing.sm) {
+                            if let m = share.member {
+                                Circle().fill(Color(hex: m.avatarColor)).frame(width: 8, height: 8)
+                                Text(m.name)
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            } else {
+                                Circle().fill(CentmondTheme.Colors.textQuaternary).frame(width: 8, height: 8)
+                                Text("Unassigned")
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            }
+                            if share.status == .settled {
+                                Text("settled")
+                                    .font(CentmondTheme.Typography.caption)
+                                    .foregroundStyle(CentmondTheme.Colors.positive)
+                            }
+                            Spacer(minLength: 0)
+                            Text(CurrencyFormat.standard(share.amount))
+                                .font(CentmondTheme.Typography.mono)
+                                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        }
+                    }
+                }
+                .padding(.leading, 32)
+            }
+        }
+        .padding(.horizontal, CentmondTheme.Spacing.lg)
+        .padding(.vertical, CentmondTheme.Spacing.md)
+    }
+
     // MARK: - Metadata Section
 
     private func metadataSection(_ tx: Transaction) -> some View {
@@ -867,6 +952,12 @@ struct TransactionInspectorView: View {
     }
 
     @ViewBuilder
+    /// Label-over-field row. Every row must span the full form width so
+    /// DATE/CATEGORY/ACCOUNT/MEMBER/STATUS line up with PAYEE/NOTES/TAGS —
+    /// earlier versions let the intrinsic-width Picker/DatePicker collapse
+    /// each box to its content size, and the parent VStack (default
+    /// `.center` alignment) then centered those narrow boxes, producing a
+    /// jagged form with randomly-centered fields.
     private func editField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
             Text(label.uppercased())
@@ -876,7 +967,7 @@ struct TransactionInspectorView: View {
 
             content()
                 .padding(.horizontal, CentmondTheme.Spacing.sm)
-                .frame(minHeight: CentmondTheme.Sizing.inputHeight)
+                .frame(maxWidth: .infinity, minHeight: CentmondTheme.Sizing.inputHeight, alignment: .leading)
                 .background(CentmondTheme.Colors.bgInput)
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                 .overlay(
@@ -884,6 +975,7 @@ struct TransactionInspectorView: View {
                         .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
                 )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

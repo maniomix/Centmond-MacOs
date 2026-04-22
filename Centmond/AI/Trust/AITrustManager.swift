@@ -243,7 +243,7 @@ final class AITrustManager {
 
     private func baseActionRule(for type: AIAction.ActionType) -> AITrustLevel {
         switch type {
-        case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
+        case .analyze, .compare, .forecast, .advice, .detectSubscriptions, .simulatePayoff:
             return .auto
         case .addTransaction, .splitTransaction, .transfer,
              .editTransaction, .editRecurring,

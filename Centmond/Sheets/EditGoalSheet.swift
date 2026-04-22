@@ -4,6 +4,7 @@ import SwiftData
 struct EditGoalSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
     let goal: Goal
 
     @State private var name: String
@@ -13,6 +14,7 @@ struct EditGoalSheet: View {
     @State private var monthlyContribution: String
     @State private var hasTargetDate: Bool
     @State private var targetDate: Date
+    @State private var selectedMember: HouseholdMember?
     @State private var hasAttemptedSave = false
     @State private var appeared = false
 
@@ -30,6 +32,7 @@ struct EditGoalSheet: View {
         _monthlyContribution = State(initialValue: DecimalInput.editableString(goal.monthlyContribution))
         _hasTargetDate = State(initialValue: goal.targetDate != nil)
         _targetDate = State(initialValue: goal.targetDate ?? Calendar.current.date(byAdding: .year, value: 1, to: .now)!)
+        _selectedMember = State(initialValue: goal.householdMember)
     }
 
     private var isValid: Bool {
@@ -209,6 +212,29 @@ struct EditGoalSheet: View {
             .opacity(appeared ? 1 : 0)
             .animation(CentmondTheme.Motion.default.delay(0.12), value: appeared)
 
+            // Owner (P4 — private vs shared goal; hidden when no members)
+            if !members.isEmpty {
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Text("Owner")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    Spacer()
+                    Picker("", selection: $selectedMember) {
+                        Text("Shared / household").tag(nil as HouseholdMember?)
+                        ForEach(members.filter(\.isActive)) { m in
+                            Text(m.name).tag(m as HouseholdMember?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+                .padding(.horizontal, CentmondTheme.Spacing.xxl)
+                .padding(.top, CentmondTheme.Spacing.md)
+            }
+
             // Progress preview
             if let pct = progressPercent {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
@@ -320,6 +346,8 @@ struct EditGoalSheet: View {
         } else {
             goal.updatedAt = .now
         }
+
+        goal.householdMember = selectedMember
 
         // Target may have moved even when the saved amount didn't — re-sync status.
         if goal.status == .active, goal.currentAmount >= goal.targetAmount {

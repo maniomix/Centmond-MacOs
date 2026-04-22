@@ -103,9 +103,12 @@ struct AIAction: Identifiable, Equatable, Codable {
         case forecast = "forecast"
         case advice = "advice"
 
+        // Net Worth (analysis-only, P9)
+        case simulatePayoff = "simulate_payoff"
+
         var isMutation: Bool {
             switch self {
-            case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
+            case .analyze, .compare, .forecast, .advice, .detectSubscriptions, .simulatePayoff:
                 return false
             default:
                 return true
@@ -114,7 +117,7 @@ struct AIAction: Identifiable, Equatable, Codable {
 
         var riskLevel: RiskLevel {
             switch self {
-            case .analyze, .compare, .forecast, .advice, .detectSubscriptions:
+            case .analyze, .compare, .forecast, .advice, .detectSubscriptions, .simulatePayoff:
                 return .none
             case .addTransaction, .splitTransaction, .addRecurring,
                  .addSubscription, .addContribution, .createGoal,
@@ -230,6 +233,13 @@ struct AIInsight: Identifiable, Equatable {
         case subscriptionUnused
         case cashflowRisk
         case duplicateTransaction
+        case netWorthDrop
+        case netWorthMilestone
+        case netWorthStagnant
+        case householdImbalance
+        case householdUnpaidShare
+        case householdUnattributedRecurring
+        case householdSpenderSpike
 
         var domain: Domain {
             switch self {
@@ -245,13 +255,20 @@ struct AIInsight: Identifiable, Equatable {
                  .subscriptionUnused:   return .subscription
             case .cashflowRisk:         return .cashflow
             case .duplicateTransaction: return .duplicate
+            case .netWorthDrop,
+                 .netWorthMilestone,
+                 .netWorthStagnant:     return .netWorth
+            case .householdImbalance,
+                 .householdUnpaidShare,
+                 .householdUnattributedRecurring,
+                 .householdSpenderSpike: return .household
             }
         }
     }
 
     // Which area of the app the insight lives in. Drives filter chips + routing.
     enum Domain: String, Codable, Equatable, CaseIterable {
-        case budget, subscription, goal, recurring, anomaly, cashflow, duplicate
+        case budget, subscription, goal, recurring, anomaly, cashflow, duplicate, netWorth, household
     }
 
     // 4-tier: critical (act now) / warning (act soon) / watch (keep an eye) / positive.
@@ -283,6 +300,8 @@ struct AIInsight: Identifiable, Equatable {
         case transactions(UUID?)
         case cashflow
         case netWorth
+        case household
+        case householdSettleUp
     }
 
     /// Verb-first label for the primary CTA button. Prefers the structured
@@ -312,6 +331,7 @@ struct AIInsight: Identifiable, Equatable {
             case .splitTransaction:                                    return "Split transaction"
             case .assignMember:                                        return "Assign"
             case .analyze, .compare, .forecast, .advice:               return "Open"
+            case .simulatePayoff:                                      return "Simulate payoff"
             }
         }
         switch deeplink {
@@ -323,6 +343,8 @@ struct AIInsight: Identifiable, Equatable {
         case .cashflow:         return "See forecast"
         case .dashboard:        return "Open dashboard"
         case .netWorth:         return "Open net worth"
+        case .household:        return "Open household"
+        case .householdSettleUp: return "Settle up"
         case .none:             return ""
         }
     }

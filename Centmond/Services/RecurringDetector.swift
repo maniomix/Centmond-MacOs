@@ -96,7 +96,9 @@ enum RecurringDetector {
             nextOccurrence: candidate.nextOccurrence,
             autoCreate: true,
             account: mostRecent?.account,
-            category: mostRecent?.category
+            category: mostRecent?.category,
+            householdMember: mostRecent?.householdMember
+                ?? HouseholdService.resolveMember(forPayee: candidate.displayName, in: context)
         )
         context.insert(template)
 

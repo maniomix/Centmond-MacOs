@@ -4,6 +4,7 @@ import SwiftData
 struct NetWorthView: View {
     @Environment(AppRouter.self) private var router
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
+    @Query(sort: \NetWorthSnapshot.date) private var snapshots: [NetWorthSnapshot]
 
     /// Accounts eligible for net-worth math: not archived, not closed,
     /// and explicitly opted in via `includeInNetWorth`. The user can
@@ -57,6 +58,15 @@ struct NetWorthView: View {
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
                         netWorthSummary
+                        NetWorthMilestonesCard(snapshots: snapshots)
+                        NetWorthTrendChart(snapshots: snapshots)
+                        NetWorthCompositionCard(
+                            assetSlices: NetWorthCompositionCard.slices(from: assetAccounts, liabilities: false),
+                            liabilitySlices: NetWorthCompositionCard.slices(from: liabilityAccounts, liabilities: true),
+                            totalAssets: totalAssets,
+                            totalLiabilities: totalLiabilities
+                        )
+                        LiabilityPayoffCard(liabilityAccounts: liabilityAccounts)
                         breakdown
                     }
                     .padding(CentmondTheme.Spacing.xxl)
@@ -304,15 +314,27 @@ struct NetWorthView: View {
     // MARK: - Account Row with proportion bar
 
     private func nwAccountRow(account: Account, fraction: Double, color: Color, isSelected: Bool) -> some View {
-        Button {
+        let history = recentHistory(for: account, days: 30)
+        let delta30: Decimal = {
+            guard let first = history.first else { return 0 }
+            return account.currentBalance - first.balance
+        }()
+        let isLiability = account.type.isLiability
+
+        return Button {
             router.inspectAccount(account.id)
         } label: {
             VStack(spacing: CentmondTheme.Spacing.xs) {
-                HStack {
-                    Image(systemName: account.type.iconName)
-                        .font(.system(size: 14))
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .frame(width: 24)
+                HStack(spacing: CentmondTheme.Spacing.sm) {
+                    if isLiability, let util = account.creditUtilization {
+                        UtilizationRing(utilization: util)
+                            .frame(width: 24)
+                    } else {
+                        Image(systemName: account.type.iconName)
+                            .font(.system(size: 14))
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .frame(width: 24)
+                    }
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(account.name)
@@ -328,12 +350,20 @@ struct NetWorthView: View {
                         }
                     }
 
-                    Spacer()
+                    Spacer(minLength: 8)
+
+                    AccountSparkline(points: history, color: color)
+                        .frame(width: 64, height: 22)
+
+                    if delta30 != 0 {
+                        AccountChangeChip(delta: delta30, isLiability: isLiability)
+                    }
 
                     Text("\(Int(fraction * 100))%")
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                         .monospacedDigit()
+                        .frame(width: 32, alignment: .trailing)
 
                     Text(CurrencyFormat.standard(abs(account.currentBalance)))
                         .font(CentmondTheme.Typography.mono)
@@ -360,5 +390,15 @@ struct NetWorthView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plainHover)
+    }
+
+    /// Last `days` days of `AccountBalancePoint`s for an account, sorted by date.
+    /// Filters the relationship in-memory rather than re-querying so SwiftData
+    /// faulting stays cheap. Returns [] if there's no history (fresh install).
+    private func recentHistory(for account: Account, days: Int) -> [AccountBalancePoint] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .distantPast
+        return account.balanceHistory
+            .filter { $0.date >= cutoff }
+            .sorted { $0.date < $1.date }
     }
 }

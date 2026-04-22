@@ -36,6 +36,32 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.recurring)
 
+            NetWorthSettingsView()
+                .tabItem {
+                    Label("Net Worth", systemImage: "chart.line.uptrend.xyaxis")
+                }
+                .tag(SettingsTab.netWorth)
+
+            // Review Queue is temporarily hidden. Uncomment to restore;
+            // ReviewQueueSettingsView itself is still compiled below.
+            // ReviewQueueSettingsView()
+            //     .tabItem {
+            //         Label("Review Queue", systemImage: "tray.fill")
+            //     }
+            //     .tag(SettingsTab.reviewQueue)
+
+            ReportsSettingsView()
+                .tabItem {
+                    Label("Reports", systemImage: "doc.richtext")
+                }
+                .tag(SettingsTab.reports)
+
+            HouseholdSettingsView()
+                .tabItem {
+                    Label("Household", systemImage: "person.2")
+                }
+                .tag(SettingsTab.household)
+
             AboutSettingsView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
@@ -47,7 +73,42 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: String {
-    case general, appearance, security, data, recurring, about
+    case general, appearance, security, data, recurring, netWorth, reviewQueue, reports, household, about
+}
+
+// MARK: - Review Queue Settings (P8)
+
+struct ReviewQueueSettingsView: View {
+    @Bindable private var telemetry = ReviewQueueTelemetry.shared
+
+    var body: some View {
+        Form {
+            Section("Detectors") {
+                ForEach(ReviewReasonCode.allCases, id: \.self) { reason in
+                    Toggle(isOn: Binding(
+                        get: { !telemetry.isMuted(reason) },
+                        set: { telemetry.setMuted(reason, muted: !$0) }
+                    )) {
+                        Label(reason.title, systemImage: reason.icon)
+                    }
+                }
+            }
+            Section {
+                HStack {
+                    Text("Resolved this week")
+                    Spacer()
+                    Text("\(telemetry.resolvedThisWeek)")
+                        .monospacedDigit()
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                }
+            } footer: {
+                Text("Disabled detectors stop surfacing their reason in the Review Queue. Re-enable any time.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
 }
 
 // MARK: - General
@@ -318,6 +379,113 @@ struct DataSettingsView: View {
 
 // MARK: - About
 
+// MARK: - Household Settings (P9)
+
+struct HouseholdSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \HouseholdMember.joinedAt) private var allMembers: [HouseholdMember]
+    @Bindable private var telemetry = HouseholdTelemetry.shared
+
+    /// UUID of the default payer for new manual transactions. Persisted as a
+    /// String so AppStorage can handle it; converted to UUID at read time.
+    @AppStorage("householdDefaultPayerID") private var defaultPayerIDString: String = ""
+    @AppStorage("householdAutoSplitNewExpenses") private var autoSplitNewExpenses: Bool = false
+    @AppStorage("householdUnsettledReminderDays") private var unsettledReminderDays: Int = 30
+    @AppStorage("householdNotificationsEnabled") private var notificationsEnabled: Bool = true
+
+    private var members: [HouseholdMember] { allMembers.filter(\.isActive) }
+
+    var body: some View {
+        Form {
+            if members.isEmpty {
+                Section {
+                    Text("Add household members from the Household hub to unlock per-person attribution, splits, and settle-ups.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                }
+            } else {
+                Section("Defaults") {
+                    Picker("Default payer", selection: $defaultPayerIDString) {
+                        Text("Ask each time").tag("")
+                        ForEach(members) { m in
+                            Text(m.name).tag(m.id.uuidString)
+                        }
+                    }
+                    Text("New manual transactions and AI-added expenses are attributed to this member unless you pick a different one at entry.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+
+                    Toggle("Auto-split new expenses across the household", isOn: $autoSplitNewExpenses)
+                        .disabled(members.count < 2)
+                    Text("When on, any new transaction with no explicit split is given equal ExpenseShare rows for every active member. You can still edit them per-transaction.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+
+                Section {
+                    HStack {
+                        Text("Splits created")
+                        Spacer()
+                        Text("\(telemetry.splitsThisWeek)")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .monospacedDigit()
+                    }
+                    HStack {
+                        Text("Settlements logged")
+                        Spacer()
+                        Text("\(telemetry.settlementsThisWeek)")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .monospacedDigit()
+                    }
+                    HStack {
+                        Text("Attribution coverage")
+                        Spacer()
+                        Text(coverageLabel)
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                            .monospacedDigit()
+                    }
+                } header: {
+                    Text("This week")
+                } footer: {
+                    Text("Attribution coverage shows what share of this month's non-transfer transactions carry a household member. Low numbers usually mean a default payer isn't set or the payee-learner needs more history.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Reminders") {
+                    Toggle("Surface household insights", isOn: $notificationsEnabled)
+
+                    Stepper(value: $unsettledReminderDays, in: 7...90, step: 7) {
+                        HStack {
+                            Text("Unsettled reminder after")
+                            Spacer()
+                            Text("\(unsettledReminderDays) days")
+                                .font(CentmondTheme.Typography.mono)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .disabled(!notificationsEnabled)
+                    Text("Split shares that stay unpaid past this window surface as a Household insight. Set higher for slow-rolling households, lower to keep the ledger tight.")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var coverageLabel: String {
+        guard let pct = HouseholdTelemetry.attributionCoveragePercent(in: modelContext) else {
+            return "—"
+        }
+        return "\(Int((pct * 100).rounded()))%"
+    }
+}
+
 struct AboutSettingsView: View {
     var body: some View {
         VStack(spacing: CentmondTheme.Spacing.lg) {
@@ -498,5 +666,89 @@ struct RecurringSettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Recurring")
+    }
+}
+
+// MARK: - Net Worth (P10)
+
+struct NetWorthSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+
+    @AppStorage("netWorthAutoSnapshotEnabled") private var autoSnapshot = true
+    @AppStorage("netWorthBackfillDays") private var backfillDays: Int = 365
+
+    @State private var showRebuildConfirm = false
+    @State private var lastActionMessage: String?
+
+    var body: some View {
+        Form {
+            Section("Snapshots") {
+                Toggle("Take a daily snapshot automatically", isOn: $autoSnapshot)
+                Text("Snapshots fire on launch, midnight, and when the app comes back to the foreground. Turn off if you'd rather snapshot manually below.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+
+                Stepper(value: $backfillDays, in: 30...1825, step: 30) {
+                    HStack {
+                        Text("Backfill window")
+                        Spacer()
+                        Text("\(backfillDays) days")
+                            .font(CentmondTheme.Typography.mono)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .monospacedDigit()
+                    }
+                }
+                Text("How far back the first-launch backfill (and the destructive Rebuild action) reconstruct daily snapshots from your transaction history. Capped at 5 years.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+
+                Button("Snapshot now") {
+                    NetWorthHistoryService.snapshotNow(context: modelContext)
+                    lastActionMessage = "Snapshot written for today."
+                }
+            }
+
+            Section("Export") {
+                Button("Export history as CSV…") {
+                    let ok = NetWorthCSVExporter.exportSnapshots(context: modelContext)
+                    lastActionMessage = ok ? "Exported snapshot history." : "No snapshots to export, or save was cancelled."
+                }
+                Text("CSV columns: date, assets, liabilities, net_worth, source. Opens cleanly in Numbers or Excel.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+            Section("Rebuild") {
+                Button("Rebuild history from transactions…", role: .destructive) {
+                    showRebuildConfirm = true
+                }
+                Text("Wipes every Net Worth snapshot and per-account balance point, then rebuilds the entire backfill window from your current balances and transaction deltas. Use after large data imports or sign corrections.")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+
+            if let msg = lastActionMessage {
+                Section {
+                    Text(msg)
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Net Worth")
+        .confirmationDialog(
+            "Rebuild Net Worth history?",
+            isPresented: $showRebuildConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Rebuild last \(backfillDays) days", role: .destructive) {
+                NetWorthHistoryService.rebuildHistory(context: modelContext)
+                lastActionMessage = "History rebuilt over the last \(backfillDays) days."
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes all stored snapshots and per-account balance points, then re-derives them from your current account balances minus future transaction deltas. The current totals will not change.")
+        }
     }
 }

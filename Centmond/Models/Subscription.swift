@@ -57,6 +57,11 @@ final class Subscription {
 
     @Relationship var account: Account?
 
+    // Household payer (P2). Copied onto every reconciled/materialized charge
+    // so subscription spend is attributed to whoever the subscription belongs
+    // to — nil means "household-wide / combined" the same way transactions do.
+    @Relationship var householdMember: HouseholdMember?
+
     @Relationship(deleteRule: .cascade, inverse: \SubscriptionCharge.subscription)
     var charges: [SubscriptionCharge] = []
 

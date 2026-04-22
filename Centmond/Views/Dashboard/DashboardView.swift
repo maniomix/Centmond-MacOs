@@ -28,6 +28,18 @@ struct DashboardView: View {
     @State private var hoveredAccountID: UUID?
     @State private var hoveredGoalID: UUID?
 
+    // MARK: - Cached Snapshot
+    //
+    // Dashboard body re-renders on every hover tick (60 Hz) due to
+    // hoveredTxID / hoveredAccountID / hoveredGoalID and child state.
+    // Without caching, each re-render re-filtered the full transactions
+    // array 10+ times (monthlyExpenses, monthlyIncome, recentTransactions,
+    // spentInCategory × N categories, computeDailyData, computeCategorySpending).
+    // The snapshot is rebuilt only when underlying @Query data or the
+    // selected month changes — not on hover or local UI state flips.
+    // Pattern matches ReportInspectorView / ReviewQueueService.
+    @State private var snapshot = DashboardSnapshot()
+
     enum ChartStyle: String, CaseIterable {
         case bar          // Grouped bar
         case net          // Net cash flow bars
@@ -57,74 +69,16 @@ struct DashboardView: View {
         accounts.reduce(0) { $0 + $1.currentBalance }
     }
 
-    /// Safe accessor that filters out detached/deleted objects
-    private var safeTransactions: [Transaction] {
-        transactions.filter { !$0.isDeleted && $0.modelContext != nil }
-    }
-
-    private var monthlyExpenses: [Transaction] {
-        safeTransactions.filter { BalanceService.isSpendingExpense($0) && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
-    }
-
-    private var monthlySpending: Decimal {
-        monthlyExpenses.reduce(0) { $0 + $1.amount }
-    }
-
-    private var monthlyIncomeTransactions: [Transaction] {
-        safeTransactions.filter { BalanceService.isSpendingIncome($0) && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
-    }
-
-    private var monthlyIncome: Decimal {
-        monthlyIncomeTransactions.reduce(0) { $0 + $1.amount }
-    }
-
-    private var safeToSpend: Decimal {
-        monthlyIncome - monthlySpending
-    }
-
-    private var recentTransactions: [Transaction] {
-        Array(safeTransactions.filter {
-            $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd
-        }.prefix(6))
-    }
-
-    private var subscriptionsDueInSelectedMonth: [Subscription] {
-        subscriptions.filter { sub in
-            sub.status == .active && sub.billingCycle.occursInMonth(
-                anchorDate: sub.nextPaymentDate,
-                monthStart: router.selectedMonthStart,
-                monthEnd: router.selectedMonthEnd
-            )
-        }
-    }
-
-    private var subscriptionsCostForMonth: Decimal {
-        subscriptionsDueInSelectedMonth.reduce(.zero) { $0 + $1.amount }
-    }
-
-    private var selectedYear: Int { Calendar.current.component(.year, from: router.selectedMonth) }
-    private var selectedMonthNum: Int { Calendar.current.component(.month, from: router.selectedMonth) }
-
-    private var totalBudgetAmount: Decimal {
-        totalBudgets.first(where: { $0.year == selectedYear && $0.month == selectedMonthNum })?.amount ?? 0
-    }
-
-    private var totalBudgeted: Decimal {
-        if totalBudgetAmount > 0 { return totalBudgetAmount }
-        return categories.reduce(0) { $0 + effectiveBudget(for: $1) }
-    }
-
-    private func effectiveBudget(for category: BudgetCategory) -> Decimal {
-        monthlyBudgets.first(where: {
-            $0.categoryID == category.id && $0.year == selectedYear && $0.month == selectedMonthNum
-        })?.amount ?? category.budgetAmount
-    }
-
-    private var activeSubscriptionsCost: Decimal {
-        subscriptions
-            .filter { $0.status == .active }
-            .reduce(0) { $0 + $1.monthlyCost }
-    }
+    // Snapshot-backed accessors. All heavy filtering is done once per
+    // data change in `rebuildSnapshot()`; body reads stay O(1).
+    private var monthlySpending: Decimal { snapshot.monthlySpending }
+    private var monthlyIncome: Decimal { snapshot.monthlyIncome }
+    private var safeToSpend: Decimal { snapshot.monthlyIncome - snapshot.monthlySpending }
+    private var recentTransactions: [Transaction] { snapshot.recentTransactions }
+    private var subscriptionsDueInSelectedMonth: [Subscription] { snapshot.subscriptionsDue }
+    private var subscriptionsCostForMonth: Decimal { snapshot.subscriptionsCost }
+    private var totalBudgeted: Decimal { snapshot.totalBudgeted }
+    private var activeSubscriptionsCost: Decimal { snapshot.activeSubscriptionsCost }
 
     // MARK: - Body
 
@@ -132,7 +86,12 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: CentmondTheme.Spacing.lg) {
                 metricsRow
+                // Review Queue is temporarily hidden. Re-enable by
+                // uncommenting the strip below (the view is still
+                // compiled so it's a one-line revert).
+                // DashboardReviewStrip()
                 aiQuickAccessBanner
+                DashboardHouseholdStrip()
                 mainChartsRow
                 DashboardInsightStrip()
                 bottomRow
@@ -141,8 +100,20 @@ struct DashboardView: View {
         }
         .background(CentmondTheme.Colors.bgPrimary)
         .onAppear {
+            rebuildSnapshot()
             AIInsightEngine.shared.refresh(context: modelContext)
         }
+        // NOTE: we map(\.amount) instead of just .count so that IN-PLACE
+        // edits to a transaction's amount (same count) still trigger a
+        // rebuild. Mapping a UUID or count misses this. [Decimal] is
+        // Equatable so .onChange works natively.
+        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: subscriptions.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: categories.map(\.budgetAmount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: monthlyBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: totalBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: allGoals.count) { _, _ in rebuildSnapshot() }
+        .onChange(of: router.selectedMonthStart) { _, _ in rebuildSnapshot() }
     }
 
     // MARK: - AI Quick Access
@@ -302,7 +273,7 @@ struct DashboardView: View {
                     chartLegend
                 }
 
-                if safeTransactions.isEmpty {
+                if snapshot.transactionsIsEmpty {
                     emptyChartPlaceholder("Add transactions to see cash flow")
                         .frame(minHeight: 200)
                         .transition(.opacity)
@@ -311,7 +282,7 @@ struct DashboardView: View {
                     // is untouched on every hover tick.
                     CashFlowChartSurface(
                         chartStyle: chartStyle,
-                        dailyData: computeDailyData()
+                        dailyData: snapshot.dailyData
                     )
                     .frame(minHeight: 200)
                     .transition(.opacity)
@@ -325,9 +296,9 @@ struct DashboardView: View {
 
     private var spendingBreakdownCard: some View {
         SpendingBreakdownCard(
-            categorySpending: computeCategorySpending(),
-            monthlySpending: monthlySpending,
-            isEmpty: monthlyExpenses.isEmpty
+            categorySpending: snapshot.categorySpending,
+            monthlySpending: snapshot.monthlySpending,
+            isEmpty: snapshot.monthlyExpensesEmpty
         )
     }
 
@@ -527,7 +498,7 @@ struct DashboardView: View {
                 }
 
 
-                if categories.isEmpty && totalBudgetAmount == 0 {
+                if categories.isEmpty && snapshot.totalBudgeted == 0 {
                     VStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "chart.pie")
                             .font(.system(size: 28, weight: .light))
@@ -581,8 +552,8 @@ struct DashboardView: View {
 
                     ScrollView {
                         VStack(spacing: CentmondTheme.Spacing.sm) {
-                            ForEach(topBudgetCategories.prefix(6)) { category in
-                                budgetCategoryRow(category)
+                            ForEach(Array(snapshot.topBudgetRows.prefix(6).enumerated()), id: \.offset) { _, row in
+                                budgetCategoryRow(row)
                             }
                         }
                     }
@@ -593,21 +564,10 @@ struct DashboardView: View {
         .frame(height: 280)
     }
 
-    private var topBudgetCategories: [BudgetCategory] {
-        categories
-            .filter { effectiveBudget(for: $0) > 0 }
-            .sorted { spentInCategory($0) > spentInCategory($1) }
-    }
-
-    private func spentInCategory(_ category: BudgetCategory) -> Decimal {
-        safeTransactions
-            .filter { BalanceService.isSpendingExpense($0) && $0.category?.id == category.id && $0.date >= router.selectedMonthStart && $0.date < router.selectedMonthEnd }
-            .reduce(0) { $0 + $1.amount }
-    }
-
-    private func budgetCategoryRow(_ category: BudgetCategory) -> some View {
-        let spent = spentInCategory(category)
-        let budget = effectiveBudget(for: category)
+    private func budgetCategoryRow(_ row: BudgetRow) -> some View {
+        let category = row.category
+        let spent = row.spent
+        let budget = row.budget
         let progress = budget > 0 ? Double(truncating: (spent / budget) as NSDecimalNumber) : 0
         let isOver = spent > budget
 
@@ -1226,7 +1186,7 @@ struct DashboardView: View {
 
     // MARK: - Data Computation
 
-    private struct DailyDataPoint: Identifiable {
+    fileprivate struct DailyDataPoint: Identifiable {
         let id: Int // day of month (1-31)
         let label: String // "1", "2", ... "31"
         let date: Date
@@ -1234,29 +1194,124 @@ struct DashboardView: View {
         let expenses: Double
     }
 
-    private func computeDailyData() -> [DailyDataPoint] {
-        let calendar = Calendar.current
+    fileprivate struct CategorySpendingItem {
+        let name: String
+        let amount: Double
+        let color: Color
+    }
+
+    // MARK: - Snapshot
+
+    fileprivate struct BudgetRow {
+        let category: BudgetCategory
+        let spent: Decimal
+        let budget: Decimal
+    }
+
+    fileprivate struct DashboardSnapshot {
+        var monthlySpending: Decimal = 0
+        var monthlyIncome: Decimal = 0
+        var monthlyExpensesEmpty: Bool = true
+        var transactionsIsEmpty: Bool = true
+        var recentTransactions: [Transaction] = []
+        var subscriptionsDue: [Subscription] = []
+        var subscriptionsCost: Decimal = 0
+        var activeSubscriptionsCost: Decimal = 0
+        var totalBudgeted: Decimal = 0
+        var topBudgetRows: [BudgetRow] = []
+        var dailyData: [DailyDataPoint] = []
+        var categorySpending: [CategorySpendingItem] = []
+    }
+
+    /// Rebuilds all derived dashboard metrics in a single pass. Called only
+    /// on @Query data changes or selected-month change — NOT on every body
+    /// render. Hover / selection state flipping at 60 Hz no longer re-filters
+    /// the transaction array.
+    private func rebuildSnapshot() {
         let start = router.selectedMonthStart
         let end = router.selectedMonthEnd
-        let daysInMonth = calendar.dateComponents([.day], from: start, to: end).day ?? 30
+        let calendar = Calendar.current
+        let palette = CentmondTheme.Colors.chartPalette
 
-        // Group transactions by day-of-month for O(n) lookup
+        // Single safe-transaction pass — kill detached/deleted objects once.
+        let live = transactions.filter { !$0.isDeleted && $0.modelContext != nil }
+        let liveEmpty = live.isEmpty
+
+        // Walk the array ONCE, bucketing into all the slices we need.
+        var monthExpenses: [Transaction] = []
+        var monthIncome: Decimal = 0
+        var monthSpending: Decimal = 0
+        var spentByCatID: [UUID: Decimal] = [:]
+        var categoryTotals: [String: Double] = [:]
+        var recents: [Transaction] = []
         var incomeByDay: [Int: Double] = [:]
         var expenseByDay: [Int: Double] = [:]
-        for tx in safeTransactions where tx.date >= start && tx.date < end {
+
+        for tx in live {
+            guard tx.date >= start && tx.date < end else { continue }
+
+            // Recents — first 6 in reverse-date order; @Query already sorts desc.
+            if recents.count < 6 { recents.append(tx) }
+
+            if BalanceService.isSpendingExpense(tx) {
+                monthExpenses.append(tx)
+                monthSpending += tx.amount
+                if let catID = tx.category?.id {
+                    spentByCatID[catID, default: 0] += tx.amount
+                }
+                let name = tx.category?.name ?? "Other"
+                categoryTotals[name, default: 0] += Double(truncating: tx.amount as NSDecimalNumber)
+            } else if BalanceService.isSpendingIncome(tx) {
+                monthIncome += tx.amount
+            }
+
             let day = calendar.component(.day, from: tx.date)
             if tx.isIncome {
-                incomeByDay[day, default: 0] += doubleValue(tx.amount)
+                incomeByDay[day, default: 0] += Double(truncating: tx.amount as NSDecimalNumber)
             } else {
-                expenseByDay[day, default: 0] += doubleValue(tx.amount)
+                expenseByDay[day, default: 0] += Double(truncating: tx.amount as NSDecimalNumber)
             }
         }
 
-        var result: [DailyDataPoint] = []
+        // Subscriptions
+        var subsDue: [Subscription] = []
+        var subsCost: Decimal = 0
+        var activeSubsCost: Decimal = 0
+        for sub in subscriptions where sub.status == .active {
+            activeSubsCost += sub.monthlyCost
+            if sub.billingCycle.occursInMonth(anchorDate: sub.nextPaymentDate, monthStart: start, monthEnd: end) {
+                subsDue.append(sub)
+                subsCost += sub.amount
+            }
+        }
+
+        // Budgets
+        let year = calendar.component(.year, from: router.selectedMonth)
+        let monthNum = calendar.component(.month, from: router.selectedMonth)
+        let totalBudgetAmt = totalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
+        func budget(for cat: BudgetCategory) -> Decimal {
+            monthlyBudgets.first(where: {
+                $0.categoryID == cat.id && $0.year == year && $0.month == monthNum
+            })?.amount ?? cat.budgetAmount
+        }
+        let totalBudgeted: Decimal = {
+            if totalBudgetAmt > 0 { return totalBudgetAmt }
+            return categories.reduce(0) { $0 + budget(for: $1) }
+        }()
+
+        let rows: [BudgetRow] = categories
+            .map { BudgetRow(category: $0, spent: spentByCatID[$0.id] ?? 0, budget: budget(for: $0)) }
+            .filter { $0.budget > 0 }
+            .sorted { $0.spent > $1.spent }
+
+        // Daily chart series
+        let daysInMonth = calendar.dateComponents([.day], from: start, to: end).day ?? 30
+        var daily: [DailyDataPoint] = []
+        daily.reserveCapacity(daysInMonth)
         for dayIndex in 0..<daysInMonth {
             let dayDate = calendar.date(byAdding: .day, value: dayIndex, to: start)!
             let day = calendar.component(.day, from: dayDate)
-            result.append(DailyDataPoint(
+            daily.append(DailyDataPoint(
                 id: day,
                 label: "\(day)",
                 date: dayDate,
@@ -1264,29 +1319,27 @@ struct DashboardView: View {
                 expenses: expenseByDay[day] ?? 0
             ))
         }
-        return result
-    }
 
-    private struct CategorySpendingItem {
-        let name: String
-        let amount: Double
-        let color: Color
-    }
-
-    private func computeCategorySpending() -> [CategorySpendingItem] {
-        var categoryTotals: [String: Double] = [:]
-
-        for transaction in monthlyExpenses {
-            let name = transaction.category?.name ?? "Other"
-            categoryTotals[name, default: 0] += doubleValue(transaction.amount)
-        }
-
-        let sorted = categoryTotals.sorted { $0.value > $1.value }
-        let palette = CentmondTheme.Colors.chartPalette
-
-        return sorted.prefix(6).enumerated().map { index, pair in
+        // Top 6 category-spending items (donut)
+        let sortedCatTotals = categoryTotals.sorted { $0.value > $1.value }
+        let catSpending: [CategorySpendingItem] = sortedCatTotals.prefix(6).enumerated().map { index, pair in
             CategorySpendingItem(name: pair.key, amount: pair.value, color: palette[index % palette.count])
         }
+
+        var next = DashboardSnapshot()
+        next.monthlySpending = monthSpending
+        next.monthlyIncome = monthIncome
+        next.monthlyExpensesEmpty = monthExpenses.isEmpty
+        next.transactionsIsEmpty = liveEmpty
+        next.recentTransactions = recents
+        next.subscriptionsDue = subsDue
+        next.subscriptionsCost = subsCost
+        next.activeSubscriptionsCost = activeSubsCost
+        next.totalBudgeted = totalBudgeted
+        next.topBudgetRows = rows
+        next.dailyData = daily
+        next.categorySpending = catSpending
+        snapshot = next
     }
 
     private func formatSignedAmount(_ amount: Decimal, isIncome: Bool) -> String {

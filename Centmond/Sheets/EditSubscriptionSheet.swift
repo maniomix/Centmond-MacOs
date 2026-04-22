@@ -4,6 +4,7 @@ import SwiftData
 struct EditSubscriptionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Account.sortOrder) private var accounts: [Account]
+    @Query(sort: \HouseholdMember.joinedAt) private var members: [HouseholdMember]
     let subscription: Subscription
 
     @State private var serviceName: String
@@ -12,6 +13,7 @@ struct EditSubscriptionSheet: View {
     @State private var billingCycle: BillingCycle
     @State private var nextPaymentDate: Date
     @State private var selectedAccount: Account?
+    @State private var selectedMember: HouseholdMember?
     @State private var hasAttemptedSave = false
     @State private var appeared = false
     @State private var showDatePicker = false
@@ -24,6 +26,7 @@ struct EditSubscriptionSheet: View {
         _billingCycle = State(initialValue: subscription.billingCycle)
         _nextPaymentDate = State(initialValue: subscription.nextPaymentDate)
         _selectedAccount = State(initialValue: subscription.account)
+        _selectedMember = State(initialValue: subscription.householdMember)
     }
 
     private var isValid: Bool {
@@ -181,6 +184,44 @@ struct EditSubscriptionSheet: View {
                     }
                 }
 
+                if !members.isEmpty {
+                    fieldRow {
+                        fieldIcon("person.2")
+                        Text("Member")
+                            .font(CentmondTheme.Typography.body)
+                            .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                        Spacer()
+                        Menu {
+                            Button {
+                                selectedMember = nil
+                                Haptics.tap()
+                            } label: {
+                                if selectedMember == nil {
+                                    Label("Household", systemImage: "checkmark")
+                                } else {
+                                    Text("Household")
+                                }
+                            }
+                            ForEach(members.filter(\.isActive)) { m in
+                                Button {
+                                    selectedMember = m
+                                    Haptics.tap()
+                                } label: {
+                                    if selectedMember?.id == m.id {
+                                        Label(m.name, systemImage: "checkmark")
+                                    } else {
+                                        Text(m.name)
+                                    }
+                                }
+                            }
+                        } label: {
+                            inlineChip(selectedMember?.name ?? "Household")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+
                 if !accounts.isEmpty {
                     fieldRow {
                         fieldIcon("building.columns")
@@ -326,6 +367,7 @@ struct EditSubscriptionSheet: View {
         subscription.billingCycle = billingCycle
         subscription.nextPaymentDate = nextPaymentDate
         subscription.account = selectedAccount
+        subscription.householdMember = selectedMember
         subscription.updatedAt = .now
         dismiss()
     }

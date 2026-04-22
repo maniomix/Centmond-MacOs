@@ -14,6 +14,25 @@ struct ForecastingView: View {
     @State private var scenario = ForecastEngine.Scenario()
     @State private var simulatorOpen = false
 
+    // MARK: - Snapshot cache
+    //
+    // The body referenced `horizon.summary.xxx` ~10 times per render, and
+    // every reference re-ran ForecastEngine.build() (full simulator run).
+    // Snapshot captures horizon + scenarioHorizon + the 4 monthly decimals
+    // so body reads are O(1). Rebuilt only when @Query data, forecastDays,
+    // or scenario changes.
+    @State private var snapshot = ForecastSnapshot()
+
+    struct ForecastSnapshot {
+        var horizon: ForecastEngine.Horizon?
+        var scenarioHorizon: ForecastEngine.Horizon?
+        var monthlyIncome: Decimal = 0
+        var monthlySpending: Decimal = 0
+        var upcomingBills: Decimal = 0
+        var expectedIncome: Decimal = 0
+        var totalBalance: Decimal = 0
+    }
+
     private let calendar = Calendar.current
 
     // MARK: - Computed Data
@@ -28,36 +47,13 @@ struct ForecastingView: View {
         max(0, calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: endOfMonth).day ?? 0)
     }
 
-    private var monthlyIncome: Decimal {
-        transactions
-            .filter { BalanceService.isSpendingIncome($0) && $0.date >= startOfMonth && $0.date <= .now }
-            .reduce(Decimal.zero) { $0 + $1.amount }
-    }
-
-    private var monthlySpending: Decimal {
-        transactions
-            .filter { BalanceService.isSpendingExpense($0) && $0.date >= startOfMonth && $0.date <= .now }
-            .reduce(Decimal.zero) { $0 + $1.amount }
-    }
-
-    private var upcomingBills: Decimal {
-        let subTotal = subscriptions
-            .filter { $0.status == .active && $0.nextPaymentDate > .now && $0.nextPaymentDate <= endOfMonth }
-            .reduce(Decimal.zero) { $0 + $1.amount }
-        let recurringTotal = recurringItems
-            .filter { $0.isActive && !$0.isIncome && $0.nextOccurrence > .now && $0.nextOccurrence <= endOfMonth }
-            .reduce(Decimal.zero) { $0 + $1.amount }
-        return subTotal + recurringTotal
-    }
-
-    private var expectedIncome: Decimal {
-        recurringItems
-            .filter { $0.isActive && $0.isIncome && $0.nextOccurrence > .now && $0.nextOccurrence <= endOfMonth }
-            .reduce(Decimal.zero) { $0 + $1.amount }
-    }
+    private var monthlyIncome: Decimal { snapshot.monthlyIncome }
+    private var monthlySpending: Decimal { snapshot.monthlySpending }
+    private var upcomingBills: Decimal { snapshot.upcomingBills }
+    private var expectedIncome: Decimal { snapshot.expectedIncome }
 
     private var safeToSpend: Decimal {
-        monthlyIncome + expectedIncome - monthlySpending - upcomingBills
+        snapshot.monthlyIncome + snapshot.expectedIncome - snapshot.monthlySpending - snapshot.upcomingBills
     }
 
     private var safeToSpendColor: Color {
@@ -73,13 +69,52 @@ struct ForecastingView: View {
         daysLeftInMonth > 0 ? safeToSpend / Decimal(daysLeftInMonth) : 0
     }
 
-    private var totalBalance: Decimal {
-        // Mirror NetWorthView eligibility so the safe-to-spend hero and
-        // balance projection start from the same picture of the user's
-        // money.
-        accounts
+    private var totalBalance: Decimal { snapshot.totalBalance }
+
+    private func rebuildSnapshot() {
+        let now = Date.now
+        let som = startOfMonth
+        let eom = endOfMonth
+
+        var mIncome: Decimal = 0
+        var mSpending: Decimal = 0
+        for tx in transactions where tx.date >= som && tx.date <= now {
+            if BalanceService.isSpendingIncome(tx) { mIncome += tx.amount }
+            else if BalanceService.isSpendingExpense(tx) { mSpending += tx.amount }
+        }
+
+        var bills: Decimal = 0
+        for sub in subscriptions where sub.status == .active && sub.nextPaymentDate > now && sub.nextPaymentDate <= eom {
+            bills += sub.amount
+        }
+        var recurringBills: Decimal = 0
+        var expected: Decimal = 0
+        for r in recurringItems where r.isActive && r.nextOccurrence > now && r.nextOccurrence <= eom {
+            if r.isIncome { expected += r.amount } else { recurringBills += r.amount }
+        }
+        let balance = accounts
             .filter { !$0.isArchived && !$0.isClosed && $0.includeInNetWorth }
             .reduce(Decimal.zero) { $0 + $1.currentBalance }
+
+        let inputs = ForecastEngine.Inputs(
+            startingBalance: balance,
+            subscriptions: subscriptions,
+            recurring: recurringItems,
+            goals: goals,
+            history: transactions
+        )
+        let built = ForecastEngine.build(inputs, horizonDays: forecastDays)
+        let scen = scenario.isIdentity ? nil : ForecastEngine.build(inputs, horizonDays: forecastDays, scenario: scenario)
+
+        var next = ForecastSnapshot()
+        next.monthlyIncome = mIncome
+        next.monthlySpending = mSpending
+        next.upcomingBills = bills + recurringBills
+        next.expectedIncome = expected
+        next.totalBalance = balance
+        next.horizon = built
+        next.scenarioHorizon = scen
+        snapshot = next
     }
 
     var body: some View {
@@ -94,6 +129,14 @@ struct ForecastingView: View {
             }
             .padding(CentmondTheme.Spacing.xxl)
         }
+        .onAppear { rebuildSnapshot() }
+        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: subscriptions.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: recurringItems.map(\.amount)) { _, _ in rebuildSnapshot() }
+        .onChange(of: accounts.map(\.currentBalance)) { _, _ in rebuildSnapshot() }
+        .onChange(of: goals.count) { _, _ in rebuildSnapshot() }
+        .onChange(of: forecastDays) { _, _ in rebuildSnapshot() }
+        .onChange(of: scenario) { _, _ in rebuildSnapshot() }
     }
 
     // MARK: - Monthly Breakdown Cards
@@ -341,24 +384,20 @@ struct ForecastingView: View {
 
     // MARK: - Forecast Chart
 
-    private var forecastInputs: ForecastEngine.Inputs {
-        ForecastEngine.Inputs(
-            startingBalance: totalBalance,
-            subscriptions: subscriptions,
-            recurring: recurringItems,
-            goals: goals,
-            history: transactions
+    private var horizon: ForecastEngine.Horizon {
+        snapshot.horizon ?? ForecastEngine.build(
+            ForecastEngine.Inputs(
+                startingBalance: snapshot.totalBalance,
+                subscriptions: subscriptions,
+                recurring: recurringItems,
+                goals: goals,
+                history: transactions
+            ),
+            horizonDays: forecastDays
         )
     }
 
-    private var horizon: ForecastEngine.Horizon {
-        ForecastEngine.build(forecastInputs, horizonDays: forecastDays)
-    }
-
-    private var scenarioHorizon: ForecastEngine.Horizon? {
-        guard !scenario.isIdentity else { return nil }
-        return ForecastEngine.build(forecastInputs, horizonDays: forecastDays, scenario: scenario)
-    }
+    private var scenarioHorizon: ForecastEngine.Horizon? { snapshot.scenarioHorizon }
 
     private var forecastChart: some View {
         CardContainer {
