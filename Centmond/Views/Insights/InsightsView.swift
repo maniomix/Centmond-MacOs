@@ -141,6 +141,7 @@ struct InsightsView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: CentmondTheme.Spacing.lg) {
+                        SectionTutorialStrip(screen: .insights)
                         if !pinnedInsights.isEmpty {
                             pinnedSection
                         }
@@ -162,7 +163,7 @@ struct InsightsView: View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 TextField("Search insights", text: $searchQuery)
                     .textFieldStyle(.plain)
@@ -172,7 +173,7 @@ struct InsightsView: View {
                         searchQuery = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
                     .buttonStyle(.plain)
@@ -196,7 +197,7 @@ struct InsightsView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                     Text(groupMode.label)
                         .font(CentmondTheme.Typography.caption)
                 }
@@ -211,7 +212,7 @@ struct InsightsView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "questionmark.circle")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                     Text("What are these?")
                         .font(CentmondTheme.Typography.caption)
                 }
@@ -224,7 +225,7 @@ struct InsightsView: View {
                 refreshToken &+= 1
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plainHover)
@@ -265,7 +266,7 @@ struct InsightsView: View {
     private func summaryChip(count: Int, label: String, tint: Color, icon: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .foregroundStyle(tint)
             Text("\(count)")
                 .font(CentmondTheme.Typography.bodyMedium)
@@ -326,13 +327,13 @@ struct InsightsView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.accent)
                 Text("Pinned")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 Text("\(pinnedInsights.count)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.accent)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
@@ -353,10 +354,10 @@ struct InsightsView: View {
                 HStack(spacing: 8) {
                     Circle().fill(tint).frame(width: 7, height: 7)
                     Text(title)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("\(insights.count)")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                         .foregroundStyle(tint)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 1)
@@ -538,7 +539,7 @@ struct InsightGlossarySheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgTertiary)
@@ -566,11 +567,11 @@ struct InsightGlossarySheet: View {
     private func glossaryRow(_ entry: InsightGlossarySheet.Entry) -> some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
             Image(systemName: entry.icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                 .foregroundStyle(entry.tint)
                 .frame(width: 28, height: 28)
                 .background(entry.tint.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -578,12 +579,12 @@ struct InsightGlossarySheet: View {
                         .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text(entry.domain)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold))
                         .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(CentmondTheme.Colors.bgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                 }
                 Text(entry.body)
                     .font(CentmondTheme.Typography.caption)

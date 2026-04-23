@@ -1,18 +1,22 @@
 import Foundation
 import SwiftData
 
-// Persisted schedule: "run this SavedReport on this cadence, drop the
-// exported file in this folder." Idempotent — the launch-time runner
-// only fires when `nextFireDate <= .now` and advances the cursor after
-// each successful write.
+// Persisted schedule for composite report exports. All inputs are inlined
+// (range, filter, sections, format) so the runner doesn't need a separate
+// preset model to reference. The launch-time runner decodes lazily via
+// computed accessors and tolerates legacy rows by swallowing decode
+// failures — those get swept on launch by ReportScheduleService.
 
 @Model
 final class ScheduledReport {
     var id: UUID
-    var savedReportID: UUID                // references SavedReport.id
-    var formatRaw: String                  // ReportExportFormat.rawValue
-    var cadenceRaw: String                 // ScheduledReportCadence.rawValue
-    var destinationPath: String            // plain POSIX path (app is non-sandboxed)
+    var name: String
+    var sectionsRaw: String              // CSV of ReportSection.rawValue
+    var rangeJSON: Data                  // ReportDateRange encoded
+    var filterJSON: Data                 // ReportFilter encoded
+    var formatRaw: String                // ReportExportFormat.rawValue
+    var cadenceRaw: String               // ScheduledReportCadence.rawValue
+    var destinationPath: String          // POSIX path (app is non-sandboxed)
     var isActive: Bool
     var createdAt: Date
     var nextFireDate: Date
@@ -21,20 +25,45 @@ final class ScheduledReport {
     var failureMessage: String?
 
     init(
-        savedReportID: UUID,
+        name: String,
+        sections: Set<ReportSection>,
+        range: ReportDateRange,
+        filter: ReportFilter,
         format: ReportExportFormat,
         cadence: ScheduledReportCadence,
         destinationPath: String,
         nextFireDate: Date = .now
     ) {
         self.id = UUID()
-        self.savedReportID = savedReportID
+        self.name = name
+        self.sectionsRaw = sections.map(\.rawValue).sorted().joined(separator: ",")
+        self.rangeJSON  = (try? Self.encoder.encode(range))  ?? Data()
+        self.filterJSON = (try? Self.encoder.encode(filter)) ?? Data()
         self.formatRaw = format.rawValue
         self.cadenceRaw = cadence.rawValue
         self.destinationPath = destinationPath
         self.isActive = true
         self.createdAt = .now
         self.nextFireDate = nextFireDate
+    }
+
+    // MARK: - Computed accessors
+
+    var sections: Set<ReportSection> {
+        let parts = sectionsRaw.split(separator: ",").map(String.init)
+        return Set(parts.compactMap { ReportSection(rawValue: $0) })
+    }
+
+    var range: ReportDateRange? {
+        guard !rangeJSON.isEmpty else { return nil }
+        return try? Self.decoder.decode(ReportDateRange.self, from: rangeJSON)
+    }
+
+    var filter: ReportFilter {
+        guard !filterJSON.isEmpty,
+              let decoded = try? Self.decoder.decode(ReportFilter.self, from: filterJSON)
+        else { return ReportFilter() }
+        return decoded
     }
 
     var format: ReportExportFormat {
@@ -44,15 +73,36 @@ final class ScheduledReport {
     var cadence: ScheduledReportCadence {
         ScheduledReportCadence(rawValue: cadenceRaw) ?? .monthly
     }
+
+    /// Decodable consistency check. Rows written by the old SavedReport-
+    /// referencing schema have empty rangeJSON and no usable sections —
+    /// the launch-time sweeper drops them.
+    var isDecodable: Bool {
+        range != nil && !sections.isEmpty
+    }
+
+    // MARK: - Codec
+
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
 }
 
-enum ScheduledReportCadence: String, Codable, CaseIterable, Identifiable, Hashable {
+nonisolated enum ScheduledReportCadence: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case daily
     case weekly
     case monthly
     case quarterly
 
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
 
     var label: String {
         switch self {

@@ -192,7 +192,7 @@ struct ReviewQueueView: View {
 
             Button { selectedDedupeKeys.removeAll() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
             }
             .buttonStyle(.plainHover)
             .help("Clear selection")
@@ -275,7 +275,7 @@ struct ReviewQueueView: View {
             if resolved > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text("\(resolved) resolved this week")
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -352,13 +352,13 @@ struct ReviewQueueView: View {
             withAnimation(CentmondTheme.Motion.micro) { selectedReason = reason }
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 10))
+                Image(systemName: icon).font(CentmondTheme.Typography.overlineRegular)
                 Text(label)
                 Text("\(count)")
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(isActive ? CentmondTheme.Colors.accent.opacity(0.2) : CentmondTheme.Colors.bgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
             }
             .font(CentmondTheme.Typography.caption)
             .foregroundStyle(isActive ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
@@ -374,7 +374,7 @@ struct ReviewQueueView: View {
     private var filteredEmptyState: some View {
         VStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             Text("Nothing here")
                 .font(CentmondTheme.Typography.bodyMedium)
@@ -411,14 +411,14 @@ struct ReviewQueueView: View {
                 }
             } label: {
                 Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 12)
             }
             .buttonStyle(.plainHover)
 
             Image(systemName: reason.icon)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(color(for: reason))
 
             Text(reason.title)
@@ -432,7 +432,7 @@ struct ReviewQueueView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 1)
                 .background(CentmondTheme.Colors.bgTertiary)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
 
             Spacer()
 
@@ -616,8 +616,8 @@ struct ReviewQueueView: View {
             GeometryReader { geo in
                 let progress = triageQueue.isEmpty ? 1.0 : Double(currentIndex) / Double(triageQueue.count)
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2).fill(CentmondTheme.Colors.strokeSubtle)
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs).fill(CentmondTheme.Colors.strokeSubtle)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(CentmondTheme.Colors.accent)
                         .frame(width: geo.size.width * progress)
                         .animation(CentmondTheme.Motion.default, value: progress)
@@ -647,7 +647,7 @@ struct ReviewQueueView: View {
         VStack(spacing: CentmondTheme.Spacing.xl) {
             // Reason chip
             HStack(spacing: 6) {
-                Image(systemName: item.reason.icon).font(.system(size: 11))
+                Image(systemName: item.reason.icon).font(CentmondTheme.Typography.captionSmall)
                 Text(item.reason.title)
             }
             .font(CentmondTheme.Typography.caption)
@@ -722,9 +722,9 @@ struct ReviewQueueView: View {
                     Button { categorize(tx, to: cat) } label: {
                         HStack(spacing: 4) {
                             Text("\(idx + 1)")
-                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                                .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                            Image(systemName: cat.icon).font(.system(size: 10))
+                            Image(systemName: cat.icon).font(CentmondTheme.Typography.overlineRegular)
                             Text(cat.name)
                         }
                         .font(CentmondTheme.Typography.caption)
@@ -1011,7 +1011,7 @@ struct ReviewItemRow: View {
             selectionCheckbox
 
             Image(systemName: reason.icon)
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(reasonTint)
                 .frame(width: 28)
 
@@ -1029,7 +1029,7 @@ struct ReviewItemRow: View {
 
             if let cat = transaction.category {
                 HStack(spacing: 3) {
-                    Image(systemName: cat.icon).font(.system(size: 10))
+                    Image(systemName: cat.icon).font(CentmondTheme.Typography.overlineRegular)
                     Text(cat.name)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -1056,7 +1056,7 @@ struct ReviewItemRow: View {
 
             Button { onInspect() } label: {
                 Image(systemName: "sidebar.right")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plainHover)
@@ -1064,7 +1064,7 @@ struct ReviewItemRow: View {
 
             Button { onAccept() } label: {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.positive)
             }
             .buttonStyle(.plainHover)
@@ -1072,7 +1072,7 @@ struct ReviewItemRow: View {
 
             Button { onDismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plainHover)
@@ -1164,7 +1164,7 @@ struct SubscriptionReviewRow: View {
             selectionCheckbox
 
             Image(systemName: reason.icon)
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(CentmondTheme.Colors.warning)
                 .frame(width: 28)
 
@@ -1203,7 +1203,7 @@ struct SubscriptionReviewRow: View {
 
             Button { onInspect() } label: {
                 Image(systemName: "sidebar.right")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plainHover)
@@ -1211,7 +1211,7 @@ struct SubscriptionReviewRow: View {
 
             Button { onDismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plainHover)

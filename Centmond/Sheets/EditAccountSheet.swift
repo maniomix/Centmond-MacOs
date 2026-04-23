@@ -98,7 +98,7 @@ struct EditAccountSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -272,7 +272,7 @@ struct EditAccountSheet: View {
             if !members.isEmpty {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "person.crop.circle")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text("Owner")
                         .font(CentmondTheme.Typography.caption)
@@ -312,7 +312,7 @@ struct EditAccountSheet: View {
             if hasAttemptedSave, let error = nameError ?? balanceError ?? creditLimitError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text(error)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -331,6 +331,7 @@ struct EditAccountSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid && hasAttemptedSave)
             .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -351,7 +352,7 @@ struct EditAccountSheet: View {
 
     private func fieldIcon(_ name: String, error: Bool = false) -> some View {
         Image(systemName: name)
-            .font(.system(size: 12))
+            .font(CentmondTheme.Typography.caption)
             .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
             .frame(width: 18)
     }

@@ -37,7 +37,7 @@ struct AISuggestedPrompts: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: prompt.icon)
-                                .font(.system(size: 12))
+                                .font(CentmondTheme.Typography.caption)
                             Text(prompt.text)
                                 .font(DS.Typography.caption)
                         }
@@ -45,7 +45,7 @@ struct AISuggestedPrompts: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                                 .fill(DS.Colors.surface2)
                         )
                     }

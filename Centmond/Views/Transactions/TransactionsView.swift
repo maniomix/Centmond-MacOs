@@ -146,6 +146,9 @@ struct TransactionsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            SectionTutorialStrip(screen: .transactions)
+                .padding(.horizontal, CentmondTheme.Spacing.lg)
+                .padding(.top, CentmondTheme.Spacing.sm)
             // Top filter bar
             filterBar
 
@@ -208,7 +211,7 @@ struct TransactionsView: View {
                 // Search field
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13))
+                        .font(CentmondTheme.Typography.body)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                     TextField("Search...", text: $searchText)
@@ -221,7 +224,7 @@ struct TransactionsView: View {
                             searchText = ""
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
+                                .font(CentmondTheme.Typography.caption)
                                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         }
                         .buttonStyle(.plainHover)
@@ -292,7 +295,7 @@ struct TransactionsView: View {
                             router.showSheet(.importCSV)
                         } label: {
                             Image(systemName: "square.and.arrow.down")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                 .frame(width: 32, height: 30)
                         }
@@ -305,7 +308,7 @@ struct TransactionsView: View {
                             router.showSheet(.newTransfer)
                         } label: {
                             Image(systemName: "arrow.left.arrow.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                 .frame(width: 32, height: 30)
                         }
@@ -318,7 +321,7 @@ struct TransactionsView: View {
                             router.showSheet(.newTransaction)
                         } label: {
                             Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                                 .frame(width: 32, height: 30)
                         }
@@ -371,7 +374,7 @@ struct TransactionsView: View {
             router.selectedMemberID = nil
         } label: {
             Text("All")
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(isActive ? Color.white : CentmondTheme.Colors.textTertiary)
                 .padding(.horizontal, 8)
                 .frame(height: Self.memberChipHeight)
@@ -388,7 +391,7 @@ struct TransactionsView: View {
             router.selectedMemberID = isActive ? nil : m.id
         } label: {
             Text(String(m.name.prefix(1)))
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(.white)
                 .frame(width: Self.memberChipHeight, height: Self.memberChipHeight)
                 .background(Color(hex: m.avatarColor))
@@ -437,12 +440,12 @@ struct TransactionsView: View {
         } label: {
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                 Text(label)
                     .font(CentmondTheme.Typography.caption)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(CentmondTheme.Typography.microBold.weight(.semibold))
             }
             .padding(.horizontal, CentmondTheme.Spacing.sm)
             .frame(height: 30)
@@ -485,7 +488,7 @@ struct TransactionsView: View {
                 HStack(spacing: CentmondTheme.Spacing.md) {
                     HStack(spacing: 3) {
                         Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                             .foregroundStyle(CentmondTheme.Colors.positive)
                         Text(CurrencyFormat.compact(totalIncome))
                             .font(CentmondTheme.Typography.caption)
@@ -496,7 +499,7 @@ struct TransactionsView: View {
                     }
                     HStack(spacing: 3) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                             .foregroundStyle(CentmondTheme.Colors.negative)
                         Text(CurrencyFormat.compact(totalExpenses))
                             .font(CentmondTheme.Typography.caption)
@@ -611,7 +614,7 @@ struct TransactionsView: View {
     private func dateSectionHeader(_ date: Date, count: Int, total: Decimal) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Text(formatSectionDate(date))
-                .font(.system(size: 10, weight: .medium))
+                .font(CentmondTheme.Typography.overline)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .textCase(.uppercase)
                 .tracking(0.4)
@@ -619,11 +622,11 @@ struct TransactionsView: View {
             Spacer()
 
             Text("\(count) transaction\(count == 1 ? "" : "s")")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.7))
 
             Text("·")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary.opacity(0.4))
 
             Text(CurrencyFormat.standard(total))
@@ -943,7 +946,7 @@ struct TransactionRowView: View {
                 HStack(spacing: 4) {
                     if transaction.isTransfer {
                         Image(systemName: "arrow.left.arrow.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(CentmondTheme.Typography.micro.weight(.semibold))
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             .help("Transfer")
                     }
@@ -990,7 +993,7 @@ struct TransactionRowView: View {
             if let account = transaction.account {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: account.type.iconName)
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text(account.name)
                         .font(CentmondTheme.Typography.caption)
@@ -1172,7 +1175,7 @@ struct TransactionRowView: View {
                 .frame(width: 32, height: 32)
 
             Image(systemName: transaction.isIncome ? "arrow.down" : "arrow.up")
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(transaction.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
         }
     }
@@ -1204,14 +1207,14 @@ struct TransactionRowView: View {
         Group {
             if let category = transaction.category {
                 Image(systemName: category.icon)
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(Color(hex: category.colorHex))
                     .frame(width: 28, height: 28)
                     .background(Color(hex: category.colorHex).opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             } else {
                 Image(systemName: "questionmark")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 28, height: 28)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -1226,7 +1229,7 @@ struct TransactionRowView: View {
             case .cleared:
                 HStack(spacing: 3) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(CentmondTheme.Typography.microBold)
                     Text("Cleared")
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -1239,7 +1242,7 @@ struct TransactionRowView: View {
             case .pending:
                 HStack(spacing: 3) {
                     Image(systemName: "clock")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(CentmondTheme.Typography.microBold)
                     Text("Pending")
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -1252,7 +1255,7 @@ struct TransactionRowView: View {
             case .reconciled:
                 HStack(spacing: 3) {
                     Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(CentmondTheme.Typography.microBold)
                     Text("Reconciled")
                 }
                 .font(CentmondTheme.Typography.caption)

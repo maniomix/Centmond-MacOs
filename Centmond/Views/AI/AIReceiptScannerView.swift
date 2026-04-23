@@ -88,7 +88,7 @@ struct AIReceiptScannerView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -128,7 +128,7 @@ struct AIReceiptScannerView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxHeight: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg))
                         .frame(maxWidth: .infinity)
                 }
 
@@ -222,7 +222,7 @@ struct AIReceiptScannerView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                                     .stroke(DS.Colors.subtext.opacity(0.3), lineWidth: 1)
                             )
                     }
@@ -237,7 +237,7 @@ struct AIReceiptScannerView: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -339,7 +339,7 @@ struct AIReceiptScannerView: View {
             in: context
         )
         context.insert(txn)
-        try? context.save()
+        context.persist()
 
         SubscriptionReconciliationService.reconcile(transaction: txn, in: context)
 

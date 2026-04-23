@@ -42,7 +42,7 @@ struct MetricCard: View {
                     Spacer()
 
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(CentmondTheme.Typography.subheading.weight(.medium))
                         .foregroundStyle(iconColor)
                         .frame(width: 32, height: 32)
                         .background(iconColor.opacity(0.12))
@@ -63,7 +63,7 @@ struct MetricCard: View {
                 if let trend, let trendPositive {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         Image(systemName: trendPositive ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(CentmondTheme.Typography.overlineSemibold)
 
                         Text(trend)
                             .font(CentmondTheme.Typography.caption)

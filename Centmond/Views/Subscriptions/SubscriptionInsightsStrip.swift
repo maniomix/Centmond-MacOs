@@ -41,7 +41,7 @@ struct SubscriptionInsightsStrip: View {
     private func header(_ r: SubscriptionOptimizationResult) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: "sparkles")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             Text("INSIGHTS")
                 .font(CentmondTheme.Typography.overline)
@@ -61,7 +61,7 @@ struct SubscriptionInsightsStrip: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Image(systemName: iconFor(rec.type))
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(tint)
                 Text(rec.subscriptionName)
                     .font(CentmondTheme.Typography.bodyMedium)
@@ -77,7 +77,7 @@ struct SubscriptionInsightsStrip: View {
             HStack(spacing: 6) {
                 if rec.potentialSaving > 0 {
                     Text("save \(CurrencyFormat.standard(rec.potentialSaving))/mo")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
                         .foregroundStyle(CentmondTheme.Colors.positive)
                 }
                 Spacer()
@@ -87,11 +87,11 @@ struct SubscriptionInsightsStrip: View {
         .padding(CentmondTheme.Spacing.md)
         .frame(width: 260, height: 110, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(CentmondTheme.Colors.bgSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .stroke(tint.opacity(0.35), lineWidth: 1)
         )
     }
@@ -106,7 +106,7 @@ struct SubscriptionInsightsStrip: View {
             applied.insert(rec.id)
         } label: {
             Text(isApplied ? "Done" : label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(isApplied ? CentmondTheme.Colors.textTertiary : CentmondTheme.Colors.textPrimary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)

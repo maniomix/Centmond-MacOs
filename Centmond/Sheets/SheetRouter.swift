@@ -60,5 +60,6 @@ struct SheetRouter: View {
                 .onTapGesture { dismiss() }
         }
         .preferredColorScheme(.dark)
+        .dismissOnEscape()
     }
 }

@@ -38,7 +38,7 @@ struct AIInsightBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Severity rail
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                 .fill(severityColor)
                 .frame(width: 3)
                 .padding(.vertical, 14)
@@ -52,19 +52,25 @@ struct AIInsightBanner: View {
                     explainerBlock
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                // Push actionRow to the bottom of whatever height this card
+                // is given by its parent grid. Without the Spacer, cards
+                // with shorter lead copy collapse upward and siblings in
+                // the same row show misaligned action buttons.
+                Spacer(minLength: 0)
                 actionRow
             }
             .padding(.vertical, 14)
             .padding(.trailing, 14)
             .padding(.leading, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .strokeBorder(
                     isPinned ? severityColor.opacity(0.4) : DS.Colors.subtext.opacity(0.12),
                     lineWidth: isPinned ? 1.5 : 0.5
@@ -80,25 +86,25 @@ struct AIInsightBanner: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: iconName)
-                .font(.system(size: 15, weight: .semibold))
+                .font(CentmondTheme.Typography.heading3.weight(.semibold))
                 .foregroundStyle(severityColor)
                 .frame(width: 22, height: 22)
                 .background(severityColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(insight.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(DS.Colors.text)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text(severityLabel)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                         .foregroundStyle(severityColor)
                     Text("·").foregroundStyle(DS.Colors.subtext.opacity(0.5))
                     Text(insight.domain.displayName)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(CentmondTheme.Typography.overline)
                         .foregroundStyle(DS.Colors.subtext)
                 }
             }
@@ -107,7 +113,7 @@ struct AIInsightBanner: View {
 
             if isPinned {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(severityColor)
             }
 
@@ -119,7 +125,7 @@ struct AIInsightBanner: View {
 
     private var leadSentence: some View {
         Text(insight.warning)
-            .font(.system(size: 12))
+            .font(CentmondTheme.Typography.caption)
             .foregroundStyle(DS.Colors.text.opacity(0.85))
             .fixedSize(horizontal: false, vertical: true)
             .lineSpacing(2)
@@ -129,16 +135,16 @@ struct AIInsightBanner: View {
         let hasRealAdvice = insight.advice?.isEmpty == false
         return HStack(alignment: .top, spacing: 8) {
             Image(systemName: hasRealAdvice ? "sparkles" : "lightbulb")
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(severityColor)
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 2) {
                 Text(hasRealAdvice ? "What to do" : "Good to know")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(CentmondTheme.Typography.micro.weight(.bold))
                     .tracking(0.6)
                     .foregroundStyle(severityColor.opacity(0.85))
                 Text(advice)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(DS.Colors.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(2)
@@ -147,7 +153,7 @@ struct AIInsightBanner: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(severityColor.opacity(0.07))
         )
     }
@@ -156,20 +162,20 @@ struct AIInsightBanner: View {
         HStack(spacing: 6) {
             if let cause = insight.cause, !cause.isEmpty {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(DS.Colors.subtext.opacity(0.7))
                 Text(cause)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(DS.Colors.subtext)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("·").foregroundStyle(DS.Colors.subtext.opacity(0.5))
             }
             Image(systemName: "clock")
-                .font(.system(size: 9))
+                .font(CentmondTheme.Typography.micro)
                 .foregroundStyle(DS.Colors.subtext.opacity(0.7))
             Text("Spotted \(relativeTime)")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.subtext)
 
             Spacer(minLength: 0)
@@ -179,9 +185,9 @@ struct AIInsightBanner: View {
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: expandedExplainer ? "chevron.up" : "questionmark.circle")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold))
                     Text(expandedExplainer ? "Hide" : "Why this?")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(CentmondTheme.Typography.overline)
                 }
                 .foregroundStyle(DS.Colors.subtext)
             }
@@ -193,11 +199,11 @@ struct AIInsightBanner: View {
     private var explainerBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("How Centmond spotted this")
-                .font(.system(size: 10, weight: .bold))
+                .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                 .tracking(0.5)
                 .foregroundStyle(DS.Colors.subtext)
             Text(detectorExplainer)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.text.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(2)
@@ -205,7 +211,7 @@ struct AIInsightBanner: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .fill(DS.Colors.subtext.opacity(0.06))
         )
     }
@@ -219,9 +225,9 @@ struct AIInsightBanner: View {
                     HStack(spacing: 5) {
                         Text(insight.primaryActionLabel)
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(CentmondTheme.Typography.micro.weight(.bold))
                     }
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 6)
@@ -231,7 +237,7 @@ struct AIInsightBanner: View {
                             startPoint: .top, endPoint: .bottom
                         )
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                     .shadow(color: severityColor.opacity(0.25), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
@@ -245,7 +251,7 @@ struct AIInsightBanner: View {
                         Text("View details")
                         Image(systemName: "arrow.up.right")
                     }
-                    .font(.system(size: 11, weight: .medium))
+                    .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                     .foregroundStyle(DS.Colors.subtext)
                 }
                 .buttonStyle(.plain)
@@ -288,7 +294,7 @@ struct AIInsightBanner: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .foregroundStyle(DS.Colors.subtext)
                 .frame(width: 20, height: 20)
                 .contentShape(Rectangle())

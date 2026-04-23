@@ -40,7 +40,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
                 .frame(height: 30)
@@ -107,7 +107,7 @@ struct SecondaryButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 13, weight: .medium))
+                .font(CentmondTheme.Typography.bodyMedium)
                 .foregroundStyle(
                     isHovered
                     ? CentmondTheme.Colors.textPrimary
@@ -142,7 +142,7 @@ struct SecondaryButtonStyle: ButtonStyle {
                                 )
                         }
                 }
-                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                .centmondShadow(1)
                 .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
                 .opacity(configuration.isPressed ? 0.8 : 1.0)
                 .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
@@ -165,7 +165,7 @@ struct GhostButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 13, weight: .medium))
+                .font(CentmondTheme.Typography.bodyMedium)
                 .foregroundStyle(
                     isHovered
                     ? CentmondTheme.Colors.textPrimary
@@ -200,7 +200,7 @@ struct AccentChipButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12, weight: .medium))
+                .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(
                     isHovered
                     ? CentmondTheme.Colors.accentHover
@@ -247,7 +247,7 @@ struct SecondaryChipButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12, weight: .medium))
+                .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(
                     isHovered
                     ? CentmondTheme.Colors.textPrimary
@@ -297,7 +297,7 @@ struct MutedChipButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12, weight: .medium))
+                .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(
                     isHovered
                     ? CentmondTheme.Colors.textPrimary
@@ -338,7 +338,7 @@ struct DestructiveButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
                 .frame(height: 30)
@@ -378,7 +378,7 @@ struct DestructiveButtonStyle: ButtonStyle {
                     radius: isHovered ? 8 : 3,
                     y: isHovered ? 2 : 1
                 )
-                .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
+                .centmondShadow(1)
                 .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
                 .opacity(configuration.isPressed ? 0.88 : 1.0)
                 .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)

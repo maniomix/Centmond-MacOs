@@ -73,7 +73,7 @@ struct NetWorthTrendChart: View {
         let pct = abs(deltaPercent) * 100
         return HStack(spacing: 6) {
             Image(systemName: arrow)
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
             Text("\(sign)\(CurrencyFormat.standard(abs(delta)))")
                 .font(CentmondTheme.Typography.bodyMedium)
                 .monospacedDigit()
@@ -101,7 +101,7 @@ struct NetWorthTrendChart: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                                 .fill(range == r ? CentmondTheme.Colors.accentMuted : Color.clear)
                         )
                         .contentShape(Rectangle())
@@ -120,7 +120,7 @@ struct NetWorthTrendChart: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 24))
+                        .font(CentmondTheme.Typography.heading1.weight(.regular))
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     Text("Not enough history yet")
                         .font(CentmondTheme.Typography.body)
@@ -252,12 +252,12 @@ struct NetWorthTrendChart: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                     .fill(CentmondTheme.Colors.bgSecondary)
-                    .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                    .centmondShadow(2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                     .strokeBorder(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
             )
         }

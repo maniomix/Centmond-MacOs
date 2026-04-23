@@ -119,7 +119,7 @@ enum NetWorthHistoryService {
         if let pts = try? context.fetch(FetchDescriptor<AccountBalancePoint>()) {
             for p in pts { context.delete(p) }
         }
-        try? context.save()
+        context.persist()
 
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
@@ -178,7 +178,7 @@ enum NetWorthHistoryService {
             source: source
         )
         context.insert(snapshot)
-        try? context.save()
+        context.persist()
     }
 
     // MARK: - Historical math
@@ -249,6 +249,6 @@ enum NetWorthHistoryService {
         if let pts = try? context.fetch(pointDesc) {
             for p in pts { context.delete(p) }
         }
-        try? context.save()
+        context.persist()
     }
 }

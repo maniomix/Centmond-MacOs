@@ -26,6 +26,20 @@ extension MarkdownUI.Theme {
             ForegroundColor(Color(.labelColor).opacity(0.75))
             FontSize(12.5)
         }
+        .paragraph { configuration in
+            configuration.label
+                .lineSpacing(8)
+                .markdownMargin(top: 32, bottom: 32)
+        }
+        .listItem { configuration in
+            configuration.label
+                .lineSpacing(8)
+                .markdownMargin(top: 18, bottom: 18)
+        }
+        .list { configuration in
+            ListCardWrapper { configuration.label }
+                .markdownMargin(top: 18, bottom: 18)
+        }
         .heading1 { configuration in
             configuration.label
                 .markdownTextStyle {
@@ -43,7 +57,7 @@ extension MarkdownUI.Theme {
                         FontSize(17)
                         ForegroundColor(DS.Colors.accent)
                     }
-                RoundedRectangle(cornerRadius: 1.5)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                     .fill(DS.Colors.accent.opacity(0.3))
                     .frame(height: 2)
                     .padding(.top, 6)
@@ -72,14 +86,6 @@ extension MarkdownUI.Theme {
             ForegroundColor(DS.Colors.accent)
             BackgroundColor(DS.Colors.accent.opacity(0.08))
         }
-        .listItem { configuration in
-            configuration.label
-                .markdownMargin(top: 10, bottom: 10)
-        }
-        .paragraph { configuration in
-            configuration.label
-                .markdownMargin(top: 10, bottom: 10)
-        }
 }
 
 // ============================================================
@@ -97,6 +103,8 @@ struct ChatBubbleView: View {
     @State private var appeared = false
     @State private var isEditing = false
     @State private var editText = ""
+    @State private var isHovering = false
+    @State private var copiedFlash = false
 
     /// Parsed insights (if the response contains structured financial data)
     private var parsedInsights: (text: String, insights: [FinancialInsight]?) {
@@ -136,8 +144,10 @@ struct ChatBubbleView: View {
                     // Regular markdown mode
                     assistantBubble
                 }
+                messageActionsRow
             } else {
                 userBubble
+                if !isEditing { messageActionsRow }
             }
 
             // Action cards
@@ -177,6 +187,59 @@ struct ChatBubbleView: View {
                 appeared = true
             }
         }
+        .onHover { isHovering = $0 }
+    }
+
+    // MARK: - Message Actions Row (hover-revealed)
+
+    private var messageActionsRow: some View {
+        HStack(spacing: 4) {
+            actionPill(
+                icon: copiedFlash ? "checkmark" : "doc.on.doc",
+                label: copiedFlash ? "Copied" : "Copy"
+            ) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message.content, forType: .string)
+                withAnimation(.easeInOut(duration: 0.15)) { copiedFlash = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    withAnimation(.easeInOut(duration: 0.2)) { copiedFlash = false }
+                }
+            }
+
+            if message.role == .user, onEditMessage != nil {
+                actionPill(icon: "pencil", label: "Edit") {
+                    editText = message.content
+                    isEditing = true
+                }
+            }
+        }
+        .opacity(isHovering ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .animation(.easeInOut(duration: 0.15), value: copiedFlash)
+        .padding(.top, 2)
+    }
+
+    private func actionPill(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(CentmondTheme.Typography.overlineSemibold)
+                Text(label)
+                    .font(CentmondTheme.Typography.overlineSemibold)
+            }
+            .foregroundStyle(DS.Colors.subtext)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - User Bubble
@@ -194,7 +257,7 @@ struct ChatBubbleView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                                 .fill(DS.Colors.accent.opacity(0.8))
                         )
 
@@ -203,7 +266,7 @@ struct ChatBubbleView: View {
                             isEditing = false
                         } label: {
                             Text("Cancel")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                                 .foregroundStyle(DS.Colors.subtext)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 5)
@@ -218,7 +281,7 @@ struct ChatBubbleView: View {
                             onEditMessage?(message.id, trimmed)
                         } label: {
                             Text("Send")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionSmallSemibold)
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 5)
@@ -236,7 +299,7 @@ struct ChatBubbleView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                             .fill(DS.Colors.accent.gradient)
                     )
                     .contextMenu {
@@ -267,7 +330,7 @@ struct ChatBubbleView: View {
             // Sparkle header strip
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                     .foregroundStyle(DS.Colors.accent)
                 Text("Centmond AI")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -283,19 +346,19 @@ struct ChatBubbleView: View {
                 .padding(.horizontal, 12)
 
             // Markdown content with capsules
-            CapsuleMarkdownView(text: message.content)
+            CapsuleMarkdownView(text: AssistantTextSanitizer.sanitize(message.content))
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
                 .padding(.bottom, 14)
         }
         .frame(maxWidth: 560, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+                .centmondShadow(2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -308,6 +371,14 @@ struct ChatBubbleView: View {
                     lineWidth: 0.5
                 )
         )
+        .contextMenu {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message.content, forType: .string)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+        }
     }
 
     // MARK: - Text-only Assistant Bubble (used below dashboard cards)
@@ -317,7 +388,7 @@ struct ChatBubbleView: View {
             // Sparkle header strip
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                     .foregroundStyle(DS.Colors.accent)
                 Text("Centmond AI")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -333,19 +404,19 @@ struct ChatBubbleView: View {
                 .padding(.horizontal, 12)
 
             // Markdown with inline category capsules
-            CapsuleMarkdownView(text: text, insights: insights)
+            CapsuleMarkdownView(text: AssistantTextSanitizer.sanitize(text), insights: insights)
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
                 .padding(.bottom, 14)
         }
         .frame(maxWidth: 560, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+                .centmondShadow(2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -358,6 +429,14 @@ struct ChatBubbleView: View {
                     lineWidth: 0.5
                 )
         )
+        .contextMenu {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -408,6 +487,81 @@ struct ChatBubbleView: View {
 // tokens so the parser always receives a valid document.
 //
 
+// ============================================================
+// MARK: - Assistant Text Sanitizer (defensive)
+// ============================================================
+//
+// Catches the case where the model under context pressure or
+// optimization throttling produces a malformed `---INSIGHTS---`
+// or `---ACTIONS---` delimiter (e.g. truncated to `---INS` or
+// `---ACT`) — the structured parsers miss it and raw JSON
+// payloads bleed into the visible message.
+//
+// This sanitizer:
+//   1. Truncates the message at the first `---I` or `---A`
+//      partial-delimiter occurrence (so truncated tails go away).
+//   2. Strips orphan JSON object fragments like `{"category":...}`,
+//      `{"type":"advice","params"...}`, etc., that escape the
+//      delimiter check entirely.
+//   3. Cleans up trailing punctuation residue ("," / ":") and
+//      collapses whitespace introduced by removed JSON.
+
+enum AssistantTextSanitizer {
+    static func sanitize(_ raw: String) -> String {
+        var result = raw
+
+        // 1. Cut at the first partial-delimiter we recognize.
+        // The model is allowed to emit any of these as a separator
+        // *prefix*; everything from there on is structured payload.
+        let cutMarkers = ["---INSIGHTS---", "---ACTIONS---",
+                          "---INSIGHT", "---ACTION",
+                          "---INS", "---ACT",
+                          "—INSIGHTS—", "—ACTIONS—"]
+        var earliestCut: String.Index? = nil
+        for marker in cutMarkers {
+            if let r = result.range(of: marker, options: .caseInsensitive),
+               (earliestCut == nil || r.lowerBound < earliestCut!) {
+                earliestCut = r.lowerBound
+            }
+        }
+        if let cut = earliestCut {
+            result = String(result[result.startIndex..<cut])
+        }
+
+        // 2. Strip orphan JSON object fragments (balanced or partial).
+        // Matches things like {"category":"Travel","spent":79,...}
+        // and partial leftovers that begin with `{"` or contain
+        // unmistakable JSON key fragments. Conservative: only kicks
+        // in for substrings that look distinctly like our payload
+        // shapes ("category":, "spent":, "params":, "type":, "advice":).
+        let jsonShapeKeys = ["\"category\"", "\"spent\"", "\"budget\"",
+                             "\"params\"", "\"advice\"", "\"warning\""]
+        if jsonShapeKeys.contains(where: { result.contains($0) }) {
+            // Strip JSON-ish runs: from { to next } (greedy-safe via NSRegex)
+            let patterns = [
+                #"\{[^{}]*"(category|type|params|advice|warning|spent|budget)"[^{}]*\}?"#,
+                #"\}\s*\]?\s*\{"#,                  // adjacent broken objects
+                #"\["[^\]]*"(category|type)"[^\]]*\]?"#,
+            ]
+            for p in patterns {
+                if let regex = try? NSRegularExpression(pattern: p,
+                                                        options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+                    let range = NSRange(result.startIndex..., in: result)
+                    result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: "")
+                }
+            }
+        }
+
+        // 3. Clean up trailing punctuation residue and double whitespace
+        //    left behind by stripped JSON.
+        result = result.replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"\s+([,.;:])"#, with: "$1", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[,;:]\s*$"#, with: "", options: .regularExpression)
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 enum StreamingMarkdownSanitizer {
 
     /// Makes incomplete Markdown well-formed for rendering.
@@ -440,33 +594,43 @@ enum StreamingMarkdownSanitizer {
     }
 
     /// Count unmatched `**` or `*` markers and close them.
+    /// Single-pass UTF8 scan — was 3× `components(separatedBy:)` plus
+    /// `replacingOccurrences` on every render, allocating O(N) arrays
+    /// per keystroke during streaming.
     private static func closeDanglingMarkers(_ text: String) -> String {
+        var stars = 0           // single `*` outside of `**` runs
+        var doubleStars = 0     // count of `**` pairs
+        var ticks = 0           // backticks outside of ``` runs
+        var tripleTicks = 0
+
+        var pendingStar = false      // saw exactly one `*`
+        var pendingTicks: Int = 0    // 1 or 2 backticks awaiting
+
+        for b in text.utf8 {
+            if b == 0x2A { // '*'
+                if pendingStar { doubleStars += 1; pendingStar = false }
+                else { pendingStar = true }
+            } else if pendingStar {
+                stars += 1
+                pendingStar = false
+            }
+
+            if b == 0x60 { // '`'
+                pendingTicks += 1
+                if pendingTicks == 3 { tripleTicks += 1; pendingTicks = 0 }
+            } else if pendingTicks > 0 {
+                ticks += pendingTicks
+                pendingTicks = 0
+            }
+        }
+        if pendingStar { stars += 1 }
+        if pendingTicks > 0 { ticks += pendingTicks }
+
         var result = text
-
-        // Bold: count occurrences of **
-        let boldCount = result.components(separatedBy: "**").count - 1
-        if boldCount % 2 != 0 {
-            // Odd number of ** — the last one is unclosed
-            result += "**"
-        }
-
-        // Italic (single *): only if NOT inside a bold pair
-        // Simple heuristic: count single * that aren't part of **
-        let withoutBold = result.replacingOccurrences(of: "**", with: "")
-        let italicCount = withoutBold.filter { $0 == "*" }.count
-        if italicCount % 2 != 0 {
-            result += "*"
-        }
-
-        // Backtick (inline code)
-        let backtickCount = result.filter { $0 == "`" }.count
-        // Ignore triple-backtick code blocks (count ``` occurrences)
-        let tripleCount = result.components(separatedBy: "```").count - 1
-        let singleTicks = backtickCount - (tripleCount * 3)
-        if singleTicks % 2 != 0 {
-            result += "`"
-        }
-
+        if doubleStars % 2 != 0 { result += "**" }
+        if stars % 2 != 0 { result += "*" }
+        if ticks % 2 != 0 { result += "`" }
+        _ = tripleTicks
         return result
     }
 }
@@ -669,5 +833,26 @@ struct CapsuleMarkdownView: View {
         case "income", "salary":          return SwiftUI.Color(red: 0.3, green: 0.85, blue: 0.45)
         default:                          return DS.Colors.accent
         }
+    }
+}
+
+// MARK: - List Card Wrapper (for Markdown bulleted/numbered lists)
+
+private struct ListCardWrapper<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
+                    .fill(Color.black.opacity(0.28))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.75)
+            )
     }
 }

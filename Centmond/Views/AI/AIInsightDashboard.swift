@@ -197,12 +197,12 @@ struct AIInsightDashboard: View {
         }
         .frame(maxWidth: 580, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                .centmondShadow(2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -241,7 +241,7 @@ struct AIInsightDashboard: View {
                 .foregroundStyle(.tertiary)
 
             Image(systemName: "sparkles")
-                .font(.system(size: 9))
+                .font(CentmondTheme.Typography.micro)
                 .foregroundStyle(DS.Colors.accent.opacity(0.5))
         }
     }
@@ -270,16 +270,16 @@ struct InsightCardView: View {
             // Top row: icon + category + status dot
             HStack(spacing: 6) {
                 Image(systemName: insight.icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(insight.statusColor)
                     .frame(width: 22, height: 22)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                             .fill(insight.statusColor.opacity(0.12))
                     )
 
                 Text(insight.category)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -291,7 +291,7 @@ struct InsightCardView: View {
 
             // Amount display
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("$\(insight.spent, specifier: "%.0f")")
+                Text(CurrencyFormat.abbreviated(insight.spent))
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(insight.statusColor)
 
@@ -305,10 +305,10 @@ struct InsightCardView: View {
             // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(Color.primary.opacity(0.06))
 
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [insight.statusColor.opacity(0.7), insight.statusColor],
@@ -335,7 +335,7 @@ struct InsightCardView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(Color(.controlBackgroundColor).opacity(isHovered ? 1 : 0.7))
                 .shadow(
                     color: insight.statusColor.opacity(isHovered ? 0.12 : 0),
@@ -343,7 +343,7 @@ struct InsightCardView: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .strokeBorder(
                     insight.statusColor.opacity(isHovered ? 0.25 : 0.08),
                     lineWidth: 0.5

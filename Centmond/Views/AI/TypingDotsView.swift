@@ -13,12 +13,12 @@ struct TypingDotsView: View {
             // Phase label with icon
             HStack(spacing: 8) {
                 Image(systemName: streamingPhase.icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                     .foregroundStyle(DS.Colors.accent)
                     .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.6))
 
                 Text(streamingPhase.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                     .foregroundStyle(DS.Colors.subtext)
 
                 // Bouncing dots inline
@@ -59,11 +59,11 @@ struct TypingDotsView: View {
     private func shimmerLine(width: CGFloat, offset: CGFloat) -> some View {
         let shimmerX = -width + (width * 2.5 * offset)
 
-        return RoundedRectangle(cornerRadius: 5, style: .continuous)
+        return RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
             .fill(DS.Colors.subtext.opacity(0.08))
             .frame(width: width, height: 10)
             .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
@@ -80,7 +80,7 @@ struct TypingDotsView: View {
                     .frame(width: width * 0.5)
                     .offset(x: shimmerX)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
     }
 }
 

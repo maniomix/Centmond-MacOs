@@ -199,19 +199,19 @@ private struct CoverPage: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("CENTMOND")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                     .tracking(2)
                     .foregroundStyle(PrintTheme.muted)
                 Spacer()
                 Text("Generated " + result.generatedAt.formatted(date: .long, time: .shortened))
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(PrintTheme.muted)
             }
 
             Spacer().frame(height: 80)
 
             Text(result.summary.title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .tracking(2)
                 .foregroundStyle(PrintTheme.accent)
 
@@ -222,7 +222,7 @@ private struct CoverPage: View {
                 .lineLimit(3)
 
             Text(rangeLabel)
-                .font(.system(size: 16))
+                .font(CentmondTheme.Typography.subheading.weight(.regular))
                 .foregroundStyle(PrintTheme.secondary)
                 .padding(.top, 12)
 
@@ -239,7 +239,7 @@ private struct CoverPage: View {
             HStack {
                 Spacer()
                 Text("\(result.summary.transactionCount) transactions · \(result.summary.currencyCode)")
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(PrintTheme.muted)
             }
         }
@@ -257,15 +257,15 @@ private struct CoverPage: View {
             ForEach(result.summary.kpis) { kpi in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(kpi.label.uppercased())
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold))
                         .tracking(1)
                         .foregroundStyle(PrintTheme.muted)
                     Text(PrintFmt.kpi(kpi))
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(tone(kpi.tone))
                     if let d = kpi.deltaVsBaseline {
                         Text((d >= 0 ? "▲ " : "▼ ") + PrintFmt.currency(abs(d)))
-                            .font(.system(size: 10, weight: .medium))
+                            .font(CentmondTheme.Typography.overline)
                             .foregroundStyle(d >= 0 ? PrintTheme.positive : PrintTheme.negative)
                     }
                 }
@@ -325,11 +325,11 @@ private struct PeriodSeriesPage: View {
     private func totalTile(label: String, value: Decimal, color: Color, format: ReportKPI.ValueFormat = .currency) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label.uppercased())
-                .font(.system(size: 8, weight: .semibold))
+                .font(CentmondTheme.Typography.microBold.weight(.semibold))
                 .tracking(1)
                 .foregroundStyle(PrintTheme.muted)
             Text(PrintFmt.format(value, as: format))
-                .font(.system(size: 16, weight: .semibold))
+                .font(CentmondTheme.Typography.subheading)
                 .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -358,12 +358,12 @@ private struct CategoryPage: View {
                     ForEach(breakdown.slices.prefix(10)) { slice in
                         HStack {
                             Text(slice.name)
-                                .font(.system(size: 10))
+                                .font(CentmondTheme.Typography.overlineRegular)
                                 .foregroundStyle(PrintTheme.text)
                                 .lineLimit(1)
                             Spacer()
                             Text(PrintFmt.currency(slice.amount))
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                                 .foregroundStyle(PrintTheme.text)
                         }
                     }
@@ -390,7 +390,7 @@ private struct HeatmapPage: View {
                     Text("").frame(width: 120, alignment: .leading)
                     ForEach(Array(heatmap.columnLabels.enumerated()), id: \.offset) { _, label in
                         Text(label)
-                            .font(.system(size: 8))
+                            .font(CentmondTheme.Typography.micro.weight(.regular))
                             .foregroundStyle(PrintTheme.muted)
                             .frame(maxWidth: .infinity)
                             .lineLimit(1)
@@ -399,7 +399,7 @@ private struct HeatmapPage: View {
                 ForEach(Array(heatmap.rowLabels.enumerated()), id: \.offset) { rIdx, rowLabel in
                     HStack(spacing: 2) {
                         Text(rowLabel)
-                            .font(.system(size: 9))
+                            .font(CentmondTheme.Typography.micro)
                             .foregroundStyle(PrintTheme.text)
                             .frame(width: 120, alignment: .leading)
                             .lineLimit(1)
@@ -472,7 +472,7 @@ private struct TablePage: View {
                 HStack(spacing: 0) {
                     ForEach(Array(headers.enumerated()), id: \.offset) { idx, h in
                         Text(h.uppercased())
-                            .font(.system(size: 8, weight: .bold))
+                            .font(CentmondTheme.Typography.microBold)
                             .tracking(0.5)
                             .foregroundStyle(PrintTheme.muted)
                             .frame(maxWidth: .infinity, alignment: idx == 0 ? .leading : .trailing)
@@ -510,10 +510,10 @@ private struct EmptyPage: View {
             VStack(spacing: 8) {
                 Spacer()
                 Text("No data to display")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(CentmondTheme.Typography.subheading)
                     .foregroundStyle(PrintTheme.text)
                 Text(description)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(PrintTheme.secondary)
                 Spacer()
             }
@@ -540,7 +540,7 @@ private struct PageFrame<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold))
+                .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                 .tracking(1.5)
                 .foregroundStyle(PrintTheme.accent)
 

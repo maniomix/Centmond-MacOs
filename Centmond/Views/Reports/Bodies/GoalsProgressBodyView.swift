@@ -80,11 +80,11 @@ struct GoalsProgressBodyView: View {
             VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
                 HStack {
                     Image(systemName: row.icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(CentmondTheme.Typography.subheading)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .frame(width: 32, height: 32)
                         .background(CentmondTheme.Colors.accentMuted)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.name)

@@ -18,7 +18,7 @@ struct DashboardReviewStrip: View {
             Button { router.navigate(to: .reviewQueue) } label: {
                 HStack(spacing: CentmondTheme.Spacing.md) {
                     Image(systemName: "tray.full.fill")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(CentmondTheme.Typography.subheading)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .frame(width: 32, height: 32)
                         .background(CentmondTheme.Colors.accent.opacity(0.15))
@@ -45,14 +45,14 @@ struct DashboardReviewStrip: View {
                     .buttonStyle(GhostButtonStyle())
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.lg)
                 .padding(.vertical, CentmondTheme.Spacing.md)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .strokeBorder(CentmondTheme.Colors.accent.opacity(0.2), lineWidth: 1)
                 )
             }

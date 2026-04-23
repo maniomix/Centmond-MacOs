@@ -46,7 +46,7 @@ struct SubscriptionCard: View {
             Spacer()
             if subscription.autoDetected {
                 Image(systemName: "wand.and.stars")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.accent)
                     .help("Auto-detected")
             }
@@ -56,10 +56,10 @@ struct SubscriptionCard: View {
 
     private var iconBadge: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .fill(iconTint.opacity(0.18))
             Image(systemName: subscription.iconSymbol ?? "arrow.triangle.2.circlepath")
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(iconTint)
         }
         .frame(width: 30, height: 30)
@@ -93,7 +93,7 @@ struct SubscriptionCard: View {
             }
             if overflowBadgeCount > 0 {
                 Text("+\(overflowBadgeCount)")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
@@ -187,8 +187,8 @@ struct SubscriptionCard: View {
 
     private func badgeChip(_ badge: Badge) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: badge.icon).font(.system(size: 8, weight: .bold))
-            Text(badge.text).font(.system(size: 9, weight: .semibold, design: .monospaced))
+            Image(systemName: badge.icon).font(CentmondTheme.Typography.microBold)
+            Text(badge.text).font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
         }
         .foregroundStyle(badge.tint)
         .padding(.horizontal, 5)

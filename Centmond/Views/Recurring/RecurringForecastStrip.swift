@@ -97,13 +97,13 @@ struct RecurringForecastStrip: View {
             HStack(spacing: 6) {
                 ForEach(entry.items.prefix(3)) { item in
                     Text(item.templateName)
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .lineLimit(1)
                 }
                 if entry.items.count > 3 {
                     Text("+\(entry.items.count - 3)")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 }
             }

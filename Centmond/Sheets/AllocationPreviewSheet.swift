@@ -56,7 +56,7 @@ struct AllocationPreviewSheet: View {
     private var header: some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "wand.and.stars")
-                .font(.system(size: 16, weight: .semibold))
+                .font(CentmondTheme.Typography.subheading)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Auto-allocation proposal")
@@ -72,7 +72,7 @@ struct AllocationPreviewSheet: View {
                 onComplete?()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -91,7 +91,7 @@ struct AllocationPreviewSheet: View {
                 .controlSize(.mini)
 
             Image(systemName: proposal.wrappedValue.goal.icon)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(CentmondTheme.Colors.accent)
                 .frame(width: 16)
 
@@ -101,7 +101,7 @@ struct AllocationPreviewSheet: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
                 Text(ruleSummary(proposal.wrappedValue.rule))
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .lineLimit(1)
             }
@@ -116,7 +116,7 @@ struct AllocationPreviewSheet: View {
                 set: { amountStrings[proposal.wrappedValue.id] = $0 }
             ))
                 .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.mono.weight(.semibold))
                 .foregroundStyle(proposal.wrappedValue.enabled ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textQuaternary)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 80)

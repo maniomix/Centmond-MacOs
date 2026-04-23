@@ -38,20 +38,14 @@ struct XLSXExporter: ReportExporter {
     // MARK: - Sheet builders
 
     private func buildSummarySheet(_ r: ReportResult) -> String {
-        let iso = ISO8601DateFormatter()
         var rows: [[Cell]] = [
-            [.text("Field", style: S.header), .text("Value", style: S.header)],
-            [.text("Report"),      .text(r.summary.title, style: S.bold)],
-            [.text("Kind"),        .text(r.definition.kind.rawValue)],
-            [.text("Range start"), .text(iso.string(from: r.summary.rangeStart))],
-            [.text("Range end"),   .text(iso.string(from: r.summary.rangeEnd))],
-            [.text("Group by"),    .text(r.definition.groupBy.rawValue)],
-            [.text("Comparison"),  .text(r.definition.comparison.rawValue)],
-            [.text("Generated"),   .text(iso.string(from: r.generatedAt))],
-            [.text("Transactions"), .number(Decimal(r.summary.transactionCount))],
+            [.text("Report", style: S.header), .text(r.summary.title, style: S.bold)],
+            [.text("Date range"),  .text("\(prettyDate(r.summary.rangeStart)) – \(prettyDate(r.summary.rangeEnd))")],
+            [.text("Transactions"),.number(Decimal(r.summary.transactionCount))],
             [.text("Currency"),    .text(r.summary.currencyCode)],
+            [.text("Generated"),   .text(prettyDateTime(r.generatedAt))],
             [],
-            [.text("KPI", style: S.header), .text("Value", style: S.header)]
+            [.text("Highlight", style: S.header), .text("Value", style: S.header)]
         ]
 
         for kpi in r.summary.kpis {
@@ -105,7 +99,7 @@ struct XLSXExporter: ReportExporter {
                 )
 
             case .merchantLeaderboard(let m):
-                let iso = ISO8601DateFormatter()
+                // use prettyDate helper below
                 let data = m.rows.enumerated().map { idx, row -> [Cell] in
                     [
                         .number(Decimal(idx + 1)),
@@ -114,8 +108,8 @@ struct XLSXExporter: ReportExporter {
                         .number(Decimal(row.transactionCount)),
                         .number(row.averageAmount, style: S.currency),
                         .number(Decimal(row.percentOfTotal), style: S.percent),
-                        .text(iso.string(from: row.firstSeen)),
-                        .text(iso.string(from: row.lastSeen))
+                        .text(prettyDate(row.firstSeen)),
+                        .text(prettyDate(row.lastSeen))
                     ]
                 }
                 return (
@@ -133,20 +127,20 @@ struct XLSXExporter: ReportExporter {
                         .text(c),
                         .number(cell.value, style: S.currency),
                         cell.baseline.map { .number($0, style: S.currency) } ?? .empty,
-                        .text(cell.overBudget ? "true" : "false")
+                        .text(cell.overBudget ? "Over budget" : "On track")
                     ]
                 }
                 return (
-                    ["Row", "Column", "Actual", "Budget", "Over budget"],
+                    ["Category", "Month", "Actual", "Budget", "Status"],
                     data,
                     "Budget heatmap"
                 )
 
             case .netWorth(let n):
-                let iso = ISO8601DateFormatter()
+                // use prettyDate helper below
                 let data = n.snapshots.map { p -> [Cell] in
                     [
-                        .text(iso.string(from: p.date)),
+                        .text(prettyDate(p.date)),
                         .number(p.assets, style: S.currency),
                         .number(p.liabilities, style: S.currency),
                         .number(p.netWorth, style: S.currency)
@@ -155,7 +149,7 @@ struct XLSXExporter: ReportExporter {
                 return (["Date", "Assets", "Liabilities", "Net worth"], data, "Snapshots")
 
             case .subscriptionRoster(let s):
-                let iso = ISO8601DateFormatter()
+                // use prettyDate helper below
                 let data = s.rows.map { row -> [Cell] in
                     [
                         .text(row.serviceName),
@@ -163,19 +157,19 @@ struct XLSXExporter: ReportExporter {
                         .text(row.statusLabel),
                         .number(row.monthlyCost, style: S.currency),
                         .number(row.annualCost, style: S.currency),
-                        row.nextPaymentDate.map { .text(iso.string(from: $0)) } ?? .empty,
-                        row.firstChargeDate.map { .text(iso.string(from: $0)) } ?? .empty,
-                        .text(row.isTrial ? "true" : "false")
+                        row.nextPaymentDate.map { .text(prettyDate($0)) } ?? .empty,
+                        row.firstChargeDate.map { .text(prettyDate($0)) } ?? .empty,
+                        .text(row.isTrial ? "Yes" : "No")
                     ]
                 }
                 return (
-                    ["Service", "Category", "Status", "Monthly", "Annual", "Next payment", "First charge", "Trial"],
+                    ["Service", "Category", "Status", "Monthly", "Annual", "Next payment", "First charge", "Trial?"],
                     data,
                     "Subscriptions"
                 )
 
             case .recurringRoster(let r):
-                let iso = ISO8601DateFormatter()
+                // use prettyDate helper below
                 let all = r.expenseRows + r.incomeRows
                 let data = all.map { row -> [Cell] in
                     [
@@ -184,18 +178,18 @@ struct XLSXExporter: ReportExporter {
                         .text(row.frequencyLabel),
                         .number(row.amount, style: S.currency),
                         .number(row.normalizedMonthly, style: S.currency),
-                        .text(iso.string(from: row.nextOccurrence)),
-                        .text(row.isActive ? "true" : "false")
+                        .text(prettyDate(row.nextOccurrence)),
+                        .text(row.isActive ? "Yes" : "No")
                     ]
                 }
                 return (
-                    ["Name", "Kind", "Frequency", "Amount", "Monthly", "Next occurrence", "Active"],
+                    ["Name", "Kind", "Frequency", "Amount", "Monthly equivalent", "Next occurrence", "Active?"],
                     data,
                     "Recurring"
                 )
 
             case .goalsProgress(let g):
-                let iso = ISO8601DateFormatter()
+                // use prettyDate helper below
                 let data = g.rows.map { row -> [Cell] in
                     [
                         .text(row.name),
@@ -203,7 +197,7 @@ struct XLSXExporter: ReportExporter {
                         .number(row.targetAmount, style: S.currency),
                         .number(Decimal(row.percentComplete), style: S.percent),
                         row.monthlyContribution.map { .number($0, style: S.currency) } ?? .empty,
-                        row.projectedCompletion.map { .text(iso.string(from: $0)) } ?? .empty,
+                        row.projectedCompletion.map { .text(prettyDate($0)) } ?? .empty,
                         .number(row.contributionsInRange, style: S.currency)
                     ]
                 }
@@ -225,14 +219,30 @@ struct XLSXExporter: ReportExporter {
         return (renderSheet(name: name, rows: fullRows), name)
     }
 
+    // MARK: - Friendly date formatters
+
+    private func prettyDate(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        return fmt.string(from: date)
+    }
+
+    private func prettyDateTime(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd HH:mm"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        return fmt.string(from: date)
+    }
+
     // MARK: - Period row
 
     private func mkPeriodRow(_ b: PeriodSeries.Bucket, series: String) -> [Cell] {
-        let iso = ISO8601DateFormatter()
+        // use prettyDate helper below
         return [
             .text(b.label),
-            .text(iso.string(from: b.start)),
-            .text(iso.string(from: b.end)),
+            .text(prettyDate(b.start)),
+            .text(prettyDate(b.end)),
             .number(b.income, style: S.currency),
             .number(b.expense, style: S.currency),
             .number(b.net, style: S.currency),

@@ -81,7 +81,7 @@ struct ImportCSVSheet: View {
             if let importError {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.negative)
                     Text(importError)
                         .font(CentmondTheme.Typography.caption)
@@ -209,7 +209,7 @@ extension ImportCSVSheet {
                 } label: {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         Image(systemName: "folder")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(CentmondTheme.Typography.captionMedium)
                         Text("Browse Files")
                     }
                 }
@@ -273,7 +273,7 @@ extension ImportCSVSheet {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         Image(systemName: "doc.text.fill")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.accent)
                         Text(url.lastPathComponent)
                             .font(CentmondTheme.Typography.captionMedium)
@@ -283,15 +283,15 @@ extension ImportCSVSheet {
                         if budgetMonthCount > 0 {
                             HStack(spacing: 3) {
                                 Image(systemName: "target")
-                                    .font(.system(size: 9, weight: .semibold))
+                                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                                 Text("\(budgetMonthCount) monthly budget\(budgetMonthCount == 1 ? "" : "s")")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(CentmondTheme.Typography.overline)
                             }
                             .foregroundStyle(CentmondTheme.Colors.projected)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(CentmondTheme.Colors.projected.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                         }
                         Text("\(parsedRows.count) rows")
                             .font(CentmondTheme.Typography.caption)
@@ -456,7 +456,7 @@ extension ImportCSVSheet {
             if importMode == .replace {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.negative)
                     Text("This will permanently delete \(existingTransactions.count) transactions.")
                         .font(CentmondTheme.Typography.caption)
@@ -486,13 +486,13 @@ extension ImportCSVSheet {
                             .fill(iconColor.opacity(0.12))
                             .frame(width: 36, height: 36)
                         Image(systemName: icon)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(CentmondTheme.Typography.subheading.weight(.medium))
                             .foregroundStyle(iconColor)
                     }
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
+                            .font(CentmondTheme.Typography.heading2.weight(.regular))
                             .foregroundStyle(CentmondTheme.Colors.accent)
                     } else {
                         Circle()
@@ -603,10 +603,10 @@ extension ImportCSVSheet {
             HStack(spacing: CentmondTheme.Spacing.md) {
                 // Checkbox
                 ZStack {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(isSelected ? CentmondTheme.Colors.accent : Color.clear)
                         .frame(width: 18, height: 18)
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .strokeBorder(
                             isSelected ? CentmondTheme.Colors.accent : CentmondTheme.Colors.strokeDefault,
                             lineWidth: 1.5
@@ -614,7 +614,7 @@ extension ImportCSVSheet {
                         .frame(width: 18, height: 18)
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                             .foregroundStyle(.white)
                     }
                 }
@@ -626,7 +626,7 @@ extension ImportCSVSheet {
                         .fill(Color(hex: resolved.colorHex).opacity(0.15))
                         .frame(width: 28, height: 28)
                     Image(systemName: resolved.icon)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                         .foregroundStyle(Color(hex: resolved.colorHex))
                 }
 
@@ -1394,7 +1394,7 @@ extension ImportCSVSheet {
                     modelContext.insert(MonthlyTotalBudget(year: y, month: m, amount: entry.amount))
                 }
             }
-            try? modelContext.save()
+            modelContext.persist()
         }
 
         // Replace mode wipes transactions across every account, and

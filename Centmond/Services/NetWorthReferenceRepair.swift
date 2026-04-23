@@ -22,6 +22,6 @@ enum NetWorthReferenceRepair {
             }
         }
 
-        if changed { try? context.save() }
+        if changed { context.persist() }
     }
 }

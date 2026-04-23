@@ -97,7 +97,7 @@ enum AIActionExecutor {
             results.append(execute(action, context: context))
         }
         // Save once after all actions
-        try? context.save()
+        context.persist()
         return results
     }
 

@@ -24,7 +24,7 @@ struct TransactionGoalAllocationsView: View {
                     ForEach(contributions) { c in
                         HStack(spacing: CentmondTheme.Spacing.sm) {
                             Image(systemName: c.goal?.icon ?? "target")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                                 .frame(width: 16)
                             Text(c.goal?.name ?? "Deleted goal")
@@ -74,7 +74,7 @@ struct IncomeAllocationSubLabel: View {
                     Image(systemName: "target")
                         .font(.system(size: 7, weight: .semibold))
                     Text(CurrencyFormat.compact(allocated))
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                         .monospacedDigit()
                 }
                 .foregroundStyle(CentmondTheme.Colors.accent)
@@ -84,7 +84,7 @@ struct IncomeAllocationSubLabel: View {
                     Image(systemName: "wallet.pass.fill")
                         .font(.system(size: 7, weight: .semibold))
                     Text(CurrencyFormat.compact(toSpend))
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                         .monospacedDigit()
                 }
                 .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.85))
@@ -92,7 +92,7 @@ struct IncomeAllocationSubLabel: View {
             }
         } else {
             Text("income")
-                .font(.system(size: 9))
+                .font(CentmondTheme.Typography.micro)
                 .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
         }
     }
@@ -114,9 +114,9 @@ struct TransactionGoalChip: View {
         if !contributions.isEmpty {
             HStack(spacing: 3) {
                 Image(systemName: "target")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                 Text("\(contributions.count)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
             }
             .foregroundStyle(CentmondTheme.Colors.accent)
             .padding(.horizontal, 6)

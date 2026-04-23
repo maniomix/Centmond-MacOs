@@ -83,7 +83,7 @@ struct AIProactiveView: View {
             // -- Header row --
             HStack(spacing: 10) {
                 Image(systemName: item.type.icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(CentmondTheme.Typography.subheading)
                     .foregroundStyle(severityColor(item.severity))
                     .frame(width: 28, height: 28)
                     .background(severityColor(item.severity).opacity(0.12), in: Circle())
@@ -133,7 +133,7 @@ struct AIProactiveView: View {
                             .font(DS.Typography.caption)
                             .fontWeight(.medium)
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(CentmondTheme.Typography.overlineSemibold)
                     }
                     .foregroundStyle(DS.Colors.accent)
                 }
@@ -148,7 +148,7 @@ struct AIProactiveView: View {
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: action.icon)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                             Text(action.label)
                                 .font(DS.Typography.caption)
                                 .fontWeight(.semibold)
@@ -169,7 +169,7 @@ struct AIProactiveView: View {
                     }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                         .foregroundStyle(DS.Colors.subtext)
                         .padding(6)
                         .background(DS.Colors.subtext.opacity(0.1), in: Circle())
@@ -180,11 +180,11 @@ struct AIProactiveView: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(severityColor(item.severity).opacity(0.25), lineWidth: 1)
         )
     }
@@ -197,7 +197,7 @@ struct AIProactiveView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: section.icon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(severityColor(section.severity))
                 Text(section.title)
                     .font(DS.Typography.caption)
@@ -214,7 +214,7 @@ struct AIProactiveView: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(severityColor(section.severity).opacity(0.06))
         )
     }
@@ -255,7 +255,7 @@ struct AIProactiveView: View {
 
     private func severityBadge(_ severity: ProactiveSeverity) -> some View {
         Text(severity.rawValue.capitalized)
-            .font(.system(size: 10, weight: .bold))
+            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
             .foregroundStyle(severityColor(severity))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -319,7 +319,7 @@ struct AIProactiveBanner: View {
                                             .font(DS.Typography.caption)
                                             .fontWeight(.semibold)
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 10, weight: .bold))
+                                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                                     }
                                     .foregroundStyle(DS.Colors.accent)
                                     .padding(.horizontal, 14)
@@ -341,7 +341,7 @@ struct AIProactiveBanner: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "sun.max.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(DS.Colors.warning)
                 Text(item.title)
                     .font(DS.Typography.callout)
@@ -352,7 +352,7 @@ struct AIProactiveBanner: View {
                     withAnimation { engine.dismiss(item.id) }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(DS.Colors.subtext)
                 }
                 .buttonStyle(.plain)
@@ -367,9 +367,9 @@ struct AIProactiveBanner: View {
                     ForEach(item.sections.prefix(3)) { section in
                         HStack(spacing: 3) {
                             Image(systemName: section.icon)
-                                .font(.system(size: 9))
+                                .font(CentmondTheme.Typography.micro)
                             Text(section.title)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                         }
                         .foregroundStyle(severityColor(section.severity))
                     }
@@ -378,11 +378,11 @@ struct AIProactiveBanner: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .strokeBorder(DS.Colors.warning.opacity(0.2), lineWidth: 1)
         )
     }
@@ -393,7 +393,7 @@ struct AIProactiveBanner: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: item.type.icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(severityColor(item.severity))
                 Text(item.title)
                     .font(DS.Typography.caption)
@@ -405,24 +405,24 @@ struct AIProactiveBanner: View {
                     withAnimation { engine.dismiss(item.id) }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(CentmondTheme.Typography.micro.weight(.bold))
                         .foregroundStyle(DS.Colors.subtext)
                 }
                 .buttonStyle(.plain)
             }
 
             Text(item.summary)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.subtext)
                 .lineLimit(2)
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .strokeBorder(severityColor(item.severity).opacity(0.2), lineWidth: 1)
         )
     }

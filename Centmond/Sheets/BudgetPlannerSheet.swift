@@ -47,7 +47,7 @@ struct BudgetPlannerSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 24, height: 24)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -119,7 +119,7 @@ struct BudgetPlannerSheet: View {
                                 if unallocated < 0 {
                                     HStack(spacing: CentmondTheme.Spacing.xs) {
                                         Image(systemName: "exclamationmark.circle.fill")
-                                            .font(.system(size: 11))
+                                            .font(CentmondTheme.Typography.captionSmall)
                                             .foregroundStyle(CentmondTheme.Colors.warning)
                                         Text("Over-allocated by \(CurrencyFormat.standard(-unallocated))")
                                             .font(CentmondTheme.Typography.caption)
@@ -157,7 +157,7 @@ struct BudgetPlannerSheet: View {
                         VStack(spacing: 0) {
                             HStack(spacing: CentmondTheme.Spacing.sm) {
                                 Image(systemName: "info.circle")
-                                    .font(.system(size: 12))
+                                    .font(CentmondTheme.Typography.caption)
                                     .foregroundStyle(CentmondTheme.Colors.info)
                                 Text("Set how much of your monthly budget each category gets. Leaving a field empty uses the default amount.")
                                     .font(CentmondTheme.Typography.caption)
@@ -215,7 +215,7 @@ struct BudgetPlannerSheet: View {
                 } label: {
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                         Text("Add Category")
                             .font(CentmondTheme.Typography.captionMedium)
                     }
@@ -251,7 +251,7 @@ struct BudgetPlannerSheet: View {
     private func categoryRow(_ category: BudgetCategory) -> some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: category.icon)
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(Color(hex: category.colorHex))
                 .frame(width: 30, height: 30)
                 .background(Color(hex: category.colorHex).opacity(0.12))

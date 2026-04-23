@@ -16,7 +16,7 @@ struct SheetHeader: View {
                 onDismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgQuaternary)

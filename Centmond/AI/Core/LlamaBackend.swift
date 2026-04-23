@@ -32,16 +32,21 @@ actor LlamaBackend {
     // Generation-lifecycle flags. Both are actor-isolated so they're only
     // read/written on the LlamaBackend executor — no atomics needed.
     //
-    // `isGenerating` is TRUE from the moment `generate(...)` spawns its
-    // runGeneration task until runGeneration exits. `unload()` MUST NOT
-    // free `model` / `context` / `sampler` while this is true — otherwise
-    // the in-flight C calls (`llama_decode`, `llama_sampler_sample`,
-    // `llama_vocab_*`) operate on freed memory → EXC_BAD_ACCESS in
-    // `llama_vocab::impl` (exactly what user hit on Task 225).
+    // `generationCount` is the number of runGeneration Tasks currently in
+    // flight. `unload()` MUST NOT free `model` / `context` / `sampler`
+    // while this is > 0 — otherwise the in-flight C calls
+    // (`llama_decode`, `llama_sampler_sample`, `llama_vocab_*`) operate
+    // on freed memory → EXC_BAD_ACCESS in `llama_vocab::impl`.
     //
-    // `shouldStop` is the cooperative signal `unload()` raises so that
-    // runGeneration breaks out of its loop at the next Task.yield() boundary.
-    private var isGenerating: Bool = false
+    // A counter (not a Bool) is required because rapid view switching
+    // can queue overlapping generate() calls on the actor; with a Bool,
+    // the first Task to finish flips the flag to false while the second
+    // is still sampling → unload frees the vocab under it.
+    //
+    // `shouldStop` is the cooperative signal that `unload()` or a new
+    // `generate()` raises so in-flight runGeneration loops break out at
+    // the next Task.yield() boundary.
+    private var generationCount: Int = 0
     private var shouldStop: Bool = false
 
     // MARK: - Parameters
@@ -106,24 +111,25 @@ actor LlamaBackend {
     }
 
     func unload() async {
-        // If a generation is in flight, signal it to stop and wait for it
-        // to exit before freeing resources. Without this wait, cleanup()
-        // frees the vocab/context while runGeneration is mid-`llama_decode`
-        // → use-after-free crash (EXC_BAD_ACCESS in llama_vocab::impl).
-        if isGenerating {
+        // If any generation is in flight, signal it to stop and wait for
+        // every runGeneration Task to exit before freeing resources.
+        // Without this wait, cleanup() frees the vocab/context while
+        // runGeneration is mid-`llama_decode` → use-after-free crash
+        // (EXC_BAD_ACCESS in llama_vocab::impl).
+        if generationCount > 0 {
             shouldStop = true
-            log.info("LlamaBackend: unload requested mid-generate, waiting for stop")
+            log.info("LlamaBackend: unload requested mid-generate, waiting for stop (count=\(self.generationCount))")
             // Cooperative spin — runGeneration checks `shouldStop` on every
             // Task.yield() boundary (roughly every 6 tokens / every batch).
             // Bounded wait with a safety cap so a wedged generation can't
             // prevent unload forever.
             var spins = 0
-            while isGenerating && spins < 400 {   // ~4 s worst case at 10ms sleeps
+            while generationCount > 0 && spins < 400 {   // ~4 s worst case at 10ms sleeps
                 try? await Task.sleep(nanoseconds: 10_000_000)
                 spins += 1
             }
-            if isGenerating {
-                log.error("LlamaBackend: generation did not stop in time; proceeding with unload anyway")
+            if generationCount > 0 {
+                log.error("LlamaBackend: \(self.generationCount) generation(s) did not stop in time; proceeding with unload anyway")
             }
         }
         cleanup()
@@ -185,8 +191,24 @@ actor LlamaBackend {
     func generate(
         messages: [AIMessage],
         systemPrompt: String?
-    ) -> AsyncStream<String> {
+    ) async -> AsyncStream<String> {
         let (stream, continuation) = AsyncStream.makeStream(of: String.self)
+
+        // If a prior runGeneration is still in flight, stop it and wait
+        // for it to exit before starting a new one. Running two concurrent
+        // decodes on the same llama_context corrupts inference state, and
+        // — more critically — a single Bool `isGenerating` flag can't
+        // track overlap: whichever Task finishes first would flip the
+        // flag to false, letting unload() free the vocab while the other
+        // is still sampling → EXC_BAD_ACCESS in llama_vocab::n_tokens.
+        if generationCount > 0 {
+            shouldStop = true
+            var spins = 0
+            while generationCount > 0 && spins < 400 {
+                try? await Task.sleep(nanoseconds: 10_000_000)
+                spins += 1
+            }
+        }
 
         guard let ctx = context, let mdl = model, let smp = sampler else {
             continuation.finish()
@@ -195,10 +217,8 @@ actor LlamaBackend {
 
         let maxTok = maxTokens
 
-        // Mark the actor as busy BEFORE spawning. unload() sees this and
-        // waits before freeing resources.
-        isGenerating = true
         shouldStop = false
+        generationCount += 1
 
         // Run generation in an unstructured task so the caller
         // doesn't have to await the entire generation.
@@ -215,11 +235,11 @@ actor LlamaBackend {
         return stream
     }
 
-    /// Actor-isolated setter so the spawned generation Task can flip the
-    /// flag back when it's done. Called from inside the unstructured Task
-    /// after runGeneration returns.
+    /// Actor-isolated setter so the spawned generation Task can decrement
+    /// the in-flight counter when it's done. Called from inside the
+    /// unstructured Task after runGeneration returns.
     private func markGenerationFinished() {
-        isGenerating = false
+        generationCount = max(0, generationCount - 1)
     }
 
     private func runGeneration(

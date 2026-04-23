@@ -57,7 +57,7 @@ struct ModernCalendarPicker: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text(monthYearLabel)
-                .font(.system(size: 14, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 .contentTransition(.opacity)
 
@@ -65,7 +65,7 @@ struct ModernCalendarPicker: View {
 
             Button { navigateMonth(-1) } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -80,7 +80,7 @@ struct ModernCalendarPicker: View {
                 }
             } label: {
                 Text("Today")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.accent)
                     .padding(.horizontal, 8)
                     .frame(height: 24)
@@ -92,7 +92,7 @@ struct ModernCalendarPicker: View {
 
             Button { navigateMonth(1) } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -117,7 +117,7 @@ struct ModernCalendarPicker: View {
         HStack(spacing: 0) {
             ForEach(weekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     .textCase(.uppercase)
                     .frame(maxWidth: .infinity)

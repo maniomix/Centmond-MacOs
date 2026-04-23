@@ -12,10 +12,14 @@ struct RecurringView: View {
     }
 
     @State private var filterType: FilterType = .all
-    @State private var showDeleteConfirmation = false
-    @State private var itemToDelete: RecurringTransaction?
     @State private var showPaused = true
-    @State private var pendingDetectedCount: Int = 0
+
+    /// Alias so downstream reducers don't have to care whether the view is
+    /// read-only or not. Historically this held an in-session delete
+    /// hide-set; now the view is fully read-only and we just pass `items`
+    /// through. Kept as a pass-through so it's cheap to re-introduce a
+    /// filter later if auto-detect needs to hide a row.
+    private var visibleItems: [RecurringTransaction] { items }
 
     enum FilterType: String, CaseIterable {
         case all = "All"
@@ -23,8 +27,8 @@ struct RecurringView: View {
         case expense = "Expenses"
     }
 
-    private var activeItems: [RecurringTransaction] { items.filter { $0.isActive } }
-    private var pausedItems: [RecurringTransaction] { items.filter { !$0.isActive } }
+    private var activeItems: [RecurringTransaction] { visibleItems.filter { $0.isActive } }
+    private var pausedItems: [RecurringTransaction] { visibleItems.filter { !$0.isActive } }
 
     // MARK: - Month-aware filtering
 
@@ -43,9 +47,9 @@ struct RecurringView: View {
         let s = router.selectedMonthStart, e = router.selectedMonthEnd
         var base: [RecurringTransaction]
         switch filterType {
-        case .all:     base = showPaused ? items : activeItems
-        case .income:  base = (showPaused ? items : activeItems).filter(\.isIncome)
-        case .expense: base = (showPaused ? items : activeItems).filter { !$0.isIncome }
+        case .all:     base = showPaused ? visibleItems : activeItems
+        case .income:  base = (showPaused ? visibleItems : activeItems).filter(\.isIncome)
+        case .expense: base = (showPaused ? visibleItems : activeItems).filter { !$0.isIncome }
         }
         // Active items must occur in the selected month; paused always shown if enabled
         return base.filter { item in
@@ -75,10 +79,16 @@ struct RecurringView: View {
         }
     }
 
-    @MainActor
-    private func refreshPendingDetectedCount() {
-        let detected = RecurringDetector.detect(context: modelContext)
-        pendingDetectedCount = detected.filter { $0.confidence < RecurringDetector.effectiveAutoConfirmThreshold }.count
+    /// Safe category-name lookup that never dereferences `item.category`.
+    /// Walks the ALWAYS-LIVE `liveCategories` (sourced from the @Query that
+    /// only surfaces existing rows) and matches through the inverse
+    /// `BudgetCategory.recurrings` relationship. Returns nil if the item
+    /// has no live category — which is the correct render state for a row
+    /// whose category was deleted.
+    private func categoryName(for item: RecurringTransaction) -> String? {
+        liveCategories.first { cat in
+            cat.recurrings.contains(where: { $0.persistentModelID == item.persistentModelID })
+        }?.name
     }
 
     private func projectedOccurrence(for item: RecurringTransaction) -> Date? {
@@ -95,13 +105,16 @@ struct RecurringView: View {
             if items.isEmpty {
                 EmptyStateView(
                     icon: "repeat",
-                    heading: "No recurring transactions",
-                    description: "Add recurring income and expenses to track regular cash flow like rent, salary, and utilities.",
-                    primaryAction: "Add Recurring",
-                    onPrimaryAction: { router.showSheet(.newRecurring) }
+                    heading: "No recurring transactions yet",
+                    description: "Centmond watches your transactions and automatically surfaces anything that repeats — salary, rent, subscriptions. Add a few transactions and they'll appear here.",
+                    primaryAction: nil,
+                    onPrimaryAction: {}
                 )
             } else {
                 VStack(spacing: 0) {
+                    SectionTutorialStrip(screen: .recurring)
+                        .padding(.horizontal, CentmondTheme.Spacing.lg)
+                        .padding(.top, CentmondTheme.Spacing.sm)
                     summaryBar
 
                     Divider().background(CentmondTheme.Colors.strokeSubtle)
@@ -109,10 +122,8 @@ struct RecurringView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             RecurringForecastStrip(
-                                templates: items,
-                                onSelectTemplate: { template in
-                                    router.showSheet(.editRecurring(template))
-                                }
+                                templates: visibleItems,
+                                onSelectTemplate: { _ in }
                             )
 
                             templatesSection
@@ -121,23 +132,14 @@ struct RecurringView: View {
                 }
             }
         }
-        .onAppear { refreshPendingDetectedCount() }
-        .onChange(of: items.count) { _, _ in refreshPendingDetectedCount() }
-        .onChange(of: router.activeSheet?.id) { _, new in
-            // After the detected-recurring sheet closes the user may have
-            // confirmed or dismissed entries; refresh the chip count.
-            if new == nil { refreshPendingDetectedCount() }
-        }
-        .alert("Delete Recurring Item", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { itemToDelete = nil }
-            Button("Delete", role: .destructive) {
-                if let item = itemToDelete {
-                    modelContext.delete(item)
-                }
-                itemToDelete = nil
-            }
-        } message: {
-            Text("Delete \"\(itemToDelete?.name ?? "")\"? This cannot be undone.")
+        .onAppear {
+            // Scrub any dangling BudgetCategory refs BEFORE the list diffs.
+            // If a category was deleted this session (from Inspector or Budget)
+            // the inverse-null cascade is deferred until save; any row reading
+            // `item.category` during SwiftUI's render would crash with
+            // "backing data could no longer be found in the store".
+            // This repair uses primitive Core Data access so it can't fault.
+            CategoryReferenceRepair.run(context: modelContext)
         }
     }
 
@@ -195,7 +197,7 @@ struct RecurringView: View {
                 if !upcomingWeek.isEmpty {
                     HStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "clock.fill")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.warning)
                         Text("\(upcomingWeek.count) due this week")
                             .font(CentmondTheme.Typography.caption)
@@ -209,7 +211,7 @@ struct RecurringView: View {
             // every midnight, so there is nothing for the user to push.
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 Image(systemName: "bolt.badge.automatic.fill")
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(CentmondTheme.Colors.positive)
                 Text("Auto")
                     .font(CentmondTheme.Typography.caption)
@@ -221,25 +223,12 @@ struct RecurringView: View {
             .clipShape(Capsule())
             .help("Recurring transactions materialize automatically. Edit a template to change its schedule.")
 
-            // Lower-confidence detection results — auto-confirmed templates
-            // were already minted by the scheduler; this chip surfaces only
-            // the items that need a human yes/no.
-            if pendingDetectedCount > 0 {
-                Button {
-                    router.showSheet(.detectedRecurring)
-                } label: {
-                    Label("\(pendingDetectedCount) detected", systemImage: "wand.and.stars")
-                }
-                .buttonStyle(SecondaryChipButtonStyle())
-                .help("Review patterns the detector found but isn't confident enough to add automatically")
-            }
-
-            Button {
-                router.showSheet(.newRecurring)
-            } label: {
-                Label("Add", systemImage: "plus")
-            }
-            .buttonStyle(AccentChipButtonStyle())
+            // No manual Add / Detected-review buttons: recurring patterns
+            // are discovered automatically from the user's transactions by
+            // `RecurringDetector` + the scheduler's auto-confirm pass. This
+            // view is read-only — users never hand-delete or hand-edit
+            // templates, which sidesteps the tombstoned-category crash
+            // class we used to hit on deletion.
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -315,12 +304,10 @@ struct RecurringView: View {
                             monthlyAmount: monthlyAmount(item),
                             projectedOccurrence: projectedOccurrence(for: item),
                             liveCategoryIDs: liveCategoryIDs,
+                            resolvedCategoryName: categoryName(for: item),
                             onToggleActive: { item.isActive.toggle() },
-                            onEdit: { router.showSheet(.editRecurring(item)) },
-                            onDelete: {
-                                itemToDelete = item
-                                showDeleteConfirmation = true
-                            }
+                            onEdit: {},
+                            onDelete: {}
                         )
                     }
                 }
@@ -351,6 +338,12 @@ struct RecurringRow: View {
     let monthlyAmount: Decimal
     var projectedOccurrence: Date? = nil
     var liveCategoryIDs: Set<PersistentIdentifier> = []
+    /// Pre-resolved category name, looked up by the parent via the
+    /// ALWAYS-LIVE inverse side (`BudgetCategory.recurrings`) so this row
+    /// never needs to access `item.category`. Accessing `item.category`
+    /// directly faults if the referenced BudgetCategory was deleted this
+    /// session and SwiftData hasn't saved the inverse-null cascade yet.
+    var resolvedCategoryName: String? = nil
     var onToggleActive: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
@@ -367,7 +360,7 @@ struct RecurringRow: View {
             // Name
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: item.isIncome ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(item.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -376,8 +369,8 @@ struct RecurringRow: View {
                         .foregroundStyle(item.isActive ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textTertiary)
                         .lineLimit(1)
 
-                    if let cat = item.category, liveCategoryIDs.contains(cat.persistentModelID) {
-                        Text(cat.name)
+                    if let name = resolvedCategoryName {
+                        Text(name)
                             .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                             .lineLimit(1)
@@ -414,7 +407,7 @@ struct RecurringRow: View {
                         .foregroundStyle(isOverdue ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textSecondary)
                     if isOverdue {
                         Text("overdue")
-                            .font(.system(size: 9))
+                            .font(CentmondTheme.Typography.micro)
                             .foregroundStyle(CentmondTheme.Colors.negative)
                     }
                 }
@@ -457,15 +450,8 @@ struct RecurringRow: View {
             Rectangle().fill(CentmondTheme.Colors.strokeSubtle).frame(height: 1)
         }
         .contextMenu {
-            Button { onEdit() } label: {
-                Label("Edit", systemImage: "pencil")
-            }
             Button { onToggleActive() } label: {
                 Label(item.isActive ? "Pause" : "Resume", systemImage: item.isActive ? "pause.circle" : "play.circle")
-            }
-            Divider()
-            Button(role: .destructive) { onDelete() } label: {
-                Label("Delete", systemImage: "trash")
             }
         }
     }

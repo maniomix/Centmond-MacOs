@@ -24,7 +24,7 @@ struct AIModelDownloadSheet: View {
                         .foregroundStyle(.primary)
 
                     Text("Choose a model to run on your Mac. All processing stays on-device — nothing is sent to the cloud.")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
@@ -62,38 +62,38 @@ struct AIModelDownloadSheet: View {
                                             .foregroundStyle(.primary)
 
                                         Text(option.sizeLabel)
-                                            .font(.system(size: 11, weight: .medium))
+                                            .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                                             .foregroundStyle(.secondary)
 
                                         if let rec = model.recommendation {
                                             Text(rec.rawValue)
-                                                .font(.system(size: 9, weight: .bold))
+                                                .font(CentmondTheme.Typography.micro.weight(.bold))
                                                 .foregroundStyle(rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
                                                 .padding(.horizontal, 5)
                                                 .padding(.vertical, 1.5)
                                                 .background(
                                                     (rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
                                                         .opacity(0.12),
-                                                    in: RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                                    in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                                                 )
                                         }
 
                                         // Installed badge
                                         if aiManager.availableModels.contains(where: { $0.filename == option.filename }) {
                                             Text("INSTALLED")
-                                                .font(.system(size: 8, weight: .bold))
+                                                .font(CentmondTheme.Typography.microBold)
                                                 .foregroundStyle(DS.Colors.positive)
                                                 .padding(.horizontal, 4)
                                                 .padding(.vertical, 1.5)
                                                 .background(
                                                     DS.Colors.positive.opacity(0.12),
-                                                    in: RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                                    in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                                                 )
                                         }
                                     }
 
                                     Text(model.description)
-                                        .font(.system(size: 11))
+                                        .font(CentmondTheme.Typography.captionSmall)
                                         .foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
 
@@ -109,10 +109,10 @@ struct AIModelDownloadSheet: View {
                             }
                             .padding(12)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                     .fill(isSelected ? DS.Colors.accent.opacity(0.06) : Color(.controlBackgroundColor))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                             .strokeBorder(
                                                 isSelected ? DS.Colors.accent.opacity(0.4) : Color.clear,
                                                 lineWidth: 1.5
@@ -135,14 +135,14 @@ struct AIModelDownloadSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 16))
+                            .font(CentmondTheme.Typography.subheading.weight(.regular))
                         Text("Download \(catalog[selectedIndex].modelFile.quantization) (\(catalog[selectedIndex].sizeLabel))")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
@@ -161,11 +161,11 @@ struct AIModelDownloadSheet: View {
     private func miniBar(label: String, tier: Int, color: Color) -> some View {
         HStack(spacing: 3) {
             Text(label)
-                .font(.system(size: 9, weight: .medium))
+                .font(CentmondTheme.Typography.micro.weight(.medium))
                 .foregroundStyle(.quaternary)
                 .frame(width: 36, alignment: .leading)
             ForEach(0..<5, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                     .fill(i < tier ? color.opacity(0.65) : color.opacity(0.1))
                     .frame(width: 14, height: 3.5)
             }

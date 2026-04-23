@@ -46,6 +46,7 @@ struct GoalsView: View {
             } else {
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
+                        SectionTutorialStrip(screen: .goals)
                         goalsSummaryBar
 
                         unallocatedIncomeBanner
@@ -53,7 +54,7 @@ struct GoalsView: View {
                         if activeGoals.isEmpty && !doneGoals.isEmpty {
                             VStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 32))
+                                    .font(CentmondTheme.Typography.display.weight(.regular))
                                     .foregroundStyle(CentmondTheme.Colors.positive)
                                 Text("All goals completed!")
                                     .font(CentmondTheme.Typography.heading3)
@@ -190,7 +191,7 @@ struct GoalsView: View {
         if unallocated.count > 0, !activeGoals.isEmpty {
             HStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.positive)
                     .frame(width: 32, height: 32)
                     .background(CentmondTheme.Colors.positive.opacity(0.14))
@@ -272,7 +273,7 @@ struct GoalsView: View {
     private func summaryItem(label: String, value: String, icon: String, color: Color) -> some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .font(CentmondTheme.Typography.subheading.weight(.medium))
                 .foregroundStyle(color)
                 .frame(width: 32, height: 32)
                 .background(color.opacity(0.12))
@@ -303,7 +304,7 @@ struct GoalsView: View {
             } label: {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: showCompleted ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                     Text("Completed & Archived (\(doneGoals.count))")
                         .font(CentmondTheme.Typography.captionMedium)
                 }
@@ -358,7 +359,7 @@ struct GoalCard: View {
             // Header: icon + name + status
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: goal.icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                     .foregroundStyle(isSelected ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textSecondary)
                     .frame(width: 18)
 
@@ -387,7 +388,7 @@ struct GoalCard: View {
                 Spacer()
 
                 Text("\(Int(goal.progressPercentage * 100))%")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                     .foregroundStyle(progressColor)
                     .monospacedDigit()
                     .padding(.horizontal, 6)
@@ -399,10 +400,10 @@ struct GoalCard: View {
             // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(CentmondTheme.Colors.strokeSubtle)
 
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [CentmondTheme.Colors.accent, progressColor],
@@ -439,7 +440,7 @@ struct GoalCard: View {
                 if let projected = GoalAnalytics.projectedCompletion(goal), goal.status == .active {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(CentmondTheme.Typography.micro.weight(.medium))
                         Text("~ \(projected.formatted(.dateTime.month().year()))")
                             .monospacedDigit()
                     }
@@ -480,14 +481,14 @@ struct GoalCard: View {
 
         return HStack(spacing: 6) {
             Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .frame(width: 12)
             Text("This month")
                 .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
             Text(CurrencyFormat.compact(thisMonth))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                 .foregroundStyle(thisMonth > 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textQuaternary)
             if hasTarget {
                 Text("of \(CurrencyFormat.compact(target))")
@@ -533,9 +534,9 @@ struct GoalCard: View {
         }()
         return HStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 8, weight: .semibold))
+                .font(CentmondTheme.Typography.microBold.weight(.semibold))
             Text(CurrencyFormat.compact(amount))
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                 .monospacedDigit()
         }
         .foregroundStyle(color)

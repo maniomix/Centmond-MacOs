@@ -65,7 +65,7 @@ enum TransactionReferenceRepair {
         }
 
         if changed {
-            try? context.save()
+            context.persist()
         }
     }
 

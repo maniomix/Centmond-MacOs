@@ -48,7 +48,7 @@ struct ProUpgradeSheet: View {
                         ForEach(features, id: \.title) { feature in
                             HStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: feature.icon)
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                                     .foregroundStyle(CentmondTheme.Colors.accent)
                                     .frame(width: 28, height: 28)
                                     .background(CentmondTheme.Colors.accent.opacity(0.12))

@@ -96,7 +96,7 @@ struct SplitTransactionSheet: View {
                     if let error = saveError {
                         HStack(spacing: 4) {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .font(.system(size: 10))
+                                .font(CentmondTheme.Typography.overlineRegular)
                             Text(error)
                         }
                         .font(CentmondTheme.Typography.caption)

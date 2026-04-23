@@ -81,7 +81,7 @@ struct DashboardHouseholdStrip: View {
     private var headerBlock: some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: "person.2.fill")
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(CentmondTheme.Colors.accent)
                 .frame(width: 32, height: 32)
                 .background(CentmondTheme.Colors.accent.opacity(0.12))

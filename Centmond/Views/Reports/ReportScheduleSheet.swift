@@ -2,22 +2,19 @@ import SwiftUI
 import SwiftData
 import AppKit
 
-// Creates (or creates-and-saves-preset-then-creates) a ScheduledReport
-// for the currently-open ReportDefinition. A schedule always rides on a
-// SavedReport so the runner has a stable, user-named definition to
-// reference; if the user opened an unsaved template we create one on
-// the fly using the report title.
+// Creates a ScheduledReport from the parent ReportsView's current
+// range/filter/sections selection. The parent passes them in verbatim so
+// the user schedules exactly what they see on screen.
 
 struct ReportScheduleSheet: View {
-    let definition: ReportDefinition
-    let defaultName: String
+    let range: ReportDateRange
+    let filter: ReportFilter
+    let sections: Set<ReportSection>
     let onClose: () -> Void
 
     @Environment(\.modelContext) private var context
-    @Query private var savedReports: [SavedReport]
 
-    @State private var selectedSavedID: UUID?
-    @State private var presetName: String = ""
+    @State private var name: String = "Centmond Report"
     @State private var format: ReportExportFormat = .pdf
     @State private var cadence: ScheduledReportCadence = .monthly
     @State private var destinationPath: String = ""
@@ -28,19 +25,14 @@ struct ReportScheduleSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Schedule export")
                     .font(CentmondTheme.Typography.heading2)
-                Text(definition.kind.title)
+                Text(summaryLine)
                     .font(CentmondTheme.Typography.body)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
 
             Form {
-                Section("Preset") {
-                    if matchingSaved != nil {
-                        Text("Reusing existing saved preset.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        TextField("Preset name", text: $presetName)
-                    }
+                Section("Name") {
+                    TextField("Report name", text: $name)
                 }
 
                 Section("Schedule") {
@@ -49,7 +41,6 @@ struct ReportScheduleSheet: View {
                             Text(c.label).tag(c)
                         }
                     }
-
                     Picker("Format", selection: $format) {
                         ForEach(ReportExportFormat.allCases) { f in
                             Text(f.displayName).tag(f)
@@ -71,8 +62,7 @@ struct ReportScheduleSheet: View {
 
                 if let errorMessage {
                     Section {
-                        Text(errorMessage)
-                            .foregroundStyle(.red)
+                        Text(errorMessage).foregroundStyle(.red)
                     }
                 }
             }
@@ -93,23 +83,25 @@ struct ReportScheduleSheet: View {
         }
         .padding(CentmondTheme.Spacing.xxl)
         .frame(width: 500)
-        .onAppear {
-            presetName = defaultName
-            if let existing = matchingSaved {
-                selectedSavedID = existing.id
-            }
-        }
     }
 
     // MARK: - Derived
 
-    private var matchingSaved: SavedReport? {
-        savedReports.first { $0.definition == definition }
-    }
-
     private var canSave: Bool {
         !destinationPath.isEmpty &&
-        (matchingSaved != nil || !presetName.trimmingCharacters(in: .whitespaces).isEmpty)
+        !sections.isEmpty &&
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var summaryLine: String {
+        let count = sections.count
+        let sectionWord = count == 1 ? "section" : "sections"
+        let ranged: String = {
+            let (s, e) = range.resolve()
+            let df = DateFormatter(); df.dateFormat = "MMM d, yyyy"
+            return "\(df.string(from: s)) — \(df.string(from: e))"
+        }()
+        return "\(count) \(sectionWord) · \(ranged)"
     }
 
     // MARK: - Actions
@@ -128,24 +120,18 @@ struct ReportScheduleSheet: View {
 
     private func saveSchedule() {
         errorMessage = nil
-
-        let savedReport: SavedReport = {
-            if let existing = matchingSaved { return existing }
-            let trimmed = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let newSaved = SavedReport(name: trimmed, definition: definition)
-            context.insert(newSaved)
-            return newSaved
-        }()
-
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let schedule = ScheduledReport(
-            savedReportID: savedReport.id,
+            name: trimmed,
+            sections: sections,
+            range: range,
+            filter: filter,
             format: format,
             cadence: cadence,
             destinationPath: destinationPath,
             nextFireDate: cadence.nextFire(after: .now)
         )
         context.insert(schedule)
-
         do {
             try context.save()
             onClose()

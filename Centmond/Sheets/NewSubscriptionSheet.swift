@@ -53,7 +53,7 @@ struct NewSubscriptionSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -221,7 +221,7 @@ struct NewSubscriptionSheet: View {
             if DecimalInput.parsePositive(amount) != nil {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.info)
 
                     Text("Annual cost: \(CurrencyFormat.standard(annualPreview))")
@@ -237,7 +237,7 @@ struct NewSubscriptionSheet: View {
             if hasAttemptedSave, let error = nameError ?? amountError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text(error)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -256,6 +256,7 @@ struct NewSubscriptionSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid && hasAttemptedSave)
             .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -276,7 +277,7 @@ struct NewSubscriptionSheet: View {
 
     private func fieldIcon(_ name: String, error: Bool = false) -> some View {
         Image(systemName: name)
-            .font(.system(size: 12))
+            .font(CentmondTheme.Typography.caption)
             .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
             .frame(width: 18)
     }
@@ -295,7 +296,7 @@ struct NewSubscriptionSheet: View {
                 .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 8, weight: .semibold))
+                .font(CentmondTheme.Typography.microBold.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.6))
         }
         .padding(.horizontal, 10)

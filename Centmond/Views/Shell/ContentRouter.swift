@@ -62,11 +62,11 @@ struct ContentRouter: View {
     private var screenToolbarContent: some View {
         HStack(spacing: 12) {
             Image(systemName: screen.iconName)
-                .font(.system(size: 12, weight: .medium))
+                .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(CentmondTheme.Colors.accent)
 
             Text(screen.displayName)
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 .fixedSize()
 

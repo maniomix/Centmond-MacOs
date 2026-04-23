@@ -81,6 +81,7 @@ struct NewRecurringSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid)
             .opacity(isValid ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -105,7 +106,7 @@ struct NewRecurringSheet: View {
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 22, height: 22)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -162,7 +163,7 @@ struct NewRecurringSheet: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("$")
-                        .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.monoDisplay)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                     if rawCents.isEmpty {
@@ -170,7 +171,7 @@ struct NewRecurringSheet: View {
                     } else {
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text(formattedAmount)
-                                .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                                .font(CentmondTheme.Typography.monoDisplay)
                                 .foregroundStyle(amountColor)
                                 .monospacedDigit()
                                 .contentTransition(.numericText(countsDown: false))
@@ -252,7 +253,7 @@ struct NewRecurringSheet: View {
     private var autoCaption: some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: "bolt.badge.automatic.fill")
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.positive)
             Text("Transactions will be created automatically on each due date.")
                 .font(CentmondTheme.Typography.caption)
@@ -278,7 +279,7 @@ struct NewRecurringSheet: View {
 
     private func rowIcon(_ system: String) -> some View {
         Image(systemName: system)
-            .font(.system(size: 11))
+            .font(CentmondTheme.Typography.captionSmall)
             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             .frame(width: 16)
     }
@@ -307,7 +308,7 @@ struct NewRecurringSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -332,7 +333,7 @@ struct NewRecurringSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -403,7 +404,7 @@ struct NewRecurringSheet: View {
         @State private var visible = true
 
         var body: some View {
-            RoundedRectangle(cornerRadius: 1)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                 .fill(color)
                 .frame(width: 2.5, height: 32)
                 .opacity(visible ? 1 : 0)

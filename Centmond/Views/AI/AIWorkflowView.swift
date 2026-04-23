@@ -118,12 +118,12 @@ struct AIWorkflowView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(DS.Colors.subtext.opacity(0.5))
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .fill(DS.Colors.surface)
             )
         }
@@ -149,11 +149,11 @@ struct AIWorkflowView: View {
         VStack(spacing: 6) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(DS.Colors.surface)
                         .frame(height: 8)
 
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(progressColor(workflow.status))
                         .frame(width: max(0, geo.size.width * workflow.progress), height: 8)
                         .animation(.easeInOut(duration: 0.3), value: workflow.progress)
@@ -163,13 +163,13 @@ struct AIWorkflowView: View {
 
             HStack {
                 Text(statusLabel(workflow.status))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                     .foregroundStyle(progressColor(workflow.status))
 
                 Spacer()
 
                 Text("\(Int(workflow.progress * 100))%")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                     .foregroundStyle(DS.Colors.subtext)
             }
         }
@@ -205,7 +205,7 @@ struct AIWorkflowView: View {
 
                             if step.status == .awaitingApproval {
                                 Text("APPROVAL")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(CentmondTheme.Typography.micro.weight(.bold))
                                     .foregroundStyle(DS.Colors.warning)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1)
@@ -213,7 +213,7 @@ struct AIWorkflowView: View {
                             }
                             if step.status == .failed {
                                 Text("FAILED")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(CentmondTheme.Typography.micro.weight(.bold))
                                     .foregroundStyle(DS.Colors.danger)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1)
@@ -223,7 +223,7 @@ struct AIWorkflowView: View {
 
                         if let msg = step.resultMessage, step.status != .pending {
                             Text(msg)
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(DS.Colors.subtext)
                                 .lineLimit(2)
                         }
@@ -233,7 +233,7 @@ struct AIWorkflowView: View {
 
                     if step.executedCount > 0 {
                         Text("\(step.executedCount)")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                             .foregroundStyle(DS.Colors.positive)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -262,7 +262,7 @@ struct AIWorkflowView: View {
                     .foregroundStyle(.white)
             case .skipped:
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(.white)
             case .running:
                 ProgressView()
@@ -270,11 +270,11 @@ struct AIWorkflowView: View {
                     .tint(.white)
             case .awaitingApproval:
                 Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(.white)
             case .pending:
                 Image(systemName: step.icon)
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(isCurrent ? DS.Colors.accent : DS.Colors.subtext.opacity(0.4))
             }
         }
@@ -297,7 +297,7 @@ struct AIWorkflowView: View {
             // Header
             HStack(spacing: 8) {
                 Image(systemName: step.icon)
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(DS.Colors.accent)
                 Text(step.title)
                     .font(DS.Typography.section)
@@ -309,7 +309,7 @@ struct AIWorkflowView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(step.detailLines, id: \.self) { line in
                         Text(line)
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                 }
@@ -319,10 +319,10 @@ struct AIWorkflowView: View {
             if let error = step.error {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(DS.Colors.danger)
                     Text(error)
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(DS.Colors.danger)
                 }
             }
@@ -337,7 +337,7 @@ struct AIWorkflowView: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -354,17 +354,17 @@ struct AIWorkflowView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.isApproved ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 18))
+                            .font(CentmondTheme.Typography.heading2.weight(.regular))
                             .foregroundStyle(item.isApproved ? DS.Colors.accent : DS.Colors.subtext.opacity(0.4))
 
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.summary)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(CentmondTheme.Typography.bodyMedium)
                                 .foregroundStyle(DS.Colors.text)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                             Text(item.detail)
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(DS.Colors.subtext)
                                 .lineLimit(1)
                         }
@@ -373,7 +373,7 @@ struct AIWorkflowView: View {
 
                         if item.isHighConfidence {
                             Text("HIGH")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(CentmondTheme.Typography.microBold)
                                 .foregroundStyle(DS.Colors.positive)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
@@ -402,7 +402,7 @@ struct AIWorkflowView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                                 .stroke(DS.Colors.subtext.opacity(0.3), lineWidth: 1)
                         )
                 }
@@ -420,7 +420,7 @@ struct AIWorkflowView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -445,10 +445,10 @@ struct AIWorkflowView: View {
                     if step.status == .completed, let msg = step.resultMessage {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                                 .foregroundStyle(DS.Colors.positive)
                             Text(msg)
-                                .font(.system(size: 12))
+                                .font(CentmondTheme.Typography.caption)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                     }
@@ -479,13 +479,13 @@ struct AIWorkflowView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
             }
             .buttonStyle(.plain)
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -531,11 +531,11 @@ struct AIWorkflowView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(color)
             Text(label)
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(DS.Colors.subtext)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
     }
 }

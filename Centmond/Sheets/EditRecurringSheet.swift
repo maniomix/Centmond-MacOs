@@ -43,7 +43,7 @@ struct EditRecurringSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 24, height: 24)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -137,7 +137,7 @@ struct EditRecurringSheet: View {
 
                     HStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "bolt.badge.automatic.fill")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.positive)
                         Text("Transactions are created automatically on each due date.")
                             .font(CentmondTheme.Typography.caption)

@@ -223,11 +223,11 @@ struct SidebarView: View {
                 HStack {
                     Spacer()
                     Image(systemName: "sidebar.left")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         .frame(width: 28, height: 28)
                         .background(CentmondTheme.Colors.bgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                     Spacer()
                 }
                 .help("Expand sidebar")
@@ -236,7 +236,7 @@ struct SidebarView: View {
                 // same row style as the section items.
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "sidebar.squares.left")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(CentmondTheme.Typography.bodyMedium)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 20)
                     Text("Collapse sidebar")
@@ -286,7 +286,7 @@ struct SidebarView: View {
             router.selectedMemberID = nil
         } label: {
             Text("All")
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(isActive ? Color.white : CentmondTheme.Colors.textTertiary)
                 .padding(.horizontal, 8)
                 .frame(height: Self.scopeChipHeight)
@@ -304,7 +304,7 @@ struct SidebarView: View {
             router.selectedMemberID = isActive ? nil : m.id
         } label: {
             Text(String(m.name.prefix(1)))
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(.white)
                 .frame(width: Self.scopeChipHeight, height: Self.scopeChipHeight)
                 .background(Color(hex: m.avatarColor))
@@ -330,7 +330,7 @@ struct SidebarView: View {
                     .foregroundStyle(CentmondTheme.Colors.accent)
                     .contentTransition(.numericText())
                 Text(router.selectedMonth.formatted(.dateTime.month(.abbreviated)))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(CentmondTheme.Typography.micro.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .textCase(.uppercase)
             } else {
@@ -338,7 +338,7 @@ struct SidebarView: View {
                     router.jumpToCurrentMonth()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .frame(width: 28, height: 28)
                         .background(CentmondTheme.Colors.accentMuted)
@@ -347,7 +347,7 @@ struct SidebarView: View {
                 .buttonStyle(.plainHover)
                 .help("Back to today")
                 Text(router.selectedMonth.formatted(.dateTime.month(.abbreviated)))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(CentmondTheme.Typography.micro.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .textCase(.uppercase)
             }
@@ -368,7 +368,7 @@ struct SidebarView: View {
                 router.navigateMonth(by: -1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 28, height: 28)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -411,7 +411,7 @@ struct SidebarView: View {
                     router.jumpToCurrentMonth()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .frame(width: 24, height: 24)
                         .background(CentmondTheme.Colors.accentMuted)
@@ -428,7 +428,7 @@ struct SidebarView: View {
                 router.navigateMonth(by: 1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 28, height: 28)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -465,15 +465,10 @@ struct SidebarView: View {
                             .clipShape(Capsule())
                     }
 
-                    if screen.requiresPro {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    }
                 }
             } icon: {
                 Image(systemName: screen.iconName)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .symbolRenderingMode(.hierarchical)
             }
     }
@@ -513,7 +508,7 @@ struct BetaBanner: View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             BetaCapsule()
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
             Text("·")
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
@@ -577,7 +572,7 @@ fileprivate struct CompactSidebarItem: View {
             VStack(spacing: 2) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: screen.iconName)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(CentmondTheme.Typography.subheading.weight(.medium))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(iconColor)
                         // `.bottom` anchor made the icon grow UPWARD only,

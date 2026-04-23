@@ -74,7 +74,7 @@ struct NetWorthBodyPreview: View {
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
             HStack(spacing: 4) {
                 Image(systemName: d >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                 Text(CurrencyFormat.compact(Decimal(abs(d))))
                     .font(CentmondTheme.Typography.caption).monospacedDigit()
             }

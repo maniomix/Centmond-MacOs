@@ -103,7 +103,7 @@ struct HouseholdShareSheet: View {
                 toggle(m)
             } label: {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(isOn ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
             }
             .buttonStyle(.plain)
@@ -300,7 +300,7 @@ struct HouseholdShareSheet: View {
             break
         }
         transaction.updatedAt = .now
-        try? modelContext.save()
+        modelContext.persist()
         HouseholdTelemetry.shared.recordSplitCreated()
         dismiss()
     }
@@ -309,7 +309,7 @@ struct HouseholdShareSheet: View {
         for s in transaction.shares {
             modelContext.delete(s)
         }
-        try? modelContext.save()
+        modelContext.persist()
         dismiss()
     }
 }

@@ -47,7 +47,7 @@ struct DetectedSubscriptionsSheet: View {
     private var header: some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "wand.and.stars")
-                .font(.system(size: 16, weight: .semibold))
+                .font(CentmondTheme.Typography.subheading)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Detected subscriptions")
@@ -62,7 +62,7 @@ struct DetectedSubscriptionsSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -84,7 +84,7 @@ struct DetectedSubscriptionsSheet: View {
     private var emptyState: some View {
         VStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
             Text("All caught up")
                 .font(CentmondTheme.Typography.heading3)
@@ -114,7 +114,7 @@ struct DetectedSubscriptionsSheet: View {
             .controlSize(.mini)
 
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(CentmondTheme.Colors.accent)
                 .frame(width: 16)
 
@@ -129,7 +129,7 @@ struct DetectedSubscriptionsSheet: View {
                     }
                 }
                 Text(rowSubtitle(candidate))
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .lineLimit(1)
             }
@@ -139,7 +139,7 @@ struct DetectedSubscriptionsSheet: View {
             confidenceChip(candidate.confidence)
 
             Text(CurrencyFormat.standard(candidate.amount))
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.mono.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 .frame(width: 84, alignment: .trailing)
 
@@ -147,7 +147,7 @@ struct DetectedSubscriptionsSheet: View {
                 dismissCandidate(candidate)
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 22, height: 22)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -181,7 +181,7 @@ struct DetectedSubscriptionsSheet: View {
             ? CentmondTheme.Colors.positive
             : (value >= 0.6 ? CentmondTheme.Colors.accent : CentmondTheme.Colors.warning)
         return Text("\(pct)%")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
             .foregroundStyle(tint)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -193,9 +193,9 @@ struct DetectedSubscriptionsSheet: View {
         let sign = up ? "+" : ""
         return HStack(spacing: 3) {
             Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                .font(.system(size: 8, weight: .bold))
+                .font(CentmondTheme.Typography.microBold)
             Text("\(sign)\(Int((pct * 100).rounded()))%")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
         }
         .foregroundStyle(up ? CentmondTheme.Colors.warning : CentmondTheme.Colors.positive)
         .padding(.horizontal, 5)

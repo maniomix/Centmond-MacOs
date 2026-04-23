@@ -92,7 +92,7 @@ struct NewTransferSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -142,7 +142,7 @@ struct NewTransferSheet: View {
 
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("$")
-                            .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                            .font(CentmondTheme.Typography.monoDisplay)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                         if rawCents.isEmpty {
@@ -150,7 +150,7 @@ struct NewTransferSheet: View {
                         } else {
                             HStack(alignment: .firstTextBaseline, spacing: 3) {
                                 Text(formattedAmount)
-                                    .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                                    .font(CentmondTheme.Typography.monoDisplay)
                                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                                     .monospacedDigit()
                                     .contentTransition(.numericText(countsDown: false))
@@ -179,8 +179,8 @@ struct NewTransferSheet: View {
                                 amountInput = String(dollars * 100)
                                 focusedField = .amount
                             } label: {
-                                Text("$\(dollars)")
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                Text(CurrencyFormat.compact(Decimal(dollars)))
+                                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                     .padding(.horizontal, 10)
                                     .frame(height: 24)
@@ -240,7 +240,7 @@ struct NewTransferSheet: View {
                             }
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(CentmondTheme.Typography.overlineSemibold)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                 .frame(width: 22, height: 22)
                                 .background(CentmondTheme.Colors.bgTertiary)
@@ -276,7 +276,7 @@ struct NewTransferSheet: View {
                 if exceedsFromBalance {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                         Text("This transfer exceeds \(fromAccount?.name ?? "the source")'s balance")
                             .font(CentmondTheme.Typography.caption)
                     }
@@ -328,7 +328,7 @@ struct NewTransferSheet: View {
             if sameAccount && !destinationIsGoal {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text("From and To must differ")
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -338,7 +338,7 @@ struct NewTransferSheet: View {
             if let error = saveError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text(error)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -353,6 +353,7 @@ struct NewTransferSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid)
             .opacity(isValid ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -394,7 +395,7 @@ struct NewTransferSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -483,7 +484,7 @@ struct NewTransferSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -499,7 +500,7 @@ struct NewTransferSheet: View {
 
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "clock")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text("Time")
                         .font(CentmondTheme.Typography.body)
@@ -515,7 +516,7 @@ struct NewTransferSheet: View {
 
     private func rowIcon(_ system: String) -> some View {
         Image(systemName: system)
-            .font(.system(size: 11))
+            .font(CentmondTheme.Typography.captionSmall)
             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             .frame(width: 16)
     }
@@ -542,7 +543,7 @@ struct NewTransferSheet: View {
 
         return HStack(spacing: 6) {
             Image(systemName: "dollarsign.circle")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .frame(width: 16)
             Text(account.currentBalance.formatted(.currency(code: "USD")))
@@ -551,10 +552,10 @@ struct NewTransferSheet: View {
                 .monospacedDigit()
             if amountIsSet {
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(CentmondTheme.Typography.microBold)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text(after.formatted(.currency(code: "USD")))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                     .foregroundStyle(afterColor)
                     .monospacedDigit()
             }
@@ -577,7 +578,7 @@ struct NewTransferSheet: View {
 
         return HStack(spacing: 6) {
             Image(systemName: "target")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .frame(width: 16)
             Text(CurrencyFormat.compact(goal.currentAmount))
@@ -586,16 +587,16 @@ struct NewTransferSheet: View {
                 .monospacedDigit()
             if amountIsSet {
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(CentmondTheme.Typography.microBold)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text(CurrencyFormat.compact(cappedAfter))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                     .foregroundStyle(CentmondTheme.Colors.positive)
                     .monospacedDigit()
                 Text(completes
                      ? "— completes goal"
                      : "— \(CurrencyFormat.compact(remaining)) left")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             Spacer()
@@ -621,7 +622,7 @@ struct NewTransferSheet: View {
                     .fill(tint)
                     .frame(width: 6, height: 6)
                 Text(isCleared ? "Cleared" : "Pending")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(tint)
                     .contentTransition(.opacity)
             }
@@ -697,7 +698,7 @@ private struct BlinkingCursorTransfer: View {
     @State private var visible = true
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 1)
+        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
             .fill(color)
             .frame(width: 2.5, height: 32)
             .opacity(visible ? 1 : 0)

@@ -90,12 +90,12 @@ struct HouseholdSettleUpSheet: View {
                 } label: {
                     HStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: selectedPair == pair.id ? "largecircle.fill.circle" : "circle")
-                            .font(.system(size: 14))
+                            .font(CentmondTheme.Typography.bodyLarge)
                             .foregroundStyle(selectedPair == pair.id ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
                         Text("\(pair.debtor.name)")
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         Text("\(pair.creditor.name)")
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
@@ -267,7 +267,7 @@ struct HouseholdSettleUpSheet: View {
             createLinkedTransaction: createLinkedTransaction,
             in: modelContext
         )
-        try? modelContext.save()
+        modelContext.persist()
         HouseholdTelemetry.shared.recordSettlementLogged()
         settleAmount = ""
         selectedPair = nil

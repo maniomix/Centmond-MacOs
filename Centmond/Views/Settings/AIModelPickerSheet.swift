@@ -60,10 +60,10 @@ struct AIModelPickerSheet: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("Model Selection")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                     .foregroundStyle(.primary)
                 Text("Smaller quantizations are faster but slightly less accurate. All models run entirely on your Mac — no data leaves your device.")
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -71,10 +71,10 @@ struct AIModelPickerSheet: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(DS.Colors.accent.opacity(0.06))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                         .strokeBorder(DS.Colors.accent.opacity(0.15), lineWidth: 0.5)
                 )
         )
@@ -106,7 +106,7 @@ struct AIModelPickerSheet: View {
                         .frame(width: 18, height: 18)
                         .overlay(
                             Image(systemName: "arrow.down")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(CentmondTheme.Typography.microBold)
                                 .foregroundStyle(.secondary.opacity(0.5))
                         )
                 }
@@ -116,40 +116,40 @@ struct AIModelPickerSheet: View {
                     .foregroundStyle(isInstalled ? .primary : .secondary)
 
                 Text(option.sizeLabel)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(.secondary)
 
                 if let rec = model.recommendation {
                     Text(rec.rawValue)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(recommendationColor(rec))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(
                             recommendationColor(rec).opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         )
                 }
 
                 if isInstalled && option.filename == AIManager.modelFilename {
                     Text("ACTIVE")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(CentmondTheme.Typography.micro.weight(.bold))
                         .foregroundStyle(DS.Colors.positive)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(
                             DS.Colors.positive.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         )
                 } else if isInstalled {
                     Text("INSTALLED")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(CentmondTheme.Typography.micro.weight(.bold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(
                             Color.secondary.opacity(0.1),
-                            in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         )
                 }
 
@@ -187,11 +187,11 @@ struct AIModelPickerSheet: View {
                                 .foregroundStyle(.quaternary)
 
                             Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                                 .foregroundStyle(.secondary)
 
                             Text("of \(option.sizeLabel)")
-                                .font(.system(size: 10))
+                                .font(CentmondTheme.Typography.overlineRegular)
                                 .foregroundStyle(.quaternary)
 
                             Spacer()
@@ -199,7 +199,7 @@ struct AIModelPickerSheet: View {
                             Button("Cancel") {
                                 aiManager.cancelDownload()
                             }
-                            .font(.system(size: 11, weight: .medium))
+                            .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                             .foregroundStyle(DS.Colors.danger)
                         }
                     }
@@ -210,14 +210,14 @@ struct AIModelPickerSheet: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 13))
+                                .font(CentmondTheme.Typography.body)
                             Text("Download \(option.sizeLabel)")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(aiManager.isDownloading)
@@ -228,10 +228,10 @@ struct AIModelPickerSheet: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(isSelected && isInstalled ? DS.Colors.accent.opacity(0.06) : Color(.controlBackgroundColor))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                         .strokeBorder(
                             isSelected && isInstalled ? DS.Colors.accent.opacity(0.5) : Color.secondary.opacity(0.08),
                             lineWidth: isSelected && isInstalled ? 1.5 : 0.5
@@ -254,10 +254,10 @@ struct AIModelPickerSheet: View {
     private var importHint: some View {
         HStack(spacing: 8) {
             Image(systemName: "plus.circle")
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(.secondary)
             Text("You can also import custom .gguf models from Settings → AI Assistant")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(.secondary)
         }
         .padding(.top, 4)
@@ -269,16 +269,16 @@ struct AIModelPickerSheet: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 3) {
                 Text(label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(.quaternary)
                 Spacer()
                 Text(tierLabel)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(CentmondTheme.Typography.micro.weight(.medium))
                     .foregroundStyle(color.opacity(0.8))
             }
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(i < tier ? color.opacity(0.7) : color.opacity(0.1))
                         .frame(height: 4)
                 }

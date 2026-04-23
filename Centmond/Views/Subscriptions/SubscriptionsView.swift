@@ -9,6 +9,7 @@ struct SubscriptionsView: View {
     @State private var showDeleteConfirmation = false
     @State private var subscriptionToDelete: Subscription?
     @State private var selectedTab: Tab = .active
+    @State private var buckets = Buckets()
 
     enum Tab: String, CaseIterable, Identifiable {
         case active, trial, paused, cancelled
@@ -31,20 +32,55 @@ struct SubscriptionsView: View {
         }
     }
 
-    private var activeSubscriptions: [Subscription] { subscriptions.filter { $0.status == .active } }
-    private var trialSubscriptions: [Subscription] { subscriptions.filter { $0.status == .trial } }
-    private var pausedSubscriptions: [Subscription] { subscriptions.filter { $0.status == .paused } }
-    private var cancelledSubscriptions: [Subscription] { subscriptions.filter { $0.status == .cancelled } }
-    private var billableSubscriptions: [Subscription] { activeSubscriptions + trialSubscriptions }
-    private var annualTotal: Decimal { billableSubscriptions.reduce(Decimal.zero) { $0 + $1.annualCost } }
-    private var monthlyTotal: Decimal { billableSubscriptions.reduce(Decimal.zero) { $0 + $1.monthlyCost } }
+    /// Single-pass bucketing so body renders don't run 6 rescans (4 tab
+    /// counts + monthlyTotal + annualTotal) over the full subscription
+    /// array. One scan, two reduces, consumed by all downstream props.
+    private struct Buckets {
+        var active: [Subscription] = []
+        var trial: [Subscription] = []
+        var paused: [Subscription] = []
+        var cancelled: [Subscription] = []
+        var monthlyTotal: Decimal = 0
+        var annualTotal: Decimal = 0
+    }
+
+    /// Recompute `buckets` from current `subscriptions`. Called from .onChange
+    /// modifiers so body renders only ever read the cached struct — no rescans.
+    private func recomputeBuckets() {
+        var b = Buckets()
+        for sub in subscriptions {
+            switch sub.status {
+            case .active:
+                b.active.append(sub)
+                b.monthlyTotal += sub.monthlyCost
+                b.annualTotal += sub.annualCost
+            case .trial:
+                b.trial.append(sub)
+                b.monthlyTotal += sub.monthlyCost
+                b.annualTotal += sub.annualCost
+            case .paused:
+                b.paused.append(sub)
+            case .cancelled:
+                b.cancelled.append(sub)
+            }
+        }
+        buckets = b
+    }
+
+    private var activeSubscriptions: [Subscription] { buckets.active }
+    private var trialSubscriptions: [Subscription] { buckets.trial }
+    private var pausedSubscriptions: [Subscription] { buckets.paused }
+    private var cancelledSubscriptions: [Subscription] { buckets.cancelled }
+    private var billableSubscriptions: [Subscription] { buckets.active + buckets.trial }
+    private var annualTotal: Decimal { buckets.annualTotal }
+    private var monthlyTotal: Decimal { buckets.monthlyTotal }
 
     private func count(for tab: Tab) -> Int {
         switch tab {
-        case .active: return activeSubscriptions.count
-        case .trial: return trialSubscriptions.count
-        case .paused: return pausedSubscriptions.count
-        case .cancelled: return cancelledSubscriptions.count
+        case .active: return buckets.active.count
+        case .trial: return buckets.trial.count
+        case .paused: return buckets.paused.count
+        case .cancelled: return buckets.cancelled.count
         }
     }
 
@@ -82,6 +118,9 @@ struct SubscriptionsView: View {
                 )
             } else {
                 VStack(spacing: 0) {
+                    SectionTutorialStrip(screen: .subscriptions)
+                        .padding(.horizontal, CentmondTheme.Spacing.lg)
+                        .padding(.top, CentmondTheme.Spacing.sm)
                     heroSummary
 
                     SubscriptionInsightsStrip(subscriptions: subscriptions)
@@ -106,7 +145,11 @@ struct SubscriptionsView: View {
             // everything is already matched.
             SubscriptionReconciliationService.reconcileAll(in: modelContext)
             SubscriptionNotificationScheduler.rescheduleAll(context: modelContext)
+            recomputeBuckets()
         }
+        .onChange(of: subscriptions.count) { _, _ in recomputeBuckets() }
+        .onChange(of: subscriptions.map(\.status)) { _, _ in recomputeBuckets() }
+        .onChange(of: subscriptions.map(\.monthlyCost)) { _, _ in recomputeBuckets() }
         .alert("Delete Subscription", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { subscriptionToDelete = nil }
             Button("Delete", role: .destructive) {
@@ -197,7 +240,7 @@ struct SubscriptionsView: View {
                 Text(tab.label)
                     .font(CentmondTheme.Typography.bodyMedium)
                 Text("\(c)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
                     .foregroundStyle(isOn ? CentmondTheme.Colors.bgPrimary : CentmondTheme.Colors.textTertiary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -325,7 +368,7 @@ struct SubscriptionsView: View {
         return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 Text("NEXT 30 DAYS")
                     .font(CentmondTheme.Typography.overline)
@@ -375,7 +418,7 @@ struct SubscriptionsView: View {
                 .lineLimit(1)
             if charge.isTrialEnd {
                 Text("Trial ends")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.accent)
             } else {
                 Text(CurrencyFormat.standard(charge.amount))
@@ -387,11 +430,11 @@ struct SubscriptionsView: View {
         .padding(.horizontal, CentmondTheme.Spacing.md)
         .padding(.vertical, CentmondTheme.Spacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(CentmondTheme.Colors.bgSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
         )
     }

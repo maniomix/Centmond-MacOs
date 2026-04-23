@@ -175,7 +175,7 @@ struct NetWorthCompositionCard: View {
             VStack(spacing: 0) {
                 ForEach(Array(slices.enumerated()), id: \.element.id) { index, slice in
                     HStack(spacing: CentmondTheme.Spacing.sm) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(slice.color)
                             .frame(width: 10, height: 10)
 
@@ -232,12 +232,12 @@ extension NetWorthCompositionCard {
 
     private static func typeColor(_ type: AccountType) -> Color {
         switch type {
-        case .checking:   return Color(hex: "3B82F6")  // blue
-        case .savings:    return Color(hex: "22C55E")  // green
-        case .investment: return Color(hex: "8B5CF6")  // purple
-        case .cash:       return Color(hex: "F59E0B")  // amber
-        case .creditCard: return Color(hex: "EF4444")  // red
-        case .other:      return Color(hex: "64748B")  // slate
+        case .checking:   return CentmondTheme.Colors.accent  // blue
+        case .savings:    return CentmondTheme.Colors.positive  // green
+        case .investment: return CentmondTheme.Colors.projected  // purple
+        case .cash:       return CentmondTheme.Colors.warning  // amber
+        case .creditCard: return CentmondTheme.Colors.negative  // red
+        case .other:      return CentmondTheme.Colors.chartPalette[7]  // slate
         }
     }
 }

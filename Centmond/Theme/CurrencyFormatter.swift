@@ -34,7 +34,14 @@ enum CurrencyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currencyCode ?? currentCurrencyCode
-        formatter.locale = Locale(identifier: "en_US")
+        // Locale.current so number grouping/decimal separators follow the
+        // user's system (e.g. "1.234,56 €" in de_DE, "1,234.56" in en_US).
+        // The currency CODE still comes from the app's defaultCurrency
+        // setting — number formatting and currency choice are orthogonal.
+        // Phase 7 polish (2026-04-24): pre-release formatter was hardcoded
+        // en_US which gave non-US users a hybrid (their currency code but
+        // US separators). Fix opts into real locale-aware formatting.
+        formatter.locale = Locale.current
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
         return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0.00"
@@ -48,7 +55,7 @@ enum CurrencyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currentCurrencyCode
-        formatter.locale = Locale(identifier: "en_US")
+        formatter.locale = Locale.current  // see note on `standard` above
         formatter.maximumFractionDigits = 0
         return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0"
     }

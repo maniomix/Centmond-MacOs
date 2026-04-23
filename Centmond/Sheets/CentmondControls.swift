@@ -106,7 +106,7 @@ private struct CentmondDropdownRow: View {
                             .fill((option.iconColor ?? CentmondTheme.Colors.textTertiary).opacity(0.18))
                             .frame(width: 22, height: 22)
                         Image(systemName: sys)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(CentmondTheme.Typography.overlineSemibold)
                             .foregroundStyle(option.iconColor ?? CentmondTheme.Colors.textTertiary)
                     }
                 } else {
@@ -123,7 +123,7 @@ private struct CentmondDropdownRow: View {
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(CentmondTheme.Colors.accent)
                 }
             }
@@ -189,15 +189,15 @@ struct CentmondTimePicker: View {
 
     private func pillLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+            .font(CentmondTheme.Typography.mono.weight(.semibold))
             .foregroundStyle(CentmondTheme.Colors.textPrimary)
             .monospacedDigit()
             .padding(.horizontal, 10)
             .frame(height: 28)
             .background(CentmondTheme.Colors.bgTertiary)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                     .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
             )
     }

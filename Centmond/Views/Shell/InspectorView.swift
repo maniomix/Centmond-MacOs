@@ -29,7 +29,7 @@ struct InspectorView: View {
     private var emptyInspector: some View {
         VStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "sidebar.right")
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
 
             Text("Select an item to inspect")
@@ -141,7 +141,7 @@ struct TransactionInspectorView: View {
         } else {
             VStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text("Transaction not found")
                     .font(CentmondTheme.Typography.body)
@@ -158,14 +158,14 @@ struct TransactionInspectorView: View {
             // Category icon
             if let category = tx.category {
                 Image(systemName: category.icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .foregroundStyle(Color(hex: category.colorHex))
                     .frame(width: 36, height: 36)
                     .background(Color(hex: category.colorHex).opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
             } else {
                 Image(systemName: "questionmark.circle")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 36, height: 36)
                     .background(CentmondTheme.Colors.bgTertiary)
@@ -195,7 +195,7 @@ struct TransactionInspectorView: View {
                 }
             } label: {
                 Image(systemName: isEditing ? "checkmark" : "pencil")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                     .foregroundStyle(isEditing ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
                     .frame(width: 26, height: 26)
                     .background(isEditing ? CentmondTheme.Colors.positive.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
@@ -210,7 +210,7 @@ struct TransactionInspectorView: View {
                     editError = nil
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(CentmondTheme.Typography.overline)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 26, height: 26)
                         .background(CentmondTheme.Colors.bgTertiary)
@@ -256,7 +256,7 @@ struct TransactionInspectorView: View {
                     // Type badge
                     HStack(spacing: 4) {
                         Image(systemName: tx.isIncome ? "arrow.down" : "arrow.up")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         Text(tx.isIncome ? "income" : "expense")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -334,7 +334,7 @@ struct TransactionInspectorView: View {
                         if let account = tx.account {
                             HStack(spacing: CentmondTheme.Spacing.xs) {
                                 Image(systemName: account.type.iconName)
-                                    .font(.system(size: 11))
+                                    .font(CentmondTheme.Typography.captionSmall)
                                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                                 Text(account.name)
                                     .font(CentmondTheme.Typography.body)
@@ -394,7 +394,7 @@ struct TransactionInspectorView: View {
                 valueView: AnyView(
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         Image(systemName: tx.isReviewed ? "checkmark.circle.fill" : "exclamationmark.circle")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(tx.isReviewed ? CentmondTheme.Colors.positive : CentmondTheme.Colors.warning)
                         Text(tx.isReviewed ? "Reviewed" : "Needs Review")
                             .font(CentmondTheme.Typography.body)
@@ -408,7 +408,7 @@ struct TransactionInspectorView: View {
                 VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                     HStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "note.text")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             .frame(width: 20)
                         Text("Notes")
@@ -520,7 +520,7 @@ struct TransactionInspectorView: View {
             if let error = editError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text(error)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -539,7 +539,7 @@ struct TransactionInspectorView: View {
             HStack {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "number")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 20)
                     Text("Tags")
@@ -580,7 +580,7 @@ struct TransactionInspectorView: View {
         return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 20)
                 Text("Transfer")
@@ -602,7 +602,7 @@ struct TransactionInspectorView: View {
                 } label: {
                     HStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: tx.isIncome ? "arrow.up.right" : "arrow.down.left")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         Text(tx.isIncome ? "From" : "To")
                             .font(CentmondTheme.Typography.caption)
@@ -612,7 +612,7 @@ struct TransactionInspectorView: View {
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(CentmondTheme.Typography.micro.weight(.semibold))
                             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     }
                     .padding(.horizontal, CentmondTheme.Spacing.sm)
@@ -627,7 +627,7 @@ struct TransactionInspectorView: View {
                 // goal recorded as a .fromTransfer GoalContribution.
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "target")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text("To")
                         .font(CentmondTheme.Typography.caption)
@@ -660,7 +660,7 @@ struct TransactionInspectorView: View {
             HStack {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "rectangle.split.3x1")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 20)
                     Text("Splits")
@@ -682,7 +682,7 @@ struct TransactionInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: tx.splits.isEmpty ? "plus" : "pencil")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(CentmondTheme.Typography.overline)
                         Text(tx.splits.isEmpty ? "Split" : "Edit")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -741,7 +741,7 @@ struct TransactionInspectorView: View {
             HStack {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "person.2")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 20)
                     Text("Shared with")
@@ -763,7 +763,7 @@ struct TransactionInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: tx.shares.isEmpty ? "plus" : "pencil")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(CentmondTheme.Typography.overline)
                         Text(tx.shares.isEmpty ? "Share" : "Edit")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -827,7 +827,7 @@ struct TransactionInspectorView: View {
             // tooltip on the icon carry the disambiguation now.
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 20)
                     .help("When this entry was added to or edited in the app. Not the transaction date.")
@@ -864,7 +864,7 @@ struct TransactionInspectorView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: tx.isReviewed ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                     Text(tx.isReviewed ? "Reviewed" : "Mark Reviewed")
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -877,7 +877,7 @@ struct TransactionInspectorView: View {
                 duplicateTransaction(tx)
             } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
             }
             .buttonStyle(GhostButtonStyle())
             .disabled(tx.isTransfer)
@@ -887,7 +887,7 @@ struct TransactionInspectorView: View {
                 showDeleteConfirmation = true
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
             .buttonStyle(GhostButtonStyle())
@@ -934,7 +934,7 @@ struct TransactionInspectorView: View {
     private func inspectorField(icon: String, label: String, valueView: AnyView) -> some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 .frame(width: 20, alignment: .center)
                 .padding(.top, 2)
@@ -1173,7 +1173,7 @@ struct AccountInspectorView: View {
                 HStack(spacing: CentmondTheme.Spacing.md) {
                     // Color indicator + icon
                     Image(systemName: account.type.iconName)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(CentmondTheme.Typography.subheading.weight(.medium))
                         .foregroundStyle(accountColor)
                         .frame(width: 36, height: 36)
                         .background(accountColor.opacity(0.15))
@@ -1197,7 +1197,7 @@ struct AccountInspectorView: View {
                         router.showSheet(.editAccount(account))
                     } label: {
                         Image(systemName: "pencil")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(CentmondTheme.Typography.captionMedium)
                             .foregroundStyle(CentmondTheme.Colors.textSecondary)
                             .frame(width: 26, height: 26)
                             .background(CentmondTheme.Colors.bgTertiary)
@@ -1352,7 +1352,7 @@ struct AccountInspectorView: View {
         } else {
             VStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text("Account not found")
                     .font(CentmondTheme.Typography.body)
@@ -1377,15 +1377,15 @@ struct AccountInspectorView: View {
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Spacer()
                     Text("\(Int(utilization * 100))%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                         .foregroundStyle(acctUtilizationColor(utilization))
                 }
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(CentmondTheme.Colors.bgQuaternary)
-                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(acctUtilizationColor(utilization))
                             .frame(width: max(0, geo.size.width * min(utilization, 1.0)))
                     }
@@ -1481,7 +1481,7 @@ struct AccountInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                         Text("Reopen")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -1494,7 +1494,7 @@ struct AccountInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "tray.and.arrow.up")
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                         Text("Unarchive")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -1524,7 +1524,7 @@ struct AccountInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                         Text("More")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -1543,7 +1543,7 @@ struct AccountInspectorView: View {
                 showDeleteConfirmation = true
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
             .buttonStyle(GhostButtonStyle())
@@ -1578,10 +1578,10 @@ struct AccountInspectorView: View {
     private func acctStatusBadge(_ text: String, icon: String, color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
             Text(text)
         }
-        .font(.system(size: 10, weight: .medium))
+        .font(CentmondTheme.Typography.overline)
         .foregroundStyle(color)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -1730,7 +1730,7 @@ struct BudgetCategoryInspectorView: View {
                         }
                     } label: {
                         Image(systemName: isEditingBudget ? "checkmark" : "pencil")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(CentmondTheme.Typography.captionMedium)
                             .foregroundStyle(isEditingBudget ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textSecondary)
                             .frame(width: 28, height: 28)
                             .background(isEditingBudget ? CentmondTheme.Colors.positive.opacity(0.12) : CentmondTheme.Colors.bgTertiary)
@@ -1744,7 +1744,7 @@ struct BudgetCategoryInspectorView: View {
                             isEditingBudget = false
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                                 .frame(width: 28, height: 28)
                                 .background(CentmondTheme.Colors.bgTertiary)
@@ -1788,7 +1788,7 @@ struct BudgetCategoryInspectorView: View {
                         showDeleteConfirmation = true
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.negative)
                     }
                     .buttonStyle(GhostButtonStyle())
@@ -1800,10 +1800,25 @@ struct BudgetCategoryInspectorView: View {
             .alert("Delete Category", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
+                    // Null every inverse pointer BEFORE the delete so SwiftUI's
+                    // @Query can't render a RecurringTransaction / TransactionSplit /
+                    // Transaction with a faulted `category` ref between our
+                    // `delete(category)` call and SwiftData's deferred inverse-
+                    // cascade (which only fires on save). Without this, the first
+                    // RecurringView diff post-delete crashes:
+                    //   "This model instance was invalidated because its backing
+                    //    data could no longer be found in the store ... BudgetCategory/..."
                     for tx in category.transactions {
                         tx.category = nil
                     }
+                    for rec in category.recurrings {
+                        rec.category = nil
+                    }
+                    for split in category.splits {
+                        split.category = nil
+                    }
                     modelContext.delete(category)
+                    modelContext.persist()
                     router.inspectorContext = .none
                 }
             } message: {
@@ -1871,9 +1886,9 @@ struct BudgetCategoryInspectorView: View {
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(CentmondTheme.Colors.strokeSubtle)
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(isOver ? CentmondTheme.Colors.negative : Color(hex: cat.colorHex))
                         .frame(width: geo.size.width * min(CGFloat(progress), 1.0))
                 }
@@ -1978,7 +1993,7 @@ struct BudgetCategoryInspectorView: View {
     private func catNotFoundView(_ text: String) -> some View {
         VStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 24))
+                .font(CentmondTheme.Typography.heading1.weight(.regular))
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             Text(text)
                 .font(CentmondTheme.Typography.body)
@@ -2104,6 +2119,7 @@ struct GoalInspectorView: View {
                 }
                 .sheet(isPresented: $showRulesSheet) {
                     GoalAllocationRulesSheet(goal: goal)
+                        .dismissOnEscape()
                 }
 
                 Divider().background(CentmondTheme.Colors.strokeSubtle)
@@ -2114,7 +2130,7 @@ struct GoalInspectorView: View {
         } else {
             VStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text("Goal not found")
                     .font(CentmondTheme.Typography.body)
@@ -2146,9 +2162,9 @@ struct GoalInspectorView: View {
             // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(CentmondTheme.Colors.strokeSubtle)
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [CentmondTheme.Colors.accent, progressColor(progress)],
@@ -2233,7 +2249,7 @@ struct GoalInspectorView: View {
             if recent.isEmpty {
                 HStack {
                     Image(systemName: "clock")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                     Text("No contributions yet")
                         .font(CentmondTheme.Typography.caption)
                     Spacer()
@@ -2250,7 +2266,7 @@ struct GoalInspectorView: View {
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                 if sorted.count > recent.count {
                     Text("Showing \(recent.count) of \(sorted.count)")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 }
             }
@@ -2263,7 +2279,7 @@ struct GoalInspectorView: View {
                 .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.mono.weight(.semibold))
                 .foregroundStyle(color)
                 .monospacedDigit()
         }
@@ -2279,7 +2295,7 @@ struct GoalInspectorView: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
                 Text(c.date.formatted(.dateTime.day().month(.abbreviated).year()))
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             Spacer()
@@ -2301,7 +2317,7 @@ struct GoalInspectorView: View {
             }
         }()
         return Image(systemName: icon)
-            .font(.system(size: 10, weight: .semibold))
+            .font(CentmondTheme.Typography.overlineSemibold)
             .foregroundStyle(color)
             .frame(width: 22, height: 22)
             .background(color.opacity(0.12))
@@ -2331,19 +2347,19 @@ struct GoalInspectorView: View {
             } label: {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "wand.and.rays")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.accent)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(total == 0 ? "No rules" : "\(activeCount) active · \(total) total")
                             .font(CentmondTheme.Typography.body)
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         Text("Propose contributions from future income")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 }
                 .padding(.horizontal, CentmondTheme.Spacing.md)
@@ -2408,7 +2424,7 @@ struct GoalInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "pause.circle")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                         Text("Pause")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -2420,7 +2436,7 @@ struct GoalInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "play.circle")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                         Text("Resume")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -2432,7 +2448,7 @@ struct GoalInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                         Text("Reactivate")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -2447,7 +2463,7 @@ struct GoalInspectorView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "archivebox")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                         Text("Archive")
                     }
                     .font(CentmondTheme.Typography.caption)
@@ -2461,7 +2477,7 @@ struct GoalInspectorView: View {
                 router.showSheet(.editGoal(goal))
             } label: {
                 Image(systemName: "pencil")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
             }
             .buttonStyle(GhostButtonStyle())
             .help("Edit")
@@ -2470,7 +2486,7 @@ struct GoalInspectorView: View {
                 showDeleteConfirmation = true
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
             .buttonStyle(GhostButtonStyle())
@@ -2586,7 +2602,7 @@ struct SubscriptionInspectorView: View {
         } else {
             VStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text("Subscription not found")
                     .font(CentmondTheme.Typography.body)
@@ -2602,7 +2618,7 @@ struct SubscriptionInspectorView: View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             // Service icon
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 16, weight: .medium))
+                .font(CentmondTheme.Typography.subheading.weight(.medium))
                 .foregroundStyle(Color(hex: sub.status.dotColor))
                 .frame(width: 36, height: 36)
                 .background(Color(hex: sub.status.dotColor).opacity(0.12))
@@ -2810,7 +2826,7 @@ struct SubscriptionInspectorView: View {
                 router.showSheet(.editSubscription(sub))
             } label: {
                 Image(systemName: "pencil")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
             }
             .buttonStyle(.plainHover)
             .help("Edit subscription")
@@ -2819,7 +2835,7 @@ struct SubscriptionInspectorView: View {
                 showDeleteConfirmation = true
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.negative)
             }
             .buttonStyle(.plainHover)

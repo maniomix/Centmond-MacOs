@@ -18,12 +18,19 @@ struct DashboardInsightStrip: View {
     @Environment(AppRouter.self) private var router
     private let engine = AIInsightEngine.shared
 
-    private var topInsights: [AIInsight] {
+    private var nonPositive: [AIInsight] {
         // Non-positive, already sorted by severity desc in the engine.
-        engine.insights
-            .filter { $0.severity != .positive }
-            .prefix(2)
-            .map { $0 }
+        engine.insights.filter { $0.severity != .positive }
+    }
+    private var topInsights: [AIInsight] {
+        Array(nonPositive.prefix(2))
+    }
+    // Only render the chip when (a) we already show 2 banners AND
+    // (b) there is at least one MORE non-positive insight that
+    // wouldn't otherwise be visible. A single insight never gets a
+    // companion phantom box.
+    private var showSeeAll: Bool {
+        topInsights.count >= 2 && nonPositive.count > topInsights.count
     }
 
     var body: some View {
@@ -34,7 +41,7 @@ struct DashboardInsightStrip: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                if engine.insights.count > topInsights.count {
+                if showSeeAll {
                     seeAllChip
                 }
             }
@@ -48,7 +55,7 @@ struct DashboardInsightStrip: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: "arrow.up.forward")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                 Text("See all")
                     .font(CentmondTheme.Typography.caption)
                     .fontWeight(.semibold)
@@ -58,12 +65,11 @@ struct DashboardInsightStrip: View {
             }
             .foregroundStyle(CentmondTheme.Colors.accent)
             .frame(width: 88)
-            .frame(maxHeight: .infinity)
-            .padding(.vertical, CentmondTheme.Spacing.md)
+            .padding(.vertical, CentmondTheme.Spacing.lg)
             .background(CentmondTheme.Colors.bgSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .strokeBorder(CentmondTheme.Colors.accent.opacity(0.2), lineWidth: 1)
             )
         }

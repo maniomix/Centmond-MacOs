@@ -69,7 +69,7 @@ struct GoalAllocationRulesSheet: View {
     private var header: some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "wand.and.rays")
-                .font(.system(size: 16, weight: .semibold))
+                .font(CentmondTheme.Typography.subheading)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Auto-allocation rules")
@@ -84,7 +84,7 @@ struct GoalAllocationRulesSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -128,7 +128,7 @@ struct GoalAllocationRulesSheet: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
                 Text(ruleSubtitle(rule))
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .lineLimit(1)
             }
@@ -139,7 +139,7 @@ struct GoalAllocationRulesSheet: View {
                 editingRule = rule
             } label: {
                 Image(systemName: "pencil")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 22, height: 22)
             }
@@ -149,7 +149,7 @@ struct GoalAllocationRulesSheet: View {
                 modelContext.delete(rule)
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.negative)
                     .frame(width: 22, height: 22)
             }
@@ -219,7 +219,7 @@ private struct RuleEditSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 24, height: 24)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -267,7 +267,7 @@ private struct RuleEditSheet: View {
                                         matchCategoryID = cat.id.uuidString
                                     } label: {
                                         Text(cat.name)
-                                            .font(.system(size: 11, weight: .medium))
+                                            .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                                             .padding(.horizontal, 10)
                                             .frame(height: 24)
                                             .background(matchCategoryID == cat.id.uuidString
@@ -298,7 +298,7 @@ private struct RuleEditSheet: View {
                     sectionLabel("Priority (higher runs first)")
                     TextField("0", text: $priorityString)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .font(CentmondTheme.Typography.mono.weight(.semibold))
                         .padding(.horizontal, CentmondTheme.Spacing.md)
                         .frame(height: 36)
                         .background(CentmondTheme.Colors.bgSecondary)
@@ -330,7 +330,7 @@ private struct RuleEditSheet: View {
     private func typeChip(_ t: AllocationRuleType, title: String) -> some View {
         Button { type = t } label: {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
                 .background(type == t ? CentmondTheme.Colors.accent : CentmondTheme.Colors.bgTertiary)
@@ -343,7 +343,7 @@ private struct RuleEditSheet: View {
     private func sourceChip(_ s: AllocationRuleSource, title: String) -> some View {
         Button { source = s } label: {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
                 .background(source == s ? CentmondTheme.Colors.accent.opacity(0.2) : CentmondTheme.Colors.bgTertiary)

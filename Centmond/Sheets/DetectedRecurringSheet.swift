@@ -45,7 +45,7 @@ struct DetectedRecurringSheet: View {
     private var header: some View {
         HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "wand.and.stars")
-                .font(.system(size: 16, weight: .semibold))
+                .font(CentmondTheme.Typography.subheading)
                 .foregroundStyle(CentmondTheme.Colors.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Detected recurring")
@@ -58,7 +58,7 @@ struct DetectedRecurringSheet: View {
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -80,7 +80,7 @@ struct DetectedRecurringSheet: View {
     private func candidateRow(_ c: DetectedRecurringCandidate) -> some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: c.isIncome ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                .font(.system(size: 18))
+                .font(CentmondTheme.Typography.heading2.weight(.regular))
                 .foregroundStyle(c.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -108,7 +108,7 @@ struct DetectedRecurringSheet: View {
                     .foregroundStyle(c.isIncome ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textPrimary)
                     .monospacedDigit()
                 Text("\(Int(c.confidence * 100))% match")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(width: 110, alignment: .trailing)
@@ -120,7 +120,7 @@ struct DetectedRecurringSheet: View {
                     Haptics.tap()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .frame(width: 26, height: 26)
                         .background(CentmondTheme.Colors.bgQuaternary)
                         .clipShape(Circle())
@@ -134,7 +134,7 @@ struct DetectedRecurringSheet: View {
                     Haptics.impact()
                 } label: {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(.white)
                         .frame(width: 26, height: 26)
                         .background(CentmondTheme.Colors.accent)

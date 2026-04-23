@@ -24,7 +24,7 @@ struct AIActionCard: View {
             // Header
             HStack(spacing: 8) {
                 Image(systemName: iconName)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(CentmondTheme.Typography.subheading)
                     .foregroundStyle(accentColor)
                 Text(title)
                     .font(.callout.weight(.semibold))
@@ -54,7 +54,7 @@ struct AIActionCard: View {
                 }
                 .padding(10)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                         .fill(colorScheme == .dark
                               ? Color.white.opacity(0.05)
                               : Color.black.opacity(0.03))
@@ -78,7 +78,7 @@ struct AIActionCard: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                     .fill(DS.Colors.surface2)
                             )
                     }
@@ -93,7 +93,7 @@ struct AIActionCard: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                     .fill(DS.Colors.accent)
                             )
                     }
@@ -103,11 +103,11 @@ struct AIActionCard: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(accentColor.opacity(action.status == .pending ? 0.4 : 0.15), lineWidth: 1)
         )
         .opacity(action.status == .rejected ? 0.5 : 1.0)
@@ -276,7 +276,7 @@ struct AIActionCard: View {
                             .foregroundStyle(DS.Colors.text)
                         Spacer()
                         Text(entry.value)
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .font(CentmondTheme.Typography.mono.weight(.semibold))
                             .foregroundStyle(DS.Colors.text)
                     }
                     .padding(.horizontal, 10)
@@ -308,7 +308,7 @@ struct AIActionCard: View {
         }
         .padding(.vertical, 4)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(colorScheme == .dark
                       ? Color.white.opacity(0.05)
                       : Color.black.opacity(0.03))

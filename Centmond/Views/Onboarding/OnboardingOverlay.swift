@@ -50,13 +50,13 @@ struct OnboardingOverlay: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(CentmondTheme.Colors.bgSecondary)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                         .strokeBorder(CentmondTheme.Colors.strokeSubtle, lineWidth: 0.5)
                 }
-                .shadow(color: .black.opacity(0.45), radius: 40, y: 16)
+                .centmondShadow(4)
         }
     }
 
@@ -81,7 +81,7 @@ struct OnboardingOverlay: View {
 
             HStack {
                 Text("\(store.currentStep + 1)")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                     .contentTransition(.numericText())
                 Text("/ \(OnboardingStore.stepCount)")
@@ -136,7 +136,7 @@ struct OnboardingOverlay: View {
         HStack(spacing: 12) {
             Button(action: handleBack) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 28, height: 28)
                     .background {
@@ -308,7 +308,7 @@ private struct WelcomeStep: View {
                 .fill(CentmondTheme.Colors.positive)
                 .frame(width: 4, height: 4)
             Text(text)
-                .font(.system(size: 13))
+                .font(CentmondTheme.Typography.body)
                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
         }
     }
@@ -334,7 +334,7 @@ private struct DataImportStep: View {
             StaggeredAppear(delay: 0.05) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Bring in your data.")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("Pick one — you can add more later.")
                         .font(CentmondTheme.Typography.body)
@@ -382,24 +382,24 @@ private struct DataImportStep: View {
                     .foregroundStyle(primary ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textSecondary)
                 Spacer(minLength: 16)
                 Text(heading)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(CentmondTheme.Typography.heading3.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 Text(hint)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
             .padding(20)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .fill(
                         primary
                             ? CentmondTheme.Colors.accent.opacity(0.09)
                             : CentmondTheme.Colors.bgTertiary.opacity(0.55)
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                             .strokeBorder(
                                 primary
                                     ? CentmondTheme.Colors.accent.opacity(0.28)
@@ -447,7 +447,7 @@ private struct BudgetStep: View {
             StaggeredAppear(delay: 0.05) {
                 VStack(spacing: 6) {
                     Text("Cap your month.")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("One total for \(monthLabel). Break it out later.")
                         .font(CentmondTheme.Typography.body)
@@ -477,7 +477,7 @@ private struct BudgetStep: View {
                         .animation(.easeInOut(duration: 0.2), value: focused)
 
                     Text("per month")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(CentmondTheme.Typography.overline)
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                         .textCase(.uppercase)
                         .tracking(1.4)
@@ -491,7 +491,7 @@ private struct BudgetStep: View {
                     HStack(spacing: 6) {
                         if saved {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                         }
                         Text(saved ? "Saved" : "Save")
                     }
@@ -521,7 +521,7 @@ private struct BudgetStep: View {
         } else {
             modelContext.insert(MonthlyTotalBudget(year: y, month: m, amount: amount))
         }
-        try? modelContext.save()
+        modelContext.persist()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { saved = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { onSaved() }
     }
@@ -546,7 +546,7 @@ private struct GoalStep: View {
             StaggeredAppear(delay: 0.05) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("What are you working toward?")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("Every income suggests how much to put aside.")
                         .font(CentmondTheme.Typography.body)
@@ -578,7 +578,7 @@ private struct GoalStep: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                         Text("Name something else")
                             .underline()
                     }
@@ -613,10 +613,10 @@ private struct GoalStep: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading3.weight(.semibold))
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text(caption)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -624,7 +624,7 @@ private struct GoalStep: View {
             .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
             .padding(20)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [tint.opacity(0.14), tint.opacity(0.015)],
@@ -633,7 +633,7 @@ private struct GoalStep: View {
                         )
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                             .strokeBorder(tint.opacity(0.22), lineWidth: 0.5)
                     }
             }
@@ -741,7 +741,7 @@ private struct SubscriptionScanStep: View {
                     .contentTransition(.numericText())
                 if totalFound > 0 {
                     Text(legend)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .textCase(.uppercase)
                         .tracking(1.4)
@@ -818,7 +818,7 @@ private struct MeetAIStep: View {
             StaggeredAppear(delay: 0.05) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Two voices, on your Mac.")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("Both run locally. Pick the one that fits the moment.")
                         .font(CentmondTheme.Typography.body)
@@ -853,7 +853,7 @@ private struct MeetAIStep: View {
     private func personaTile(tint: Color, mood: String, name: String, line: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(mood)
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(tint)
                 .textCase(.uppercase)
                 .tracking(1.6)
@@ -872,7 +872,7 @@ private struct MeetAIStep: View {
                     .fill(tint.opacity(0.7))
                     .frame(width: 2)
                 Text(line)
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -881,7 +881,7 @@ private struct MeetAIStep: View {
         .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
         .padding(20)
         .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [tint.opacity(0.16), tint.opacity(0.02)],
@@ -890,7 +890,7 @@ private struct MeetAIStep: View {
                     )
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .strokeBorder(tint.opacity(0.3), lineWidth: 0.5)
                 }
         }
@@ -922,7 +922,7 @@ private struct ShortcutsCheatsheet: View {
             StaggeredAppear(delay: 0.05) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Skip the mouse.")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     Text("A few chords cover the rest of the app.")
                         .font(CentmondTheme.Typography.body)
@@ -940,7 +940,7 @@ private struct ShortcutsCheatsheet: View {
                             .frame(width: 104, alignment: .leading)
 
                             Text(entry.label)
-                                .font(.system(size: 13))
+                                .font(CentmondTheme.Typography.body)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
 
                             Spacer()
@@ -963,20 +963,20 @@ private struct ShortcutsCheatsheet: View {
             .frame(minWidth: label.count > 2 ? 36 : 24, minHeight: 22)
             .padding(.horizontal, label.count > 2 ? 6 : 0)
             .background {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                     .fill(CentmondTheme.Colors.bgTertiary)
                     .overlay(alignment: .top) {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                             .fill(LinearGradient(
                                 colors: [.white.opacity(0.06), .clear],
                                 startPoint: .top, endPoint: .center
                             ))
                     }
                     .overlay {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                             .strokeBorder(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
                     }
-                    .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+                    .centmondShadow(1)
             }
     }
 }

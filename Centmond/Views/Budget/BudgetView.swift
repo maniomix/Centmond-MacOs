@@ -134,6 +134,7 @@ struct BudgetView: View {
             } else {
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xl) {
+                        SectionTutorialStrip(screen: .budget)
                         // Main monthly budget card
                         mainBudgetCard
 
@@ -158,10 +159,24 @@ struct BudgetView: View {
                     if case .budgetCategory(let id) = router.inspectorContext, id == category.id {
                         router.inspectorContext = .none
                     }
+                    // Null every inverse pointer BEFORE the delete so SwiftUI's
+                    // @Query can't render a RecurringTransaction / TransactionSplit /
+                    // Transaction with a faulted `category` ref between our
+                    // `delete(category)` call and SwiftData's deferred inverse-
+                    // cascade (which only fires on save). Without this, the first
+                    // RecurringView diff post-delete crashes with
+                    // "This model instance was invalidated ... BudgetCategory/..."
                     for tx in category.transactions {
                         tx.category = nil
                     }
+                    for rec in category.recurrings {
+                        rec.category = nil
+                    }
+                    for split in category.splits {
+                        split.category = nil
+                    }
                     modelContext.delete(category)
+                    modelContext.persist()
                 }
                 categoryToDelete = nil
             }
@@ -212,7 +227,7 @@ struct BudgetView: View {
                     } label: {
                         HStack(spacing: CentmondTheme.Spacing.xs) {
                             Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionSmallSemibold)
                             Text("Category")
                                 .font(CentmondTheme.Typography.captionMedium)
                         }
@@ -230,7 +245,7 @@ struct BudgetView: View {
                     } label: {
                         HStack(spacing: CentmondTheme.Spacing.xs) {
                             Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionSmallSemibold)
                             Text("Plan Budget")
                                 .font(CentmondTheme.Typography.captionMedium)
                         }
@@ -303,7 +318,7 @@ struct BudgetView: View {
                                 .animation(CentmondTheme.Motion.numeric, value: spentProgress)
                         }
 
-                        ProgressBarView(progress: spentProgress, color: spentColor, height: 8, cornerRadius: 4)
+                        ProgressBarView(progress: spentProgress, color: spentColor, height: 8, cornerRadius: CentmondTheme.Radius.xs)
                     }
 
                     // Allocated progress
@@ -326,7 +341,7 @@ struct BudgetView: View {
                             progress: min(allocatedProgress, 1.0),
                             color: allocatedProgress > 1.0 ? CentmondTheme.Colors.warning : CentmondTheme.Colors.positive,
                             height: 8,
-                            cornerRadius: 4
+                            cornerRadius: CentmondTheme.Radius.xs
                         )
                     }
                 }
@@ -407,7 +422,7 @@ struct BudgetView: View {
             if totalBudgetAmount > 0 && snapshot.monthlyTransactionsEmpty {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.info)
                     Text("No transactions recorded yet for this month.")
                         .font(CentmondTheme.Typography.caption)
@@ -448,7 +463,7 @@ struct BudgetView: View {
     private func warningBadge(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(color)
             Text(text)
                 .font(CentmondTheme.Typography.caption)
@@ -517,7 +532,7 @@ struct BudgetView: View {
     private var uncategorizedBar: some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(CentmondTheme.Colors.warning)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -576,7 +591,7 @@ private struct BudgetCategoryCardView: View {
             // Header row
             HStack(alignment: .center, spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: category.icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                     .foregroundStyle(accentColor)
                     .frame(width: 28, height: 28)
                     .background(accentColor.opacity(0.15))

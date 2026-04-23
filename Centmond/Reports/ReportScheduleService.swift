@@ -1,58 +1,68 @@
 import Foundation
 import SwiftData
 
-// Launch-time runner: fetch active ScheduledReports whose nextFireDate
-// has passed, run each through the engine+exporter, write to disk, and
-// advance the cursor. Idempotent — overlapping fires are harmless.
+// Launch-time runner: sweep ScheduledReport rows, drop ones that no longer
+// decode (orphans from the old SavedReport-referencing schema), then run
+// every active+due row through the composite engine+exporter and advance
+// its cursor. Always advances on failure so a broken schedule doesn't
+// pin the loop on every relaunch.
 
 @MainActor
 enum ReportScheduleService {
 
     static func runDueSchedules(context: ModelContext) {
         let now = Date.now
-        let activePredicate = #Predicate<ScheduledReport> { $0.isActive == true }
-        guard let schedules = try? context.fetch(FetchDescriptor(predicate: activePredicate)) else {
+        guard let schedules = try? context.fetch(FetchDescriptor<ScheduledReport>()) else {
             return
         }
 
-        let due = schedules.filter { $0.nextFireDate <= now }
-        guard !due.isEmpty else { return }
+        // One-time orphan sweep: any schedule whose range/sections didn't
+        // round-trip (legacy rows, corrupt JSON) gets deleted. The user
+        // re-creates it from the new schedule sheet.
+        let orphans = schedules.filter { !$0.isDecodable }
+        for orphan in orphans { context.delete(orphan) }
 
-        // Pre-fetch SavedReports once; the service runs on launch alongside
-        // other schedulers, so we avoid hammering SwiftData inside the loop.
-        let savedReports = (try? context.fetch(FetchDescriptor<SavedReport>())) ?? []
-        let savedByID = Dictionary(uniqueKeysWithValues: savedReports.map { ($0.id, $0) })
+        let live = schedules.filter { $0.isDecodable && $0.isActive }
+        let due = live.filter { $0.nextFireDate <= now }
 
         for schedule in due {
-            runOne(schedule, savedByID: savedByID, context: context, now: now)
+            runOne(schedule, context: context, now: now)
         }
 
-        try? context.save()
+        if !orphans.isEmpty || !due.isEmpty {
+            context.persist()
+        }
     }
 
     // MARK: - Run a single schedule
 
     private static func runOne(
         _ schedule: ScheduledReport,
-        savedByID: [UUID: SavedReport],
         context: ModelContext,
         now: Date
     ) {
-        guard let saved = savedByID[schedule.savedReportID],
-              let def   = saved.definition else {
-            schedule.failureMessage = "Saved report is missing."
+        guard let range = schedule.range else {
+            schedule.failureMessage = "Schedule is missing a date range."
             schedule.isActive = false
             return
         }
 
-        let result = ReportRunner.run(def, context: context)
-        let exporter = ReportExporterFactory.exporter(for: schedule.format)
+        let defaultCurrency = UserDefaults.standard.string(forKey: "defaultCurrency") ?? "USD"
+        let composite = CompositeReportRunner.run(
+            range: range,
+            filter: schedule.filter,
+            sections: schedule.sections,
+            context: context,
+            currencyCode: defaultCurrency,
+            now: now
+        )
+
+        let format = schedule.format
+        let filename = makeFilename(for: schedule, format: format, at: now)
+        let url = URL(fileURLWithPath: schedule.destinationPath).appendingPathComponent(filename)
 
         do {
-            let data = try exporter.data(for: result)
-            let filename = makeFilename(for: result, format: schedule.format, at: now)
-            let url = URL(fileURLWithPath: schedule.destinationPath).appendingPathComponent(filename)
-
+            let data = try encode(composite, format: format)
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -62,9 +72,8 @@ enum ReportScheduleService {
             schedule.lastFireDate = now
             schedule.lastOutputFilename = filename
             schedule.failureMessage = nil
-            saved.markRun(at: now)
 
-            ReportsTelemetry.shared.recordExport(schedule.format)
+            ReportsTelemetry.shared.recordExport(format)
         } catch {
             schedule.failureMessage = error.localizedDescription
         }
@@ -74,15 +83,27 @@ enum ReportScheduleService {
         schedule.nextFireDate = schedule.cadence.nextFire(after: now)
     }
 
+    /// Mirrors CompositeExporter's per-format encoding without popping an
+    /// NSSavePanel. Kept in sync manually — if CompositeExporter grows a
+    /// new format branch, add it here too.
+    private static func encode(_ c: CompositeReport, format: ReportExportFormat) throws -> Data {
+        switch format {
+        case .pdf:  return try CompositeExporter.encodePDF(c)
+        case .csv:  return try CompositeExporter.encodeCSV(c)
+        case .xlsx: return try CompositeExporter.encodeXLSX(c)
+        }
+    }
+
     // MARK: - Filename
 
-    private static func makeFilename(for result: ReportResult, format: ReportExportFormat, at date: Date) -> String {
+    private static func makeFilename(for schedule: ScheduledReport, format: ReportExportFormat, at date: Date) -> String {
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
-        let slug = result.summary.title
+        let slug = schedule.name
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")
             .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        return "\(slug)-\(df.string(from: date)).\(format.fileExtension)"
+        let stem = slug.isEmpty ? "centmond-report" : slug
+        return "\(stem)-\(df.string(from: date)).\(format.fileExtension)"
     }
 }

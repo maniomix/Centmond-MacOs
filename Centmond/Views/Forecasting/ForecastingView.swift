@@ -120,6 +120,7 @@ struct ForecastingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: CentmondTheme.Spacing.xxl) {
+                SectionTutorialStrip(screen: .forecasting)
                 riskStrip
                 safeToSpendHero
                 monthlyBreakdownScroller
@@ -155,12 +156,13 @@ struct ForecastingView: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: CentmondTheme.Spacing.md) {
+                HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
                     ForEach(months) { month in
                         MonthBreakdownCard(month: month)
                             .frame(width: 260)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 2)
             }
         }
@@ -205,7 +207,7 @@ struct ForecastingView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 Text(label)
                     .font(CentmondTheme.Typography.overline)
@@ -467,7 +469,7 @@ struct ForecastingView: View {
                     if let delta = scenarioEndDelta {
                         HStack(spacing: 4) {
                             Image(systemName: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(CentmondTheme.Typography.overlineSemibold)
                             Text(CurrencyFormat.compact(delta))
                                 .monospacedDigit()
                         }
@@ -494,7 +496,7 @@ struct ForecastingView: View {
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                 VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
-                    if !subscriptions.filter({ $0.status == .active }).isEmpty {
+                    if subscriptions.contains(where: { $0.status == .active }) {
                         scenarioToggle(
                             title: "Cancel all subscriptions",
                             isOn: Binding(
@@ -505,7 +507,7 @@ struct ForecastingView: View {
                             )
                         )
                     }
-                    if !goals.filter({ $0.status == .active && ($0.monthlyContribution ?? 0) > 0 }).isEmpty {
+                    if goals.contains(where: { $0.status == .active && ($0.monthlyContribution ?? 0) > 0 }) {
                         scenarioToggle(
                             title: "Pause all goal contributions",
                             isOn: Binding(
@@ -674,7 +676,7 @@ struct ForecastingView: View {
             ZStack {
                 Circle().fill(kindColor.opacity(0.12)).frame(width: 28, height: 28)
                 Image(systemName: event.iconSymbol)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(kindColor)
             }
 
@@ -832,10 +834,15 @@ private struct MonthBreakdownCard: View {
                 }
             }
 
-            if let big = month.biggestEvent {
-                HStack(spacing: 6) {
+            // Always render a fixed-height "Biggest" footer row — even when
+            // there's no standout event — so sibling cards in the horizontal
+            // scroller all end at the same vertical baseline. Previously
+            // this block was conditional, which made cards with a biggest
+            // event visibly taller than ones without (e.g. April vs May).
+            HStack(spacing: 6) {
+                if let big = month.biggestEvent {
                     Image(systemName: big.iconSymbol)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text("Biggest: \(big.name)")
                         .font(CentmondTheme.Typography.caption)
@@ -846,11 +853,22 @@ private struct MonthBreakdownCard: View {
                         .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.negative)
                         .monospacedDigit()
+                } else {
+                    Image(systemName: "minus.circle")
+                        .font(CentmondTheme.Typography.captionSmall)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                    Text("No standout expense")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        .lineLimit(1)
+                    Spacer()
                 }
-                .padding(.top, 2)
             }
+            .frame(height: 20)
+            .padding(.top, 2)
         }
         .padding(CentmondTheme.Spacing.lg)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(CentmondTheme.Colors.bgSecondary)
         .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
         .overlay(
@@ -1217,7 +1235,7 @@ private struct ForecastRunwayChartSurface: View {
                 RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm)
                     .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+            .centmondShadow(2)
         }
     }
 

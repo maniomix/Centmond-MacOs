@@ -299,7 +299,7 @@ struct NewTransactionSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -366,7 +366,7 @@ struct NewTransactionSheet: View {
                     // Visual display — clean, no background wash.
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("$")
-                            .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                            .font(CentmondTheme.Typography.monoDisplay)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                         if rawCents.isEmpty {
@@ -374,7 +374,7 @@ struct NewTransactionSheet: View {
                         } else {
                             HStack(alignment: .firstTextBaseline, spacing: 3) {
                                 Text(formattedAmount)
-                                    .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                                    .font(CentmondTheme.Typography.monoDisplay)
                                     .foregroundStyle(amountColor)
                                     .monospacedDigit()
                                     .contentTransition(.numericText(countsDown: false))
@@ -406,8 +406,8 @@ struct NewTransactionSheet: View {
                                 amountInput = cents   // flows through .onChange → animations
                                 focusedField = .amount
                             } label: {
-                                Text("$\(dollars)")
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                Text(CurrencyFormat.compact(Decimal(dollars)))
+                                    .font(CentmondTheme.Typography.captionSmallSemibold.monospacedDigit())
                                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                     .padding(.horizontal, 10)
                                     .frame(height: 24)
@@ -472,7 +472,7 @@ struct NewTransactionSheet: View {
                 if let impact = budgetImpactCaption {
                     HStack(spacing: 6) {
                         Image(systemName: "chart.pie.fill")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                         Text(impact.text)
                             .font(CentmondTheme.Typography.caption)
                     }
@@ -592,6 +592,7 @@ struct NewTransactionSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid)
             .opacity(isValid ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -637,6 +638,7 @@ struct NewTransactionSheet: View {
                 proposals: preview.proposals,
                 onComplete: { dismiss() }
             )
+            .dismissOnEscape()
         }
     }
 
@@ -644,7 +646,7 @@ struct NewTransactionSheet: View {
     /// width so text across rows aligns consistently.
     private func rowIcon(_ system: String) -> some View {
         Image(systemName: system)
-            .font(.system(size: 11))
+            .font(CentmondTheme.Typography.captionSmall)
             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             .frame(width: 16)
     }
@@ -659,7 +661,7 @@ struct NewTransactionSheet: View {
     private var payeeSuggestionRow: some View {
         HStack(spacing: 6) {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                 .frame(width: 16)
             ForEach(payeeSuggestions, id: \.self) { suggestion in
@@ -671,7 +673,7 @@ struct NewTransactionSheet: View {
                     }
                 } label: {
                     Text(suggestion)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                         .foregroundStyle(CentmondTheme.Colors.accent)
                         .lineLimit(1)
                         .padding(.horizontal, 8)
@@ -694,7 +696,7 @@ struct NewTransactionSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "target")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.positive)
                 Text("Allocate to Goals")
                     .font(CentmondTheme.Typography.captionMedium)
@@ -737,7 +739,7 @@ struct NewTransactionSheet: View {
     private func goalAllocationRow(_ goal: Goal) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: goal.icon)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(CentmondTheme.Colors.accent)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
@@ -746,7 +748,7 @@ struct NewTransactionSheet: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
                 Text("\(Int(goal.progressPercentage * 100))% of \(CurrencyFormat.compact(goal.targetAmount))")
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             Spacer(minLength: CentmondTheme.Spacing.sm)
@@ -755,7 +757,7 @@ struct NewTransactionSheet: View {
                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             TextField("0", text: allocationBinding(for: goal))
                 .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(CentmondTheme.Typography.mono.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 72)
@@ -791,7 +793,7 @@ struct NewTransactionSheet: View {
                     .fill(tint)
                     .frame(width: 6, height: 6)
                 Text(isCleared ? "Cleared" : "Pending")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(tint)
                     .contentTransition(.opacity)
             }
@@ -849,7 +851,7 @@ struct NewTransactionSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -934,7 +936,7 @@ struct NewTransactionSheet: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
             .frame(height: 36)
@@ -956,7 +958,7 @@ struct NewTransactionSheet: View {
 
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "clock")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 Text("Time")
                     .font(CentmondTheme.Typography.body)
@@ -991,7 +993,7 @@ struct NewTransactionSheet: View {
         let headline = isSuggestion ? "Add as \(sub.serviceName)?" : "Payment for \(sub.serviceName)?"
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 14, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                 .foregroundStyle(CentmondTheme.Colors.accent)
                 .frame(width: 28, height: 28)
                 .background(CentmondTheme.Colors.accent.opacity(0.15), in: Circle())
@@ -1130,7 +1132,7 @@ private struct BlinkingCursor: View {
     @State private var visible = true
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 1)
+        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
             .fill(color)
             .frame(width: 2.5, height: 32)
             .opacity(visible ? 1 : 0)

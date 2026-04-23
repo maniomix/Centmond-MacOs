@@ -127,7 +127,7 @@ enum GoalContributionService {
             goal.contributions.append(seed)
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { context.persist() }
     }
 
     // MARK: - Internal

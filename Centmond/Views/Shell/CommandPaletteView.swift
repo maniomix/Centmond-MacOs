@@ -30,7 +30,7 @@ struct CommandPaletteView: View {
                 // Search field
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 16))
+                        .font(CentmondTheme.Typography.subheading.weight(.regular))
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
 
                     TextField("Type a command or search...", text: $searchText)
@@ -78,13 +78,13 @@ struct CommandPaletteView: View {
                     }
                 }
             }
-            .background(CentmondTheme.Colors.bgTertiary)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                     .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.5), radius: 48, y: 16)
+            .centmondShadow(4)
             .frame(width: CentmondTheme.Sizing.commandPaletteWidth)
             .padding(.top, 120)
             .frame(maxHeight: .infinity, alignment: .top)
@@ -119,7 +119,7 @@ struct CommandPaletteView: View {
         } label: {
             HStack(spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: command.icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     .frame(width: 20)
 

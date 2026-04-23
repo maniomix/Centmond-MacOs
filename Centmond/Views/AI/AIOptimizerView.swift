@@ -84,7 +84,7 @@ struct AIOptimizerView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.accent)
                     Text(label)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                         .foregroundStyle(optimizer.latestResult?.type == type ? .white : DS.Colors.text)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -92,7 +92,7 @@ struct AIOptimizerView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .fill(optimizer.latestResult?.type == type
                               ? DS.Colors.accent
                               : (colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface))
@@ -111,7 +111,7 @@ struct AIOptimizerView: View {
             // Header
             HStack(spacing: 10) {
                 Image(systemName: result.type.icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(CentmondTheme.Typography.heading2)
                     .foregroundStyle(DS.Colors.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(result.title)
@@ -131,7 +131,7 @@ struct AIOptimizerView: View {
             if let impact = result.projectedImpact {
                 HStack(spacing: 6) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                     Text(impact)
                         .font(DS.Typography.caption)
                         .fontWeight(.medium)
@@ -146,7 +146,7 @@ struct AIOptimizerView: View {
             if let savings = result.projectedSavings, savings > 0 {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                     Text("Potential savings: \(fmtDollars(savings))")
                         .font(DS.Typography.caption)
                         .fontWeight(.medium)
@@ -190,7 +190,7 @@ struct AIOptimizerView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(result.assumptions, id: \.self) { a in
                             Text("- \(a)")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                     }
@@ -204,11 +204,11 @@ struct AIOptimizerView: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(DS.Colors.accent.opacity(0.15), lineWidth: 1)
         )
     }
@@ -220,7 +220,7 @@ struct AIOptimizerView: View {
     private func recommendationRow(_ rec: OptimizationRecommendation) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: rec.impact.icon)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(impactColor(rec.impact))
                 .frame(width: 16)
 
@@ -230,7 +230,7 @@ struct AIOptimizerView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(DS.Colors.text)
                 Text(rec.detail)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                     .foregroundStyle(DS.Colors.subtext)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -259,7 +259,7 @@ struct AIOptimizerView: View {
                     .foregroundStyle(DS.Colors.text)
                 Spacer()
                 Text("Risk: \(scenario.riskLevel)")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(CentmondTheme.Typography.overline)
                     .foregroundStyle(scenario.riskLevel == "high" ? DS.Colors.danger : (scenario.riskLevel == "moderate" ? DS.Colors.warning : DS.Colors.positive))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
@@ -270,27 +270,27 @@ struct AIOptimizerView: View {
             }
 
             Text(scenario.description)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.subtext)
 
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Pros")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(DS.Colors.positive)
                     ForEach(scenario.pros, id: \.self) { pro in
                         Text("+ \(pro)")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Cons")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(DS.Colors.danger)
                     ForEach(scenario.cons, id: \.self) { con in
                         Text("- \(con)")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                 }
@@ -298,7 +298,7 @@ struct AIOptimizerView: View {
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(DS.Colors.accent.opacity(0.04))
         )
     }
@@ -320,7 +320,7 @@ struct AIOptimizerView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: result.type.icon)
-                            .font(.system(size: 13))
+                            .font(CentmondTheme.Typography.body)
                             .foregroundStyle(DS.Colors.accent)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(result.title)
@@ -328,12 +328,12 @@ struct AIOptimizerView: View {
                                 .fontWeight(.medium)
                                 .foregroundStyle(DS.Colors.text)
                             Text(timeAgo(result.createdAt))
-                                .font(.system(size: 10))
+                                .font(CentmondTheme.Typography.overlineRegular)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                     .padding(.vertical, 6)
@@ -452,7 +452,7 @@ struct AIOptimizationCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: result.type.icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(DS.Colors.accent)
                 Text(result.title)
                     .font(DS.Typography.caption)
@@ -467,7 +467,7 @@ struct AIOptimizationCard: View {
             }
 
             Text(result.summary)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.subtext)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -475,10 +475,10 @@ struct AIOptimizationCard: View {
             ForEach(result.recommendations.prefix(2)) { rec in
                 HStack(spacing: 6) {
                     Image(systemName: rec.impact.icon)
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(impactColor(rec.impact))
                     Text(rec.title)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                         .foregroundStyle(DS.Colors.text)
                         .lineLimit(1)
                 }
@@ -486,11 +486,11 @@ struct AIOptimizationCard: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                 .strokeBorder(DS.Colors.accent.opacity(0.15), lineWidth: 1)
         )
     }

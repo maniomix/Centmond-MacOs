@@ -91,7 +91,7 @@ struct LiabilityPayoffCard: View {
     private var missingRateNotice: some View {
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
             Text("Add APR + minimum payment in Edit Account to make these projections accurate.")
                 .font(CentmondTheme.Typography.caption)
         }
@@ -99,7 +99,7 @@ struct LiabilityPayoffCard: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .fill(CentmondTheme.Colors.warning.opacity(0.10))
         )
     }
@@ -127,7 +127,7 @@ struct LiabilityPayoffCard: View {
                 Spacer()
                 Text("$2,000")
             }
-            .font(.system(size: 9))
+            .font(CentmondTheme.Typography.micro)
             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
         }
     }
@@ -192,7 +192,7 @@ struct LiabilityPayoffCard: View {
                 if plan.strategy != .minimum && interestSaved > 0 && plan.strategy == focusedStrategy {
                     HStack {
                         Image(systemName: "leaf.fill")
-                            .font(.system(size: 8))
+                            .font(CentmondTheme.Typography.micro.weight(.regular))
                         Text("Saves \(CurrencyFormat.compact(interestSaved))")
                             .font(CentmondTheme.Typography.caption)
                         if monthsSaved > 0 {
@@ -206,11 +206,11 @@ struct LiabilityPayoffCard: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                     .fill(isFocused ? accent.opacity(0.08) : CentmondTheme.Colors.bgSecondary)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                     .strokeBorder(isFocused ? accent.opacity(0.6) : CentmondTheme.Colors.strokeSubtle, lineWidth: isFocused ? 1.5 : 1)
             )
             .contentShape(Rectangle())

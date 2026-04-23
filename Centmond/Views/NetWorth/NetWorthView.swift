@@ -57,6 +57,7 @@ struct NetWorthView: View {
             } else {
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
+                        SectionTutorialStrip(screen: .netWorth)
                         netWorthSummary
                         NetWorthMilestonesCard(snapshots: snapshots)
                         NetWorthTrendChart(snapshots: snapshots)
@@ -154,12 +155,12 @@ struct NetWorthView: View {
         return VStack(spacing: CentmondTheme.Spacing.xs) {
             GeometryReader { geo in
                 HStack(spacing: 2) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(CentmondTheme.Colors.positive)
                         .frame(width: max(4, geo.size.width * assetFraction))
 
                     if totalLiabilities > 0 {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(CentmondTheme.Colors.negative)
                             .frame(width: max(4, geo.size.width * (1.0 - assetFraction)))
                     }
@@ -271,7 +272,7 @@ struct NetWorthView: View {
                     if liabilityAccounts.isEmpty {
                         VStack(spacing: CentmondTheme.Spacing.sm) {
                             Image(systemName: "checkmark.circle")
-                                .font(.system(size: 24))
+                                .font(CentmondTheme.Typography.heading1.weight(.regular))
                                 .foregroundStyle(CentmondTheme.Colors.positive)
                             Text("No liabilities — great job!")
                                 .font(CentmondTheme.Typography.body)
@@ -331,7 +332,7 @@ struct NetWorthView: View {
                             .frame(width: 24)
                     } else {
                         Image(systemName: account.type.iconName)
-                            .font(.system(size: 14))
+                            .font(CentmondTheme.Typography.bodyLarge)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             .frame(width: 24)
                     }
@@ -374,9 +375,9 @@ struct NetWorthView: View {
                 // Proportion bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(CentmondTheme.Colors.strokeSubtle)
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                             .fill(color.opacity(0.5))
                             .frame(width: max(2, geo.size.width * min(fraction, 1.0)))
                     }

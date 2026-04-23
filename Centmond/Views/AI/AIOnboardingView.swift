@@ -61,7 +61,7 @@ struct AIOnboardingView: View {
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                             .foregroundStyle(DS.Colors.subtext)
                     }
                     .buttonStyle(.plain)
@@ -70,25 +70,25 @@ struct AIOnboardingView: View {
                 Spacer()
 
                 Text(engine.session.currentStage.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyMedium)
                     .foregroundStyle(DS.Colors.subtext)
 
                 Spacer()
 
                 // Step indicator
                 Text("\(engine.session.currentStageIndex + 1)/\(engine.session.totalStages)")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(DS.Colors.subtext.opacity(0.6))
             }
             .padding(.horizontal, 20)
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(DS.Colors.subtext.opacity(0.15))
                         .frame(height: 3)
 
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(DS.Colors.accent)
                         .frame(width: geo.size.width * engine.session.progress, height: 3)
                         .animation(.easeInOut(duration: 0.3), value: engine.session.progress)
@@ -170,7 +170,7 @@ struct AIOnboardingView: View {
                 onComplete()
             } label: {
                 Text("Skip setup -- I'll do it myself")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(DS.Colors.subtext)
             }
             .buttonStyle(.plain)
@@ -203,21 +203,21 @@ struct AIOnboardingView: View {
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: path.icon)
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(path == .quickStart ? DS.Colors.accent : DS.Colors.positive)
                     .frame(width: 44, height: 44)
                     .background(
                         (path == .quickStart ? DS.Colors.accent : DS.Colors.positive).opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(path.title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(CentmondTheme.Typography.subheading)
                         .foregroundStyle(DS.Colors.text)
 
                     Text(path.description)
-                        .font(.system(size: 13))
+                        .font(CentmondTheme.Typography.body)
                         .foregroundStyle(DS.Colors.subtext)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -225,12 +225,12 @@ struct AIOnboardingView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                     .foregroundStyle(DS.Colors.subtext.opacity(0.5))
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .fill(Color(.controlBackgroundColor))
             )
         }
@@ -309,7 +309,7 @@ struct AIOnboardingView: View {
     private func accountToggle(_ label: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 15, weight: .medium))
+                .font(CentmondTheme.Typography.heading3)
                 .foregroundStyle(DS.Colors.text)
             Spacer()
             Toggle("", isOn: isOn)
@@ -318,7 +318,7 @@ struct AIOnboardingView: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(Color(.controlBackgroundColor))
         )
     }
@@ -326,7 +326,7 @@ struct AIOnboardingView: View {
     private func balanceInput(_ label: String, value: Binding<Double?>) -> some View {
         HStack {
             Text("$")
-                .font(.system(size: 15, weight: .medium))
+                .font(CentmondTheme.Typography.heading3)
                 .foregroundStyle(DS.Colors.subtext)
 
             TextField(label, text: Binding(
@@ -338,7 +338,7 @@ struct AIOnboardingView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(Color(.controlBackgroundColor).opacity(0.6))
         )
         .padding(.horizontal, 8)
@@ -361,7 +361,7 @@ struct AIOnboardingView: View {
             let commonSubs = ["Netflix", "Spotify", "YouTube", "iCloud", "Gym"]
 
             Text("Common bills")
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(DS.Colors.subtext)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -372,7 +372,7 @@ struct AIOnboardingView: View {
             }
 
             Text("Common subscriptions")
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(DS.Colors.subtext)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -386,7 +386,7 @@ struct AIOnboardingView: View {
             if !engine.session.answers.recurringBills.isEmpty || !engine.session.answers.subscriptions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Added")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                         .foregroundStyle(DS.Colors.subtext)
 
                     ForEach(engine.session.answers.recurringBills) { bill in
@@ -439,10 +439,10 @@ struct AIOnboardingView: View {
             HStack(spacing: 4) {
                 if isAdded {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                 }
                 Text(name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyMedium)
             }
             .foregroundStyle(isAdded ? .white : DS.Colors.text)
             .padding(.horizontal, 12)
@@ -478,7 +478,7 @@ struct AIOnboardingView: View {
     private func addedItemRow(name: String, amount: Double, onRemove: @escaping () -> Void) -> some View {
         HStack {
             Text(name)
-                .font(.system(size: 14, weight: .medium))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                 .foregroundStyle(DS.Colors.text)
             Spacer()
             Text(fmtDollars(amount))
@@ -486,14 +486,14 @@ struct AIOnboardingView: View {
                 .foregroundStyle(DS.Colors.accent)
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(DS.Colors.subtext.opacity(0.5))
             }
             .buttonStyle(.plain)
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(Color(.controlBackgroundColor))
         )
     }
@@ -532,7 +532,7 @@ struct AIOnboardingView: View {
 
                 HStack {
                     Text("Auto-create category budgets?")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                         .foregroundStyle(DS.Colors.text)
                     Spacer()
                     Toggle("", isOn: $engine.session.answers.wantAutoBudget.defaultTrue)
@@ -541,7 +541,7 @@ struct AIOnboardingView: View {
                 }
                 .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                         .fill(Color(.controlBackgroundColor))
                 )
             }
@@ -645,7 +645,7 @@ struct AIOnboardingView: View {
 
             HStack {
                 Text("Proactive alerts")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                     .foregroundStyle(DS.Colors.text)
                 Spacer()
                 Toggle("", isOn: $engine.session.answers.wantsProactiveAlerts)
@@ -654,13 +654,13 @@ struct AIOnboardingView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(Color(.controlBackgroundColor))
             )
 
             HStack {
                 Text("Ask before most actions")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                     .foregroundStyle(DS.Colors.text)
                 Spacer()
                 Toggle("", isOn: $engine.session.answers.prefersMoreConfirmation)
@@ -669,7 +669,7 @@ struct AIOnboardingView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(Color(.controlBackgroundColor))
             )
 
@@ -690,20 +690,20 @@ struct AIOnboardingView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: mode.icon)
-                    .font(.system(size: 18))
+                    .font(CentmondTheme.Typography.heading2.weight(.regular))
                     .foregroundStyle(isSelected ? .white : modeColor(mode))
                     .frame(width: 34, height: 34)
                     .background(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                             .fill(isSelected ? modeColor(mode) : modeColor(mode).opacity(0.12))
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(mode.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading3.weight(.semibold))
                         .foregroundStyle(DS.Colors.text)
                     Text(mode.tagline)
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(DS.Colors.subtext)
                 }
 
@@ -717,13 +717,13 @@ struct AIOnboardingView: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(isSelected
                           ? modeColor(mode).opacity(colorScheme == .dark ? 0.12 : 0.06)
                           : Color(.controlBackgroundColor))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .strokeBorder(isSelected ? modeColor(mode) : .clear, lineWidth: 1.5)
             )
         }
@@ -761,7 +761,7 @@ struct AIOnboardingView: View {
                 if let items = grouped[cat], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(cat.rawValue)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                             .foregroundStyle(DS.Colors.subtext)
 
                         ForEach(items) { item in
@@ -796,7 +796,7 @@ struct AIOnboardingView: View {
                 engine.goBack()
             } label: {
                 Text("Go back and edit")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(DS.Colors.subtext)
             }
             .buttonStyle(.plain)
@@ -808,17 +808,17 @@ struct AIOnboardingView: View {
 
         return HStack(spacing: 12) {
             Image(systemName: item.icon)
-                .font(.system(size: 16))
+                .font(CentmondTheme.Typography.subheading.weight(.regular))
                 .foregroundStyle(item.isIncluded ? DS.Colors.accent : DS.Colors.subtext.opacity(0.4))
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                     .foregroundStyle(item.isIncluded ? DS.Colors.text : DS.Colors.subtext)
 
                 Text(item.detail)
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(DS.Colors.subtext)
             }
 
@@ -832,7 +832,7 @@ struct AIOnboardingView: View {
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(Color(.controlBackgroundColor))
         )
     }
@@ -918,16 +918,16 @@ struct AIOnboardingView: View {
     private func nextStepRow(icon: String, title: String, subtitle: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(CentmondTheme.Typography.heading2.weight(.regular))
                 .foregroundStyle(DS.Colors.accent)
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(DS.Colors.text)
                 Text(subtitle)
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(DS.Colors.subtext)
             }
 
@@ -935,7 +935,7 @@ struct AIOnboardingView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(Color(.controlBackgroundColor))
         )
     }
@@ -947,7 +947,7 @@ struct AIOnboardingView: View {
     private func stageHeader(icon: String, title: String, subtitle: String) -> some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(DS.Colors.accent)
 
             Text(title)
@@ -956,7 +956,7 @@ struct AIOnboardingView: View {
                 .multilineTextAlignment(.center)
 
             Text(subtitle)
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(DS.Colors.subtext)
                 .multilineTextAlignment(.center)
         }
@@ -971,21 +971,21 @@ struct AIOnboardingView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .font(CentmondTheme.Typography.bodyMedium)
                 .foregroundStyle(DS.Colors.subtext)
 
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(DS.Colors.accent)
 
                 TextField(hint, text: value)
-                    .font(.system(size: 16))
+                    .font(CentmondTheme.Typography.subheading.weight(.regular))
                     .foregroundStyle(DS.Colors.text)
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(Color(.controlBackgroundColor))
             )
         }
@@ -1011,7 +1011,7 @@ struct AIOnboardingView: View {
             }
         } label: {
             Text("Skip this step")
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(DS.Colors.subtext)
         }
         .buttonStyle(.plain)

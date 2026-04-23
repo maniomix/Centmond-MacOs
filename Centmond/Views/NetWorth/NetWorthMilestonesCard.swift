@@ -78,13 +78,13 @@ struct NetWorthMilestonesCard: View {
     private var goalsChip: some View {
         HStack(spacing: 6) {
             Image(systemName: "target")
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
             VStack(alignment: .leading, spacing: 0) {
                 Text(CurrencyFormat.compact(goalsThisMonth))
                     .font(CentmondTheme.Typography.captionMedium)
                     .monospacedDigit()
                 Text("to goals this month")
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
         }
@@ -102,7 +102,7 @@ struct NetWorthMilestonesCard: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: m.icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                     .foregroundStyle(tint)
                 Text(m.title)
                     .font(CentmondTheme.Typography.captionMedium)
@@ -124,11 +124,11 @@ struct NetWorthMilestonesCard: View {
         .padding(12)
         .frame(width: 180, height: 110, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .fill(tint.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                 .strokeBorder(tint.opacity(0.25), lineWidth: 1)
         )
     }

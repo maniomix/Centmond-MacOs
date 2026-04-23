@@ -79,7 +79,7 @@ struct NewBudgetCategorySheet: View {
                         // Name
                         fieldRow {
                             Image(systemName: icon)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                                 .foregroundStyle(accentColor)
                                 .frame(width: 16)
                             TextField(isExpenseCategory ? "Category name (e.g. Groceries)" : "Category name (e.g. Salary)", text: $name)
@@ -95,7 +95,7 @@ struct NewBudgetCategorySheet: View {
                         // Budget amount
                         fieldRow {
                             Image(systemName: "dollarsign")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                                 .frame(width: 16)
                             TextField(isExpenseCategory ? "Monthly limit (e.g. 500)" : "Expected amount (e.g. 3000)", text: $budgetAmount)
@@ -145,7 +145,7 @@ struct NewBudgetCategorySheet: View {
                                     withAnimation(CentmondTheme.Motion.micro) { icon = opt }
                                 } label: {
                                     Image(systemName: opt)
-                                        .font(.system(size: 14))
+                                        .font(CentmondTheme.Typography.bodyLarge)
                                         .frame(maxWidth: .infinity)
                                         .frame(height: 38)
                                         .foregroundStyle(icon == opt ? accentColor : CentmondTheme.Colors.textTertiary)
@@ -228,7 +228,7 @@ struct NewBudgetCategorySheet: View {
                 // Live preview
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                         .foregroundStyle(accentColor)
                         .frame(width: 28, height: 28)
                         .background(accentColor.opacity(0.12))

@@ -119,6 +119,9 @@ struct HouseholdView: View {
                 emptySetup
             } else {
                 VStack(spacing: 0) {
+                    SectionTutorialStrip(screen: .household)
+                        .padding(.horizontal, CentmondTheme.Spacing.lg)
+                        .padding(.top, CentmondTheme.Spacing.sm)
                     headerBar
                     tabBar
                     tabContent
@@ -133,7 +136,7 @@ struct HouseholdView: View {
                         router.selectedMemberID = nil
                     }
                     modelContext.delete(m)
-                    try? modelContext.save()
+                    modelContext.persist()
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -318,7 +321,7 @@ struct HouseholdView: View {
     private func heroCard(label: String, value: String, icon: String, color: Color) -> some View {
         HStack(spacing: CentmondTheme.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(color)
                 .frame(width: 24, height: 24)
                 .background(color.opacity(0.12))
@@ -350,7 +353,7 @@ struct HouseholdView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: t.icon)
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                         Text(t.label)
                             .font(CentmondTheme.Typography.captionMedium)
                     }
@@ -443,7 +446,7 @@ struct HouseholdView: View {
                 .frame(width: 28, height: 28)
                 .overlay {
                     Text(String(pair.debtor.name.prefix(1)))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                         .foregroundStyle(.white)
                 }
 
@@ -521,7 +524,7 @@ struct HouseholdView: View {
                         .frame(width: 44, height: 44)
                         .overlay {
                             Text(String(member.name.prefix(1)))
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(CentmondTheme.Typography.heading2)
                                 .foregroundStyle(.white)
                         }
                     VStack(alignment: .leading, spacing: 2) {
@@ -665,7 +668,7 @@ struct HouseholdView: View {
                         .frame(width: 14, height: 14)
                         .overlay {
                             Text(String(m.name.prefix(1)))
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(CentmondTheme.Typography.microBold.weight(.semibold))
                                 .foregroundStyle(.white)
                         }
                         .help(m.name)
@@ -832,7 +835,7 @@ struct HouseholdView: View {
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
             }
             Image(systemName: "arrow.right")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
             if let to = s.toMember {
                 Text(to.name)

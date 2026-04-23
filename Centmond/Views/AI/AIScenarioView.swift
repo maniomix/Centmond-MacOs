@@ -63,7 +63,7 @@ struct AIScenarioView: View {
                     }
                     .padding(14)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                             .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                     )
 
@@ -157,7 +157,7 @@ struct AIScenarioView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -186,7 +186,7 @@ struct AIScenarioView: View {
                                     .font(DS.Typography.body)
                                     .foregroundStyle(DS.Colors.text)
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 10))
+                                    .font(CentmondTheme.Typography.overlineRegular)
                                     .foregroundStyle(DS.Colors.subtext)
                                 Text(impact.projectedValue)
                                     .font(DS.Typography.body)
@@ -201,7 +201,7 @@ struct AIScenarioView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                     .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
             )
 
@@ -215,7 +215,7 @@ struct AIScenarioView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                     .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
             )
         }

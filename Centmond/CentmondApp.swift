@@ -3,12 +3,31 @@ import SwiftData
 
 @main
 struct CentmondApp: App {
+    @NSApplicationDelegateAdaptor(CentmondAppDelegate.self) private var appDelegate
+
     /// Single shared container so the main window and the Settings scene
     /// read and write to the same SwiftData store. Previously each scene
     /// declared its own `.modelContainer(for:)`, which silently produced
     /// two separate stores — meaning Settings → Delete All Data could not
     /// see (or wipe) any of the user's actual records.
     let sharedModelContainer: ModelContainer = {
+        // Pre-flight: if the previous session set the "nuke store" flag
+        // (Settings → Erase All Data), delete the SwiftData store files
+        // from disk BEFORE creating the container. In-process deletes
+        // can't clear the tombstone cache reliably, so we short-circuit by
+        // starting the next launch with a blank store.
+        StoreNuke.runIfRequested()
+
+        // Settings always opens on Workspace after a fresh launch. The
+        // in-session value still persists via @AppStorage so tabbing
+        // between screens preserves the selected domain, but closing the
+        // app and reopening it lands on Workspace — the home of everyday
+        // preferences (currency, start of week, layout, behavior).
+        UserDefaults.standard.set(
+            SettingsDomain.workspace.rawValue,
+            forKey: "settings.selectedDomain"
+        )
+
         let schema = Schema([
             Transaction.self,
             TransactionSplit.self,
@@ -35,7 +54,6 @@ struct CentmondApp: App {
             ChatMessageRecord.self,
             NetWorthSnapshot.self,
             AccountBalancePoint.self,
-            SavedReport.self,
             ScheduledReport.self,
         ])
         let config = ModelConfiguration(schema: schema)
@@ -45,6 +63,12 @@ struct CentmondApp: App {
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }()
+
+    init() {
+        // Phase 3 — hand the shared container to the Quick Add panel
+        // so its floating flow writes into the same SwiftData store.
+        QuickAddContainer.shared = sharedModelContainer
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -63,13 +87,26 @@ struct CentmondApp: App {
                     NotificationCenter.default.post(name: .replayOnboarding, object: nil)
                 }
             }
-        }
 
-        #if os(macOS)
-        Settings {
-            SettingsView()
+            // Phase 11 — retire the macOS prefs TabView. ⌘, now navigates
+            // the main window to the in-app Settings shell so there's one
+            // Settings surface instead of two drifting copies.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings\u{2026}") {
+                    NotificationCenter.default.post(name: .openInAppSettings, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
-        .modelContainer(sharedModelContainer)
-        #endif
     }
 }
+
+/// Phase 1 — owns the menu bar status item for the app's lifetime.
+final class CentmondAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MenuBarController.shared.start()
+        QuickAddHotkeyService.shared.start()
+        QuickAddCoordinator.shared.start()
+    }
+}
+

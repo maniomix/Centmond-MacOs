@@ -136,6 +136,7 @@ struct AccountsView: View {
 
                 ScrollView {
                     VStack(spacing: CentmondTheme.Spacing.xxl) {
+                        SectionTutorialStrip(screen: .accounts)
                         if filteredAccounts.isEmpty {
                             VStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: "magnifyingglass")
@@ -275,7 +276,7 @@ struct AccountsView: View {
             // Search
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
+                    .font(CentmondTheme.Typography.caption)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 TextField("Search accounts…", text: $searchText)
                     .textFieldStyle(.plain)
@@ -287,7 +288,7 @@ struct AccountsView: View {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
                     .buttonStyle(.plain)
@@ -402,7 +403,7 @@ struct AccountsView: View {
             } label: {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: showArchived ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CentmondTheme.Typography.overlineSemibold)
                     Text("Archived (\(archivedAccounts.count))")
                         .font(CentmondTheme.Typography.captionMedium)
                 }
@@ -478,10 +479,18 @@ struct AccountsView: View {
         if case .account(let id) = router.inspectorContext, id == account.id {
             router.inspectorContext = .none
         }
+        // Manually nil inverse refs first so SwiftData doesn't route the
+        // deferred cascade through a faulted Account. Matches the two-phase
+        // nil+delete pattern used for BudgetCategory deletes (InspectorView,
+        // BudgetView) — see MEMORY.md "BudgetCategory Tombstone Two-Phase
+        // Delete". Phase 5 polish (2026-04-23): added explicit persist() so
+        // the delete reaches disk before the next mutation can observe a
+        // tombstoned ref.
         for tx in account.transactions {
             tx.account = nil
         }
         modelContext.delete(account)
+        modelContext.persist()
     }
 }
 
@@ -515,7 +524,7 @@ private struct AccountCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             // Color indicator
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                 .fill(accountColor)
                 .frame(width: 4)
                 .padding(.vertical, CentmondTheme.Spacing.sm)
@@ -523,7 +532,7 @@ private struct AccountCardView: View {
             HStack {
                 HStack(spacing: CentmondTheme.Spacing.md) {
                     Image(systemName: account.type.iconName)
-                        .font(.system(size: 18))
+                        .font(CentmondTheme.Typography.heading2.weight(.regular))
                         .foregroundStyle(isSelected ? accountColor : CentmondTheme.Colors.textSecondary)
                         .frame(width: 32, height: 32)
                         .background(isSelected ? accountColor.opacity(0.15) : CentmondTheme.Colors.bgQuaternary)
@@ -560,7 +569,7 @@ private struct AccountCardView: View {
                                     .padding(.horizontal, 4)
                                     .padding(.vertical, 1)
                                     .background(CentmondTheme.Colors.bgQuaternary)
-                                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                             }
                         }
                     }
@@ -579,9 +588,9 @@ private struct AccountCardView: View {
                             // Mini utilization bar
                             GeometryReader { geo in
                                 ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                                         .fill(CentmondTheme.Colors.bgQuaternary)
-                                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                                         .fill(utilizationColor(utilization))
                                         .frame(width: max(0, geo.size.width * min(utilization, 1.0)))
                                 }
@@ -677,7 +686,7 @@ private struct AccountCardView: View {
 
     private func statusBadge(_ text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(CentmondTheme.Typography.overline)
             .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)

@@ -127,10 +127,15 @@ struct AIPredictionView: View {
             BetaBanner(title: "AI Predictions")
 
             ScrollView {
-                if phase == .ready, let data = predictionData, let ai = aiPredictions {
-                    readyContent(data: data, ai: ai)
-                } else {
-                    loadingPhaseContent
+                VStack(spacing: 0) {
+                    SectionTutorialStrip(screen: .aiPredictions)
+                        .padding(.horizontal, CentmondTheme.Spacing.lg)
+                        .padding(.top, CentmondTheme.Spacing.sm)
+                    if phase == .ready, let data = predictionData, let ai = aiPredictions {
+                        readyContent(data: data, ai: ai)
+                    } else {
+                        loadingPhaseContent
+                    }
                 }
             }
         .background(CentmondTheme.Colors.bgPrimary)
@@ -305,7 +310,7 @@ struct AIPredictionView: View {
         HStack(spacing: CentmondTheme.Spacing.xs) {
             HStack(spacing: 6) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                 Text("Analysis window")
                     .font(CentmondTheme.Typography.caption)
@@ -326,10 +331,10 @@ struct AIPredictionView: View {
         .padding(.horizontal, CentmondTheme.Spacing.md)
         .padding(.vertical, CentmondTheme.Spacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                 .fill(CentmondTheme.Colors.bgTertiary)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                         .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
                 )
         )
@@ -353,14 +358,14 @@ struct AIPredictionView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                         .fill(
                             isSelected
                                 ? CentmondTheme.Colors.accent.opacity(0.18)
                                 : Color.clear
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                                 .stroke(
                                     isSelected
                                         ? CentmondTheme.Colors.accent.opacity(0.55)
@@ -950,7 +955,7 @@ struct AIPredictionView: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("PROJECTED")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(CentmondTheme.Typography.micro.weight(.medium))
                         .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                         .tracking(0.5)
                     Text(CurrencyFormat.compact(Decimal(aiProjected)))
@@ -970,7 +975,7 @@ struct AIPredictionView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background((isPositive ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative).opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                 }
             }
 
@@ -1014,7 +1019,7 @@ struct AIPredictionView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(CentmondTheme.Colors.bgTertiary.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
     }
 
     private func riskColor(_ level: String) -> Color {
@@ -1062,7 +1067,7 @@ struct AIPredictionView: View {
     private func sidebarStatCard(label: String, percent: Double, amount: Double, actionLabel: String, tint: Color, isPositive: Bool) -> some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 .tracking(0.8)
 
@@ -1079,7 +1084,7 @@ struct AIPredictionView: View {
             Spacer(minLength: CentmondTheme.Spacing.sm)
 
             Text(actionLabel)
-                .font(.system(size: 11, weight: .medium))
+                .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1099,7 +1104,7 @@ struct AIPredictionView: View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
             HStack(spacing: CentmondTheme.Spacing.xs) {
                 Image(systemName: "brain.head.profile.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.accent)
 
                 Text("Deep Analysis")
@@ -1130,9 +1135,9 @@ struct AIPredictionView: View {
                 } else if showJustFinishedBadge {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                         Text("Analysis ready")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                     }
                     .foregroundStyle(CentmondTheme.Colors.positive)
                     .padding(.horizontal, 8)
@@ -1148,7 +1153,7 @@ struct AIPredictionView: View {
                     .transition(.scale(scale: 0.85).combined(with: .opacity))
                 } else if !aiAnalysisText.isEmpty {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.positive)
                 }
 
@@ -1160,7 +1165,7 @@ struct AIPredictionView: View {
                     showRefreshConfirmation = true
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                         .foregroundStyle(
                             isPipelineActive
                                 ? CentmondTheme.Colors.textTertiary
@@ -1200,7 +1205,7 @@ struct AIPredictionView: View {
                     // so they take the loading skeleton branch below.
                     VStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "brain")
-                            .font(.system(size: 24))
+                            .font(CentmondTheme.Typography.heading1.weight(.regular))
                             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                         Text("AI model is not loaded. Load Gemma 4 in Settings to get predictions.")
                             .font(CentmondTheme.Typography.body)
@@ -1354,7 +1359,7 @@ struct AIPredictionView: View {
 
             HStack(alignment: .top, spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: "hourglass")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .frame(width: 20)
                 Text("The AI hasn't written an analysis for \(timeRange.rawValue) yet. Try refreshing the analysis to include this window.")
@@ -1384,7 +1389,7 @@ struct AIPredictionView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if !entry.topic.isEmpty {
                         Text(entry.topic)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                             .foregroundStyle(accent.opacity(0.85))
                             .textCase(.uppercase)
                             .tracking(0.5)
@@ -1557,7 +1562,7 @@ struct AIPredictionView: View {
     private func rangeCapsule(_ range: PredictionTimeRange) -> some View {
         let color = capsuleColor(for: range)
         return Text(range.rawValue)
-            .font(.system(size: 10, weight: .semibold))
+            .font(CentmondTheme.Typography.overlineSemibold)
             .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -1600,7 +1605,7 @@ struct AIPredictionView: View {
             VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "brain.head.profile.fill")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.warning)
 
                     Text("Behavioral Patterns")
@@ -1611,12 +1616,12 @@ struct AIPredictionView: View {
 
                     if !triggers.isEmpty {
                         Text("\(triggers.count) found")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(CentmondTheme.Typography.overline)
                             .foregroundStyle(CentmondTheme.Colors.warning)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(CentmondTheme.Colors.warning.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                     }
                 }
 
@@ -1831,7 +1836,7 @@ struct AIPredictionView: View {
             VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.negative)
 
                     Text("Anomalies")
@@ -1856,7 +1861,7 @@ struct AIPredictionView: View {
                                         .fill(CentmondTheme.Colors.negative.opacity(0.12))
                                         .frame(width: 38, height: 38)
                                     Image(systemName: "bolt.fill")
-                                        .font(.system(size: 16, weight: .medium))
+                                        .font(CentmondTheme.Typography.subheading.weight(.medium))
                                         .foregroundStyle(CentmondTheme.Colors.negative)
                                 }
 
@@ -1891,7 +1896,7 @@ struct AIPredictionView: View {
             VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "exclamationmark.shield.fill")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.warning)
 
                     Text("Combat Plan")
@@ -1904,15 +1909,15 @@ struct AIPredictionView: View {
                         let totalSavings = actions.reduce(0.0) { $0 + $1.savings }
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 9))
+                                .font(CentmondTheme.Typography.micro)
                             Text("Cut \(CurrencyFormat.compact(Decimal(totalSavings)))")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         }
                         .foregroundStyle(CentmondTheme.Colors.warning)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(CentmondTheme.Colors.warning.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                     }
                 }
 
@@ -1948,7 +1953,7 @@ struct AIPredictionView: View {
                                             .fill(tint.opacity(0.14))
                                             .frame(width: 38, height: 38)
                                         Image(systemName: isCommitted ? "checkmark.circle.fill" : "arrow.down.right.circle.fill")
-                                            .font(.system(size: 16, weight: .medium))
+                                            .font(CentmondTheme.Typography.subheading.weight(.medium))
                                             .foregroundStyle(tint)
                                     }
 
@@ -2006,7 +2011,7 @@ struct AIPredictionView: View {
                 // Header
                 HStack(spacing: CentmondTheme.Spacing.md) {
                     Text("Revenue Report")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading3.weight(.semibold))
                         .foregroundStyle(CentmondTheme.Colors.textPrimary)
 
                     // Legend dots — 4 states
@@ -2014,13 +2019,13 @@ struct AIPredictionView: View {
                         HStack(spacing: 5) {
                             Circle().fill(incomeActual).frame(width: 7, height: 7)
                             Text("Income")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         }
                         HStack(spacing: 5) {
                             Circle().fill(expenseActual).frame(width: 7, height: 7)
                             Text("Expenses")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         }
                         HStack(spacing: 5) {
@@ -2028,7 +2033,7 @@ struct AIPredictionView: View {
                                 .strokeBorder(CentmondTheme.Colors.projected, lineWidth: 1.5)
                                 .frame(width: 7, height: 7)
                             Text("Projected")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         }
                     }
@@ -2038,10 +2043,10 @@ struct AIPredictionView: View {
                     // Period pill (placeholder — full year)
                     HStack(spacing: 4) {
                         Text("Year")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                             .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(CentmondTheme.Typography.microBold.weight(.semibold))
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
                     .padding(.horizontal, 10)
@@ -2076,7 +2081,7 @@ struct AIPredictionView: View {
                             )
                             .foregroundStyle(incomeActual)
                             .position(by: .value("Series", "Income"))
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                         }
                         // Projected income for future months (violet, lower opacity)
                         if m.isFuture && m.income > 0 {
@@ -2087,7 +2092,7 @@ struct AIPredictionView: View {
                             )
                             .foregroundStyle(incomeProjected.opacity(0.55))
                             .position(by: .value("Series", "Income"))
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                         }
 
                         // ---- Expenses bar ----
@@ -2101,7 +2106,7 @@ struct AIPredictionView: View {
                             )
                             .foregroundStyle(expenseActual)
                             .position(by: .value("Series", "Expenses"))
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                         }
                         // Forecast portion — stacked on top of actual (current month) or full bar (future)
                         if m.forecast > 0 {
@@ -2113,7 +2118,7 @@ struct AIPredictionView: View {
                             )
                             .foregroundStyle(expenseProjected)
                             .position(by: .value("Series", "Expenses"))
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                         }
 
                         // Per-month budget rule — short coloured bar at the budget
@@ -2132,7 +2137,7 @@ struct AIPredictionView: View {
                             .foregroundStyle(bColor)
                             .annotation(position: .top, alignment: .center, spacing: 1) {
                                 Text(CurrencyFormat.abbreviated(m.budget))
-                                    .font(.system(size: 8, weight: .semibold))
+                                    .font(CentmondTheme.Typography.microBold.weight(.semibold))
                                     .foregroundStyle(bColor)
                             }
                         }
@@ -2157,7 +2162,7 @@ struct AIPredictionView: View {
                         AxisValueLabel {
                             if let val = value.as(Double.self) {
                                 Text(CurrencyFormat.abbreviated(val))
-                                    .font(.system(size: 10))
+                                    .font(CentmondTheme.Typography.overlineRegular)
                                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             }
                         }
@@ -2189,10 +2194,10 @@ struct AIPredictionView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: "minus")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(CentmondTheme.Typography.micro.weight(.bold))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 Text("Monthly Budgets")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(CentmondTheme.Typography.overline)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             ScrollView(.horizontal, showsIndicators: false) {
@@ -2203,7 +2208,7 @@ struct AIPredictionView: View {
                                 .fill(budgetColor(for: m))
                                 .frame(width: 12, height: 3)
                             Text("\(m.monthLabel) · \(CurrencyFormat.abbreviated(m.budget))")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                                 .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         }
                         .padding(.horizontal, 6)
@@ -2258,7 +2263,7 @@ struct AIPredictionView: View {
                 // Title row — clear name + what it is
                 HStack(spacing: CentmondTheme.Spacing.xs) {
                     Image(systemName: "clock.fill")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(CentmondTheme.Typography.captionMedium)
                         .foregroundStyle(CentmondTheme.Colors.accent)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -2266,7 +2271,7 @@ struct AIPredictionView: View {
                             .font(CentmondTheme.Typography.bodyMedium)
                             .foregroundStyle(CentmondTheme.Colors.textPrimary)
                         Text("Total dollars spent per hour of the day")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     }
 
@@ -2275,16 +2280,16 @@ struct AIPredictionView: View {
                     // Peak hour badge
                     HStack(spacing: 3) {
                         Image(systemName: "flame.fill")
-                            .font(.system(size: 9))
+                            .font(CentmondTheme.Typography.micro)
                             .foregroundStyle(CentmondTheme.Colors.negative)
                         Text("Peak \(formatHour(profile.peakSpendingHour))")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                             .foregroundStyle(CentmondTheme.Colors.negative)
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(CentmondTheme.Colors.negative.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                     .padding(.trailing, 110) // reserve space for floating chart-mode switcher
                 }
 
@@ -2292,12 +2297,12 @@ struct AIPredictionView: View {
                 let peakAmount = profile.hourlySpending[profile.peakSpendingHour] ?? 0
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.8))
                     Text(peakAmount > 0
                         ? "You spend most at **\(formatHour(profile.peakSpendingHour))** — \(CurrencyFormat.compact(Decimal(peakAmount))) total during this hour."
                         : "Not enough transactions yet to detect a peak hour.")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.textSecondary)
                     Spacer()
                 }
@@ -2324,7 +2329,7 @@ struct AIPredictionView: View {
                                     ? CentmondTheme.Colors.warning.opacity(0.75)
                                     : CentmondTheme.Colors.accent.opacity(0.55)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                     }
                 }
                 .chartYAxis {
@@ -2332,7 +2337,7 @@ struct AIPredictionView: View {
                         AxisValueLabel {
                             if let val = value.as(Double.self) {
                                 Text(CurrencyFormat.abbreviated(val))
-                                    .font(.system(size: 9))
+                                    .font(CentmondTheme.Typography.micro)
                                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
                             }
                         }
@@ -2345,7 +2350,7 @@ struct AIPredictionView: View {
                         AxisValueLabel {
                             if let h = value.as(Int.self) {
                                 Text(formatHour(h))
-                                    .font(.system(size: 9))
+                                    .font(CentmondTheme.Typography.micro)
                                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                             }
                         }
@@ -2368,17 +2373,17 @@ struct AIPredictionView: View {
                 if lateNightPct >= 15 {
                     HStack(spacing: 6) {
                         Image(systemName: "moon.stars.fill")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(CentmondTheme.Colors.warning)
                         Text("**\(Int(lateNightPct))%** of your spending happens late at night — often a sign of impulse buying.")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(CentmondTheme.Colors.textSecondary)
                         Spacer()
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(CentmondTheme.Colors.warning.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm))
                 }
             }
         }
@@ -2427,15 +2432,15 @@ struct AIPredictionView: View {
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: zone.icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(CentmondTheme.Typography.micro.weight(.semibold))
                     .foregroundStyle(zone.color)
                 Text(zone.label)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                 Spacer(minLength: 0)
                 if isPeak {
                     Image(systemName: "flame.fill")
-                        .font(.system(size: 8))
+                        .font(CentmondTheme.Typography.micro.weight(.regular))
                         .foregroundStyle(CentmondTheme.Colors.negative)
                 }
             }
@@ -2444,10 +2449,10 @@ struct AIPredictionView: View {
                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
             HStack(spacing: 3) {
                 Text("\(pct)%")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(CentmondTheme.Typography.micro.weight(.medium))
                     .foregroundStyle(zone.color)
                 Text(zone.hours)
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
         }
@@ -2455,10 +2460,10 @@ struct AIPredictionView: View {
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm)
                 .fill(zone.color.opacity(isPeak ? 0.12 : 0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm)
                         .stroke(zone.color.opacity(isPeak ? 0.4 : 0.15), lineWidth: 1)
                 )
         )
@@ -2549,18 +2554,18 @@ struct AIPredictionView: View {
                     .lineLimit(1)
 
                 Text("\(merchant.txCount)×")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .monospacedDigit()
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(CentmondTheme.Colors.bgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
 
                 Spacer(minLength: CentmondTheme.Spacing.sm)
 
                 Text(CurrencyFormat.compact(Decimal(merchant.amount)))
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.mono.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .monospacedDigit()
             }
@@ -2568,10 +2573,10 @@ struct AIPredictionView: View {
             // Bar — indent to align with merchant name (chip 18pt + spacing 8pt)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(CentmondTheme.Colors.bgTertiary)
                         .frame(height: 4)
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                         .fill(barColor)
                         .frame(width: max(3, geo.size.width * ratio), height: 4)
                 }
@@ -2601,7 +2606,7 @@ struct AIPredictionView: View {
                                 VStack(spacing: CentmondTheme.Spacing.xs) {
                                     HStack {
                                         Image(systemName: accountIcon(acct.type))
-                                            .font(.system(size: 12))
+                                            .font(CentmondTheme.Typography.caption)
                                             .foregroundStyle(CentmondTheme.Colors.textTertiary)
                                             .frame(width: 20)
 
@@ -2631,10 +2636,10 @@ struct AIPredictionView: View {
                                         HStack(spacing: CentmondTheme.Spacing.xs) {
                                             GeometryReader { geo in
                                                 ZStack(alignment: .leading) {
-                                                    RoundedRectangle(cornerRadius: 2)
+                                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                                                         .fill(CentmondTheme.Colors.bgTertiary)
                                                         .frame(height: 4)
-                                                    RoundedRectangle(cornerRadius: 2)
+                                                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                                                         .fill(utilizationColor(util))
                                                         .frame(width: geo.size.width * min(util, 1.0), height: 4)
                                                 }
@@ -2722,7 +2727,7 @@ struct AIPredictionView: View {
                 // Next bill
                 HStack {
                     Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.warning)
                     Text("Next: \(sub.nextBillName)")
                         .font(CentmondTheme.Typography.bodyMedium)
@@ -2790,11 +2795,11 @@ struct AIPredictionView: View {
                 } label: {
                     Image(systemName: mode == .trajectory ? "chart.line.uptrend.xyaxis"
                                     : mode == .monthly ? "chart.bar.fill" : "clock.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(chartMode == mode ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
                         .frame(width: 30, height: 22)
                         .background(chartMode == mode ? CentmondTheme.Colors.accent.opacity(0.18) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help(mode.rawValue)
@@ -2802,9 +2807,9 @@ struct AIPredictionView: View {
         }
         .padding(3)
         .background(CentmondTheme.Colors.bgTertiary.opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous)
                 .stroke(CentmondTheme.Colors.strokeSubtle.opacity(0.4), lineWidth: 0.5)
         )
     }
@@ -2993,7 +2998,7 @@ struct AIPredictionView: View {
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(CentmondTheme.Colors.textPrimary)
                             Text("of \(CurrencyFormat.compact(Decimal(forecast.totalBudget > 0 ? forecast.totalBudget : projectedEnd)))")
-                                .font(.system(size: 11))
+                                .font(CentmondTheme.Typography.captionSmall)
                                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         }
                     }
@@ -3086,7 +3091,7 @@ struct AIPredictionView: View {
                             .foregroundStyle(bar.isProjected
                                 ? CentmondTheme.Colors.projected.opacity(0.28)
                                 : CentmondTheme.Colors.accent.opacity(0.35))
-                            .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                         }
 
 
@@ -3208,15 +3213,15 @@ struct AIPredictionView: View {
                                     .annotation(position: .top, spacing: 4) {
                                         HStack(spacing: 2) {
                                             Image(systemName: "exclamationmark.triangle.fill")
-                                                .font(.system(size: 8))
+                                                .font(CentmondTheme.Typography.micro.weight(.regular))
                                             Text(bp.monthLabel.isEmpty ? "Breach Day \(bp.day)" : "\(bp.monthLabel) breach")
-                                                .font(.system(size: 8, weight: .bold))
+                                                .font(CentmondTheme.Typography.microBold)
                                         }
                                         .foregroundStyle(CentmondTheme.Colors.negative)
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 2)
                                         .background(CentmondTheme.Colors.negative.opacity(0.12))
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                                     }
                                 } else {
                                     PointMark(
@@ -3236,12 +3241,12 @@ struct AIPredictionView: View {
                                     }
                                     .annotation(position: .top, spacing: 2) {
                                         Text("\(bp.monthLabel)")
-                                            .font(.system(size: 8, weight: .semibold))
+                                            .font(CentmondTheme.Typography.microBold.weight(.semibold))
                                             .foregroundStyle(CentmondTheme.Colors.negative)
                                             .padding(.horizontal, 3)
                                             .padding(.vertical, 1)
                                             .background(CentmondTheme.Colors.negative.opacity(0.10))
-                                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                                            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                                     }
                                 }
                             }
@@ -3301,7 +3306,7 @@ struct AIPredictionView: View {
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
                                     .background(endColor.opacity(0.12))
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                             }
                         }
 
@@ -3319,13 +3324,13 @@ struct AIPredictionView: View {
                                         Image(systemName: "location.fill")
                                             .font(.system(size: 7))
                                         Text("Today")
-                                            .font(.system(size: 9, weight: .semibold))
+                                            .font(CentmondTheme.Typography.micro.weight(.semibold))
                                     }
                                     .foregroundStyle(CentmondTheme.Colors.accent)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background(CentmondTheme.Colors.accent.opacity(0.1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                                 }
                         }
 
@@ -3345,12 +3350,12 @@ struct AIPredictionView: View {
                                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                                 .annotation(position: .top, alignment: .trailing) {
                                     Text("Budget \(CurrencyFormat.compact(Decimal(forecast.totalBudget)))")
-                                        .font(.system(size: 9, weight: .medium))
+                                        .font(CentmondTheme.Typography.micro.weight(.medium))
                                         .foregroundStyle(CentmondTheme.Colors.negative.opacity(0.7))
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 1)
                                         .background(CentmondTheme.Colors.negativeMuted.opacity(0.15))
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                                 }
                         }
 
@@ -3418,7 +3423,7 @@ struct AIPredictionView: View {
                                 .annotation(position: .bottomTrailing, spacing: 4) {
                                     HStack(spacing: 3) {
                                         Image(systemName: "arrow.down.right")
-                                            .font(.system(size: 8, weight: .bold))
+                                            .font(CentmondTheme.Typography.microBold)
                                         Text(CurrencyFormat.compact(Decimal(lastPt.amount)))
                                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     }
@@ -3426,7 +3431,7 @@ struct AIPredictionView: View {
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
                                     .background(CentmondTheme.Colors.positive.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
                                 }
                             }
                         }
@@ -3460,7 +3465,7 @@ struct AIPredictionView: View {
                             AxisValueLabel {
                                 if let day = value.as(Int.self) {
                                     Text(trajectoryXAxisLabel(forDayOffset: day))
-                                        .font(.system(size: 9))
+                                        .font(CentmondTheme.Typography.micro)
                                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                                 }
                             }
@@ -3515,10 +3520,10 @@ struct AIPredictionView: View {
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 // Background
-                                RoundedRectangle(cornerRadius: 3)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                                     .fill(CentmondTheme.Colors.strokeSubtle.opacity(0.2))
                                 // Spending fill
-                                RoundedRectangle(cornerRadius: 3)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                                     .fill(budgetPct > 1 ? CentmondTheme.Colors.negative :
                                           budgetPct > timePct ? CentmondTheme.Colors.warning :
                                           CentmondTheme.Colors.positive)
@@ -3534,16 +3539,16 @@ struct AIPredictionView: View {
 
                         HStack {
                             Text("\(Int(budgetPct * 100))% of budget used")
-                                .font(.system(size: 9, weight: .medium))
+                                .font(CentmondTheme.Typography.micro.weight(.medium))
                                 .foregroundStyle(budgetPct > 1 ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textTertiary)
                             Spacer()
                             // Spending velocity indicator
                             let velocityRatio = forecast.dailyAverage / (forecast.totalBudget / Double(daysPassed + forecast.daysLeft))
                             HStack(spacing: 2) {
                                 Image(systemName: velocityRatio > 1.1 ? "hare.fill" : velocityRatio < 0.9 ? "tortoise.fill" : "figure.walk")
-                                    .font(.system(size: 8))
+                                    .font(CentmondTheme.Typography.micro.weight(.regular))
                                 Text(velocityRatio > 1.1 ? "Spending too fast" : velocityRatio < 0.9 ? "Under control" : "On pace")
-                                    .font(.system(size: 9, weight: .medium))
+                                    .font(CentmondTheme.Typography.micro.weight(.medium))
                             }
                             .foregroundStyle(velocityRatio > 1.1 ? CentmondTheme.Colors.negative : velocityRatio < 0.9 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.textTertiary)
                         }
@@ -3702,12 +3707,12 @@ struct AIPredictionView: View {
         let color = budgetColor(for: seg.month)
         let amount = CurrencyFormat.compact(Decimal(seg.cumulativeBudget))
         return Text("\(seg.monthLabel) \(amount)")
-            .font(.system(size: 8, weight: .semibold))
+            .font(CentmondTheme.Typography.microBold.weight(.semibold))
             .foregroundStyle(color.opacity(0.75))
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
             .background(color.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
     }
 
     /// Per-month budget step segment for the trajectory chart. Each segment
@@ -3840,15 +3845,15 @@ struct AIPredictionView: View {
                     .fill(accent.opacity(0.12))
                     .frame(width: 22, height: 22)
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(accent)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionSmallSemibold)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                 Text(body)
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -3865,13 +3870,13 @@ struct AIPredictionView: View {
             Image(systemName: icon)
                 .font(.system(size: 8, weight: .medium))
             Text(value)
-                .font(.system(size: 9, weight: .medium))
+                .font(CentmondTheme.Typography.micro.weight(.medium))
         }
         .foregroundStyle(color)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
     }
 
     private func legendItem(color: Color, label: String, dashed: Bool) -> some View {
@@ -3880,7 +3885,7 @@ struct AIPredictionView: View {
                 // Dashed line indicator
                 HStack(spacing: 2) {
                     ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                             .fill(color)
                             .frame(width: 4, height: 2)
                     }
@@ -3960,7 +3965,7 @@ struct AIPredictionView: View {
             // Line 1
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 Image(systemName: cat.icon)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(CentmondTheme.Typography.bodyMedium)
                     .foregroundStyle(Color(hex: cat.colorHex))
                     .frame(width: 20)
 
@@ -3978,7 +3983,7 @@ struct AIPredictionView: View {
                 Spacer(minLength: CentmondTheme.Spacing.sm)
 
                 Text(CurrencyFormat.compact(Decimal(cat.projected)))
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .font(CentmondTheme.Typography.mono.weight(.semibold))
                     .foregroundStyle(amountColor)
                     .monospacedDigit()
             }
@@ -3989,10 +3994,10 @@ struct AIPredictionView: View {
             HStack(spacing: CentmondTheme.Spacing.sm) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                             .fill(CentmondTheme.Colors.bgTertiary)
                             .frame(height: 4)
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
                             .fill(barTint)
                             .frame(width: max(3, geo.size.width * min(magnitudeRatio, 1.0)), height: 4)
                     }
@@ -4001,7 +4006,7 @@ struct AIPredictionView: View {
 
                 if overBudget {
                     Text("over by \(CurrencyFormat.compact(Decimal(cat.projected - cat.budget)))")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(CentmondTheme.Typography.overline)
                         .foregroundStyle(CentmondTheme.Colors.negative)
                         .monospacedDigit()
                         .fixedSize(horizontal: true, vertical: false)
@@ -4018,12 +4023,12 @@ struct AIPredictionView: View {
     /// scannable as an explicit "this metric is moving" badge.
     private func trendPill(symbol: String, color: Color) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 8, weight: .bold))
+            .font(CentmondTheme.Typography.microBold)
             .foregroundStyle(color)
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
             .background(color.opacity(0.14))
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
     }
 
     private func trendColor(_ trend: CategoryProjection.Trend) -> Color {
@@ -4069,7 +4074,7 @@ private struct SmallSkeletonLoader: View {
     }
 
     private func smallSkeletonLine(width: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 3)
+        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
             .fill(CentmondTheme.Colors.bgTertiary)
             .frame(height: 10)
             .frame(maxWidth: width)
@@ -4099,7 +4104,7 @@ private struct SkeletonLoader: View {
     }
 
     private func skeletonLine(width: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 3)
+        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs)
             .fill(CentmondTheme.Colors.bgTertiary)
             .frame(height: 12)
             .frame(maxWidth: width)
@@ -4157,7 +4162,7 @@ fileprivate struct BehavioralTriggerRow: View {
                     .fill(CentmondTheme.Colors.warning.opacity(isHovered ? 0.22 : 0.12))
                     .frame(width: 38, height: 38)
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(CentmondTheme.Typography.subheading.weight(.medium))
                     .foregroundStyle(CentmondTheme.Colors.warning)
             }
 
@@ -4431,9 +4436,9 @@ fileprivate struct TrajectoryTooltipView: View {
             if bar.isProjected {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars")
-                        .font(.system(size: 9))
+                        .font(CentmondTheme.Typography.micro)
                     Text("Projected")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(CentmondTheme.Typography.micro.weight(.medium))
                 }
                 .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.7))
             }
@@ -4491,7 +4496,7 @@ fileprivate struct TrajectoryTooltipView: View {
             RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
+        .centmondShadow(2)
     }
 }
 
@@ -4766,7 +4771,7 @@ fileprivate struct TriggerHoverHighlight: View {
                         let x = frame.minX + xPos - 5
                         let rect = CGRect(x: x, y: frame.minY, width: 10, height: frame.height)
                         ctx.fill(
-                            Path(roundedRect: rect, cornerRadius: 2),
+                            Path(roundedRect: rect, cornerRadius: CentmondTheme.Radius.xs),
                             with: .color(CentmondTheme.Colors.warning.opacity(0.30))
                         )
                     }

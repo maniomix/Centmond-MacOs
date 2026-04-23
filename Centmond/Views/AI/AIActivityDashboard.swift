@@ -96,7 +96,7 @@ struct AIActivityDashboard: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -105,7 +105,7 @@ struct AIActivityDashboard: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
+                    .font(CentmondTheme.Typography.heading1.weight(.regular))
                     .foregroundStyle(DS.Colors.accent)
                 Text(title)
                     .font(DS.Typography.caption)
@@ -114,7 +114,7 @@ struct AIActivityDashboard: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(DS.Colors.accent.opacity(0.08))
             )
         }
@@ -141,7 +141,7 @@ struct AIActivityDashboard: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -213,7 +213,7 @@ struct AIActivityDashboard: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(DS.Colors.subtext.opacity(0.4))
             Text(filter == .all ? "No AI actions yet" : "No \(filter.rawValue.lowercased()) actions")
                 .font(DS.Typography.body)
@@ -226,7 +226,7 @@ struct AIActivityDashboard: View {
         .padding(.vertical, 20)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -252,7 +252,7 @@ struct AIActivityDashboard: View {
                         trustBadge(record.trustLevel)
                         outcomeBadge(record.outcome, isUndone: record.isUndone)
                         Text(timeAgo(record.executedAt))
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                 }
@@ -264,10 +264,10 @@ struct AIActivityDashboard: View {
             if !record.explanation.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(DS.Colors.warning)
                     Text(record.explanation)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(DS.Colors.subtext)
                         .lineLimit(2)
                 }
@@ -278,10 +278,10 @@ struct AIActivityDashboard: View {
             if let groupLabel = record.groupLabel {
                 HStack(spacing: 4) {
                     Image(systemName: "link")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(DS.Colors.accent.opacity(0.6))
                     Text(groupLabel)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(DS.Colors.subtext)
                         .lineLimit(1)
                 }
@@ -290,7 +290,7 @@ struct AIActivityDashboard: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -299,7 +299,7 @@ struct AIActivityDashboard: View {
 
     private func actionIcon(_ record: AIActionRecord) -> some View {
         Image(systemName: iconForType(record.action.type))
-            .font(.system(size: 14))
+            .font(CentmondTheme.Typography.bodyLarge)
             .foregroundStyle(.white)
             .frame(width: 30, height: 30)
             .background(colorForOutcome(record.outcome, isUndone: record.isUndone), in: Circle())
@@ -316,7 +316,7 @@ struct AIActivityDashboard: View {
         }()
 
         return Text(text)
-            .font(.system(size: 10, weight: .semibold))
+            .font(CentmondTheme.Typography.overlineSemibold)
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -327,14 +327,14 @@ struct AIActivityDashboard: View {
         Group {
             if isUndone {
                 Text("Undone")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(DS.Colors.warning)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(DS.Colors.warning.opacity(0.12), in: Capsule())
             } else if outcome == .failed {
                 Text("Failed")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
                     .foregroundStyle(DS.Colors.danger)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)

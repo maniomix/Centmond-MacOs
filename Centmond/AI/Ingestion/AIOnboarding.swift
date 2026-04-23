@@ -530,7 +530,7 @@ final class AIOnboardingEngine {
             applyProgress = Double(appliedCount) / total
         }
 
-        try? context.save()
+        context.persist()
 
         isApplying = false
         completeOnboarding()

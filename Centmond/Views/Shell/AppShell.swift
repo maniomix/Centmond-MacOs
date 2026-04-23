@@ -107,6 +107,9 @@ struct AppShell: View {
         .onReceive(NotificationCenter.default.publisher(for: .replayOnboarding)) { _ in
             router.replayOnboarding()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openInAppSettings)) { _ in
+            router.navigate(to: .settings)
+        }
         .onChange(of: router.selectedScreen) { _, _ in
             router.inspectorContext = .none
         }

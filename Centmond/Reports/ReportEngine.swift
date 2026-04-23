@@ -1,8 +1,16 @@
 import Foundation
+import CoreData
 
 // Pure compute. Callers pass already-fetched arrays via ReportEngine.Inputs;
 // the engine filters, buckets, and rolls up. No SwiftData, no SwiftUI —
 // so the same routine serves the on-screen preview and every exporter.
+//
+// Tombstone safety: deleting a BudgetCategory mid-session leaves stale
+// relationship wrappers on Transaction that crash with "backing data could
+// no longer be found" when the engine touches `.category`. Every
+// category-accessing path here goes through `safeCategoryMeta(_:liveIDs:)`
+// which reads the FK via Core Data primitive access (no fault) and only
+// proceeds when the referenced objectID is in the live set.
 
 enum ReportEngine {
 
@@ -54,7 +62,15 @@ enum ReportEngine {
 
     static func run(_ def: ReportDefinition, inputs: Inputs) -> ReportResult {
         let (start, end) = def.range.resolve(now: inputs.now, calendar: inputs.calendar)
-        let filtered = filter(inputs.transactions, range: start...end, filter: def.filter)
+        // Domain UUID keyed set — avoids fighting SwiftData's NSManagedObjectID
+        // bridge, which in some Swift/SwiftData versions emits a different
+        // ObjectID for the relationship fault than for the fetched row. That
+        // mismatch made every `safeCategoryID` call return nil → category
+        // breakdown and budget heatmap all zero. `CategoryReferenceRepair`
+        // already runs at the top of `CompositeReportRunner` to null out
+        // dead refs, so `tx.category?.id` is safe here.
+        let liveCategoryIDs: Set<UUID> = Set(inputs.categories.map(\.id))
+        let filtered = filter(inputs.transactions, range: start...end, filter: def.filter, liveCategoryIDs: liveCategoryIDs)
 
         let body = compute(
             kind: def.kind,
@@ -62,10 +78,11 @@ enum ReportEngine {
             def: def,
             inputs: inputs,
             rangeStart: start,
-            rangeEnd: end
+            rangeEnd: end,
+            liveCategoryIDs: liveCategoryIDs
         )
 
-        let baselined = applyComparison(body: body, def: def, inputs: inputs, rangeStart: start, rangeEnd: end)
+        let baselined = applyComparison(body: body, def: def, inputs: inputs, rangeStart: start, rangeEnd: end, liveCategoryIDs: liveCategoryIDs)
 
         let summary = buildSummary(
             def: def,
@@ -91,13 +108,14 @@ enum ReportEngine {
         def: ReportDefinition,
         inputs: Inputs,
         rangeStart: Date,
-        rangeEnd: Date
+        rangeEnd: Date,
+        liveCategoryIDs: Set<UUID>
     ) -> ReportBody {
         guard def.comparison != .none,
               let baselineRange = baselineRange(for: (rangeStart, rangeEnd), mode: def.comparison, calendar: inputs.calendar)
         else { return body }
 
-        let baselineTxns = filter(inputs.transactions, range: baselineRange.start...baselineRange.end, filter: def.filter)
+        let baselineTxns = filter(inputs.transactions, range: baselineRange.start...baselineRange.end, filter: def.filter, liveCategoryIDs: liveCategoryIDs)
 
         switch body {
         case .periodSeries(var series):
@@ -106,7 +124,7 @@ enum ReportEngine {
             return .periodSeries(series)
 
         case .categoryBreakdown(var breakdown):
-            let baseline = buildCategoryBreakdown(baselineTxns)
+            let baseline = buildCategoryBreakdown(baselineTxns, liveCategoryIDs: liveCategoryIDs)
             let baseByID = Dictionary(uniqueKeysWithValues: baseline.slices.map { ($0.id, $0.amount) })
             breakdown.slices = breakdown.slices.map { slice in
                 var s = slice
@@ -142,12 +160,41 @@ enum ReportEngine {
         }
     }
 
+    // MARK: - Tombstone-safe category read
+
+    /// Returns `tx.category.id` iff it's in the live set. Relies on
+    /// `CategoryReferenceRepair` having already nil'd tombstoned refs at
+    /// launch + on CompositeReportRunner entry. Previous version tried to
+    /// validate via NSManagedObjectID set membership; that was brittle —
+    /// SwiftData's bridge emits different ObjectIDs for relationship faults
+    /// than for fetched rows in some versions, making the check always
+    /// fail and zeroing out every category breakdown / budget heatmap.
+    private static func safeCategoryID(
+        _ tx: Transaction,
+        liveIDs: Set<UUID>
+    ) -> UUID? {
+        guard let cat = tx.category else { return nil }
+        let id = cat.id
+        return liveIDs.contains(id) ? id : nil
+    }
+
+    private static func safeCategoryMeta(
+        _ tx: Transaction,
+        liveIDs: Set<UUID>
+    ) -> (id: UUID, name: String, colorHex: String?)? {
+        guard let cat = tx.category else { return nil }
+        let id = cat.id
+        guard liveIDs.contains(id) else { return nil }
+        return (id, cat.name, cat.colorHex)
+    }
+
     // MARK: - Filtering
 
     private static func filter(
         _ txns: [Transaction],
         range: ClosedRange<Date>,
-        filter f: ReportFilter
+        filter f: ReportFilter,
+        liveCategoryIDs: Set<UUID>
     ) -> [Transaction] {
         txns.filter { tx in
             guard range.contains(tx.date) else { return false }
@@ -163,8 +210,14 @@ enum ReportEngine {
             if !f.accountIDs.isEmpty, let id = tx.account?.id, !f.accountIDs.contains(id) { return false }
             if !f.accountIDs.isEmpty, tx.account == nil { return false }
 
-            if !f.categoryIDs.isEmpty, let id = tx.category?.id, !f.categoryIDs.contains(id) { return false }
-            if !f.categoryIDs.isEmpty, tx.category == nil { return false }
+            if !f.categoryIDs.isEmpty {
+                let safeID = safeCategoryID(tx, liveIDs: liveCategoryIDs)
+                if let id = safeID {
+                    if !f.categoryIDs.contains(id) { return false }
+                } else {
+                    return false
+                }
+            }
 
             if !f.payees.isEmpty, !f.payees.contains(tx.payee) { return false }
 
@@ -192,7 +245,8 @@ enum ReportEngine {
         def: ReportDefinition,
         inputs: Inputs,
         rangeStart: Date,
-        rangeEnd: Date
+        rangeEnd: Date,
+        liveCategoryIDs: Set<UUID>
     ) -> ReportBody {
         switch kind {
         case .incomeVsExpense, .cashFlow, .custom, .annualSummary:
@@ -205,7 +259,7 @@ enum ReportEngine {
             if transactions.isEmpty {
                 return .empty(reason: inputs.transactions.isEmpty ? .noTransactionsInRange : .allFilteredOut)
             }
-            return .categoryBreakdown(buildCategoryBreakdown(transactions))
+            return .categoryBreakdown(buildCategoryBreakdown(transactions, liveCategoryIDs: liveCategoryIDs))
 
         case .merchantLeaderboard:
             if transactions.isEmpty {
@@ -214,7 +268,7 @@ enum ReportEngine {
             return .merchantLeaderboard(buildMerchantLeaderboard(transactions, topN: def.display.topN, groupBy: def.groupBy, start: rangeStart, end: rangeEnd, calendar: inputs.calendar))
 
         case .budgetPerformance:
-            return .heatmap(buildBudgetHeatmap(transactions: transactions, categories: inputs.categories, monthly: inputs.monthlyBudgets, start: rangeStart, end: rangeEnd, calendar: inputs.calendar))
+            return .heatmap(buildBudgetHeatmap(transactions: transactions, categories: inputs.categories, monthly: inputs.monthlyBudgets, start: rangeStart, end: rangeEnd, calendar: inputs.calendar, liveCategoryIDs: liveCategoryIDs))
 
         case .netWorth:
             return .netWorth(buildNetWorth(snapshots: inputs.netWorthSnapshots, start: rangeStart, end: rangeEnd))
@@ -223,7 +277,20 @@ enum ReportEngine {
             return .subscriptionRoster(buildSubscriptionRoster(inputs.subscriptions))
 
         case .recurringActivity:
-            return .recurringRoster(buildRecurringRoster(inputs.recurring))
+            // Keep only rows relevant to the report window: active, with a
+            // next occurrence on or before range end, and not an obvious
+            // zombie (never materialized + more than 30 days past the
+            // range start). Matches the app's own month-aware filtering
+            // so the report doesn't surface orphan templates the user
+            // already archived from the UI.
+            let cutoff = inputs.calendar.date(byAdding: .day, value: -30, to: rangeStart) ?? rangeStart
+            let roster = inputs.recurring.filter { r in
+                guard r.isActive else { return false }
+                guard r.nextOccurrence <= rangeEnd else { return false }
+                if r.lastMaterializedDate == nil && r.nextOccurrence < cutoff { return false }
+                return true
+            }
+            return .recurringRoster(buildRecurringRoster(roster))
 
         case .goalsProgress:
             return .goalsProgress(buildGoalsProgress(goals: inputs.goals, contributions: inputs.goalContributions, start: rangeStart, end: rangeEnd))
@@ -279,7 +346,10 @@ enum ReportEngine {
         )
     }
 
-    private static func buildCategoryBreakdown(_ txns: [Transaction]) -> CategoryBreakdown {
+    private static func buildCategoryBreakdown(
+        _ txns: [Transaction],
+        liveCategoryIDs: Set<UUID>
+    ) -> CategoryBreakdown {
         // Only expenses contribute to a category breakdown; income is
         // surfaced separately when needed.
         let expenses = txns.filter { !$0.isIncome && !$0.isTransfer }
@@ -287,9 +357,9 @@ enum ReportEngine {
         var uncategorized: Decimal = 0
 
         for tx in expenses {
-            if let cat = tx.category {
-                let key = cat.id.uuidString
-                var entry = amountByCat[key] ?? (cat.name, cat.colorHex, 0, 0)
+            if let meta = safeCategoryMeta(tx, liveIDs: liveCategoryIDs) {
+                let key = meta.id.uuidString
+                var entry = amountByCat[key] ?? (meta.name, meta.colorHex, 0, 0)
                 entry.amount += tx.amount
                 entry.count  += 1
                 amountByCat[key] = entry
@@ -522,7 +592,8 @@ enum ReportEngine {
         monthly: [MonthlyBudget],
         start: Date,
         end: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        liveCategoryIDs: Set<UUID>
     ) -> Heatmap {
         // Rows = categories (sorted by default budget desc, zeros last);
         // Columns = calendar months spanning the range; cells = actual
@@ -554,7 +625,7 @@ enum ReportEngine {
         // spend[catID][monthKey]
         var spend: [UUID: [String: Decimal]] = [:]
         for tx in txns where !tx.isIncome && !tx.isTransfer {
-            guard let catID = tx.category?.id else { continue }
+            guard let catID = safeCategoryID(tx, liveIDs: liveCategoryIDs) else { continue }
             let key = bucketKey(for: tx.date, groupBy: .month, calendar: calendar)
             spend[catID, default: [:]][key, default: 0] += tx.amount
         }

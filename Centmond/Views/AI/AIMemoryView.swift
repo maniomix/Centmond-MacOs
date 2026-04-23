@@ -98,19 +98,19 @@ struct AIMemoryView: View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
+                    .font(CentmondTheme.Typography.captionSmall)
                 Text("\(count)")
                     .font(DS.Typography.callout)
                     .fontWeight(.bold)
             }
             .foregroundStyle(DS.Colors.accent)
             Text(label)
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(DS.Colors.subtext)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(DS.Colors.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(DS.Colors.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous))
     }
 
     // MARK: - Preferences
@@ -204,7 +204,7 @@ struct AIMemoryView: View {
                         .foregroundStyle(DS.Colors.accent)
                     if profile.correctionCount > 0 {
                         Text("corrected \(profile.correctionCount)x")
-                            .font(.system(size: 10))
+                            .font(CentmondTheme.Typography.overlineRegular)
                             .foregroundStyle(DS.Colors.subtext)
                     }
                 }
@@ -253,11 +253,11 @@ struct AIMemoryView: View {
                     .foregroundStyle(DS.Colors.text)
                 HStack(spacing: 6) {
                     Text(entry.source.displayName)
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(DS.Colors.subtext)
                     if entry.strength > 1 {
                         Text("x\(entry.strength)")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                             .foregroundStyle(DS.Colors.accent)
                     }
                 }

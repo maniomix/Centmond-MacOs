@@ -88,7 +88,7 @@ final class ChatPersistenceManager {
     func createSession(context: ModelContext, title: String = "New Chat") -> ChatSession {
         let session = ChatSession(title: title)
         context.insert(session)
-        try? context.save()
+        context.persist()
         return session
     }
 
@@ -116,7 +116,7 @@ final class ChatPersistenceManager {
         record.session = session
         session.messages.append(record)
         session.updatedAt = Date()
-        try? context.save()
+        context.persist()
     }
 
     /// Save an assistant message to the session
@@ -133,7 +133,7 @@ final class ChatPersistenceManager {
             session.title = preview.count < firstUser.content.count ? preview + "..." : preview
         }
 
-        try? context.save()
+        context.persist()
     }
 
     /// Load messages from a session into an AIConversation
@@ -157,7 +157,7 @@ final class ChatPersistenceManager {
     /// Delete a session and all its messages
     func deleteSession(_ session: ChatSession, context: ModelContext) {
         context.delete(session)
-        try? context.save()
+        context.persist()
     }
 
     /// Clear all sessions
@@ -166,6 +166,6 @@ final class ChatPersistenceManager {
         for session in sessions {
             context.delete(session)
         }
-        try? context.save()
+        context.persist()
     }
 }

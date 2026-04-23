@@ -93,7 +93,7 @@ struct AIIngestionView: View {
                                 } label: {
                                     HStack(spacing: 6) {
                                         Image(systemName: type.icon)
-                                            .font(.system(size: 12))
+                                            .font(CentmondTheme.Typography.caption)
                                         Text(type.title)
                                             .font(DS.Typography.caption)
                                     }
@@ -113,7 +113,7 @@ struct AIIngestionView: View {
                 }
                 .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                         .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                 )
 
@@ -124,7 +124,7 @@ struct AIIngestionView: View {
                         .foregroundStyle(DS.Colors.text)
 
                     Text(placeholderText)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(DS.Colors.subtext)
 
                     TextEditor(text: $inputText)
@@ -132,17 +132,17 @@ struct AIIngestionView: View {
                         .frame(minHeight: 160)
                         .padding(8)
                         .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                 .fill(DS.Colors.surface)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                 .stroke(DS.Colors.subtext.opacity(0.2), lineWidth: 1)
                         )
                 }
                 .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                         .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                 )
 
@@ -160,7 +160,7 @@ struct AIIngestionView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                             .fill(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                   ? DS.Colors.subtext
                                   : DS.Colors.accent)
@@ -214,13 +214,13 @@ struct AIIngestionView: View {
                         }
                         ForEach(session.parseErrors, id: \.self) { error in
                             Text(error)
-                                .font(.system(size: 12))
+                                .font(CentmondTheme.Typography.caption)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                     }
                     .padding(14)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                             .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                     )
                 }
@@ -269,12 +269,12 @@ struct AIIngestionView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(color)
             Text(label)
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(DS.Colors.subtext)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
     }
 
     // MARK: Batch Actions
@@ -288,7 +288,7 @@ struct AIIngestionView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14))
+                            .font(CentmondTheme.Typography.bodyLarge)
                         Text("Approve \(safeCount) Safe")
                             .font(DS.Typography.caption)
                     }
@@ -305,7 +305,7 @@ struct AIIngestionView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle")
-                        .font(.system(size: 14))
+                        .font(CentmondTheme.Typography.bodyLarge)
                     Text("Approve All")
                         .font(DS.Typography.caption)
                 }
@@ -335,7 +335,7 @@ struct AIIngestionView: View {
                     // Merchant + amount
                     HStack {
                         Text(candidate.normalizedMerchant)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                             .foregroundStyle(DS.Colors.text)
                             .lineLimit(1)
 
@@ -350,12 +350,12 @@ struct AIIngestionView: View {
                     // Date + category
                     HStack(spacing: 6) {
                         Text(fmtDate(candidate.date))
-                            .font(.system(size: 11))
+                            .font(CentmondTheme.Typography.captionSmall)
                             .foregroundStyle(DS.Colors.subtext)
 
                         if let catName = candidate.categoryName {
                             Text(catName)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                                 .foregroundStyle(DS.Colors.accent)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
@@ -374,11 +374,11 @@ struct AIIngestionView: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .fill(candidateBackground(candidate))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous)
                     .stroke(candidateBorder(candidate), lineWidth: 1)
             )
         }
@@ -393,9 +393,9 @@ struct AIIngestionView: View {
                     ForEach(flags, id: \.text) { flag in
                         HStack(spacing: 2) {
                             Image(systemName: flag.icon)
-                                .font(.system(size: 9))
+                                .font(CentmondTheme.Typography.micro)
                             Text(flag.text)
-                                .font(.system(size: 9, weight: .medium))
+                                .font(CentmondTheme.Typography.micro.weight(.medium))
                         }
                         .foregroundStyle(flag.color)
                         .padding(.horizontal, 5)
@@ -456,7 +456,7 @@ struct AIIngestionView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -485,13 +485,13 @@ struct AIIngestionView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
             }
             .buttonStyle(.plain)
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
     }
@@ -530,7 +530,7 @@ struct AIIngestionView: View {
             : DS.Colors.danger
 
         return Text("\(pct)%")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .font(CentmondTheme.Typography.overlineSemibold.monospacedDigit())
             .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)

@@ -166,7 +166,7 @@ enum BackupService {
         deleteAll(Tag.self, in: context)
         deleteAll(SmartFolder.self, in: context)
 
-        try? context.save()
+        context.persist()
 
         // Reset companion preferences so the user lands on a clean onboarding state.
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")

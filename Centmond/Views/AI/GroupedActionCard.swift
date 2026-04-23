@@ -28,7 +28,7 @@ struct GroupedActionCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(CentmondTheme.Typography.subheading)
                     .foregroundStyle(accentColor)
                 Text(title)
                     .font(.callout.weight(.semibold))
@@ -64,7 +64,7 @@ struct GroupedActionCard: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                     .fill(colorScheme == .dark
                           ? Color.white.opacity(0.05)
                           : Color.black.opacity(0.03))
@@ -81,7 +81,7 @@ struct GroupedActionCard: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                     .fill(DS.Colors.surface2)
                             )
                     }
@@ -96,7 +96,7 @@ struct GroupedActionCard: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                     .fill(DS.Colors.accent)
                             )
                     }
@@ -106,11 +106,11 @@ struct GroupedActionCard: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(accentColor.opacity(allPending ? 0.4 : 0.15), lineWidth: 1)
         )
         .opacity(allRejected ? 0.5 : 1.0)

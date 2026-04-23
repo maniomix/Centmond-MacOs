@@ -85,6 +85,7 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: CentmondTheme.Spacing.lg) {
+                SectionTutorialStrip(screen: .dashboard)
                 metricsRow
                 // Review Queue is temporarily hidden. Re-enable by
                 // uncommenting the strip below (the view is still
@@ -139,7 +140,7 @@ struct DashboardView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(CentmondTheme.Typography.captionMedium.weight(.semibold))
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
             }
             .padding(CentmondTheme.Spacing.md)
@@ -254,7 +255,7 @@ struct DashboardView: View {
                                 }
                             } label: {
                                 Image(systemName: style.icon)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(CentmondTheme.Typography.overline)
                                     .foregroundStyle(chartStyle == style ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
                                     .frame(width: 26, height: 22)
                                     .background(chartStyle == style ? CentmondTheme.Colors.accentSubtle : .clear)
@@ -423,7 +424,7 @@ struct DashboardView: View {
     private func transactionRow(_ transaction: Transaction) -> some View {
         HStack(spacing: CentmondTheme.Spacing.md) {
             Image(systemName: transaction.category?.icon ?? "questionmark.circle")
-                .font(.system(size: 14, weight: .medium))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.medium))
                 .foregroundStyle(
                     transaction.category != nil
                         ? Color(hex: transaction.category!.colorHex)
@@ -499,7 +500,7 @@ struct DashboardView: View {
 
 
                 if categories.isEmpty && snapshot.totalBudgeted == 0 {
-                    VStack(spacing: CentmondTheme.Spacing.sm) {
+                    VStack(spacing: CentmondTheme.Spacing.md) {
                         Image(systemName: "chart.pie")
                             .font(.system(size: 28, weight: .light))
                             .foregroundStyle(CentmondTheme.Colors.textQuaternary)
@@ -513,13 +514,11 @@ struct DashboardView: View {
                         } label: {
                             Text("Set Up Budget")
                                 .font(CentmondTheme.Typography.captionMedium)
-                                .foregroundStyle(CentmondTheme.Colors.accent)
                         }
-                        .buttonStyle(.plainHover)
+                        .buttonStyle(PrimaryButtonStyle())
                         .help("Set up your monthly budget")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, CentmondTheme.Spacing.xl)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     let budgetProgress = totalBudgeted > 0
                         ? Double(truncating: (monthlySpending / totalBudgeted) as NSDecimalNumber)
@@ -610,7 +609,7 @@ struct DashboardView: View {
                 progress: min(progress, 1.0),
                 color: isOver ? CentmondTheme.Colors.negative : Color(hex: category.colorHex),
                 height: 5,
-                cornerRadius: 2.5
+                cornerRadius: CentmondTheme.Radius.xs
             )
         }
         .padding(.vertical, CentmondTheme.Spacing.xs)
@@ -701,7 +700,7 @@ struct DashboardView: View {
                 progress: min(goal.progressPercentage, 1.0),
                 color: CentmondTheme.Colors.accent,
                 height: 5,
-                cornerRadius: 2.5
+                cornerRadius: CentmondTheme.Radius.xs
             )
 
             HStack {
@@ -782,7 +781,7 @@ struct DashboardView: View {
                         ForEach(accounts.prefix(4)) { account in
                             HStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: account.type.iconName)
-                                    .font(.system(size: 13))
+                                    .font(CentmondTheme.Typography.body)
                                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
                                     .frame(width: 24, height: 24)
                                     .background(CentmondTheme.Colors.bgQuaternary)
@@ -936,7 +935,7 @@ struct DashboardView: View {
                 )
                 .foregroundStyle(by: .value("Type", entry.type))
                 .position(by: .value("Type", entry.type), axis: .horizontal, span: .ratio(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                 .opacity(hoveredDay == nil || hoveredDay == entry.day ? 1.0 : 0.35)
             }
             .chartForegroundStyleScale([
@@ -961,7 +960,7 @@ struct DashboardView: View {
                         y: .value("Net", net)
                     )
                     .foregroundStyle(net >= 0 ? CentmondTheme.Colors.positive.gradient : CentmondTheme.Colors.negative.gradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
                     .opacity(hoveredDay == nil || hoveredDay == dp.id ? 1.0 : 0.35)
                 }
 
@@ -1002,7 +1001,7 @@ struct DashboardView: View {
                             AxisValueLabel {
                                 if let day = value.as(Int.self) {
                                     Text("\(day)")
-                                        .font(.system(size: 9))
+                                        .font(CentmondTheme.Typography.micro)
                                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                                 }
                             }
@@ -1092,7 +1091,7 @@ struct DashboardView: View {
                         let toSpend = max(Decimal(data.income) - allocated, 0)
                         HStack(spacing: CentmondTheme.Spacing.xs) {
                             Image(systemName: "target")
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(CentmondTheme.Typography.microBold.weight(.semibold))
                                 .foregroundStyle(CentmondTheme.Colors.accent)
                                 .frame(width: 6)
                             Text("To goals")
@@ -1107,7 +1106,7 @@ struct DashboardView: View {
                         .padding(.leading, 12)
                         HStack(spacing: CentmondTheme.Spacing.xs) {
                             Image(systemName: "wallet.pass.fill")
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(CentmondTheme.Typography.microBold.weight(.semibold))
                                 .foregroundStyle(CentmondTheme.Colors.positive.opacity(0.7))
                                 .frame(width: 6)
                             Text("To spend")
@@ -1156,7 +1155,7 @@ struct DashboardView: View {
                 RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                     .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
+            .centmondShadow(2)
         }
     }
 

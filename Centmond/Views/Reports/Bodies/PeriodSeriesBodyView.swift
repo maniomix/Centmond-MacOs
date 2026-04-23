@@ -92,7 +92,7 @@ struct PeriodSeriesBodyView: View {
         .padding(.horizontal, 4)
         .padding(.vertical, 6)
         .background(highlighted ? CentmondTheme.Colors.accentMuted.opacity(0.6) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
         .animation(CentmondTheme.Motion.micro, value: highlighted)
     }
 
@@ -119,7 +119,7 @@ struct PeriodSeriesBodyView: View {
         }
         .padding(.vertical, 6).padding(.horizontal, 4)
         .background(CentmondTheme.Colors.bgTertiary.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
     }
 }
 
@@ -280,11 +280,11 @@ private struct PeriodSeriesChartSurface: View {
                 .foregroundStyle(bucket.net >= 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.negative)
         }
         .padding(8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                 .stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 2)
+        .centmondShadow(2)
     }
 }

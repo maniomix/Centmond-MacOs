@@ -58,7 +58,7 @@ enum Screen: String, CaseIterable, Identifiable {
     /// stabilises.
     var isBeta: Bool {
         switch self {
-        case .aiChat, .aiPredictions: return true
+        case .aiChat, .aiPredictions, .recurring: return true
         default: return false
         }
     }
@@ -229,6 +229,10 @@ extension Notification.Name {
     /// `CentmondApp` (the Scene) and can't reach the `@State` router that
     /// AppShell owns.
     static let replayOnboarding = Notification.Name("centmond.replayOnboarding")
+    /// Posted from the app's ⌘, command. AppShell listens and calls
+    /// `router.navigate(to: .settings)`. Phase 11 — the macOS prefs window
+    /// is retired; ⌘, now opens the in-app Settings shell instead.
+    static let openInAppSettings = Notification.Name("centmond.openInAppSettings")
 }
 
 @Observable
@@ -308,6 +312,15 @@ final class AppRouter {
     func navigate(to screen: Screen) {
         selectedScreen = screen
         inspectorContext = .none
+    }
+
+    /// Deeplink into a specific Settings domain. Stores the target domain in
+    /// the shared SettingsDomain scene-storage key so the shell's
+    /// @SceneStorage binding picks it up, then navigates. Used by banners,
+    /// nudges, and the command palette ("Open in Settings → AI").
+    func openSettings(domain: SettingsDomain) {
+        UserDefaults.standard.set(domain.rawValue, forKey: "settings.selectedDomain")
+        navigate(to: .settings)
     }
 
     /// Route an insight `Deeplink` to the right screen. Entity IDs inside the

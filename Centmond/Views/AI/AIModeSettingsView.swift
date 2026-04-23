@@ -48,7 +48,7 @@ struct AIModeSettingsView: View {
     private var headerSection: some View {
         VStack(spacing: 8) {
             Image(systemName: "dial.medium.fill")
-                .font(.system(size: 32))
+                .font(CentmondTheme.Typography.display.weight(.regular))
                 .foregroundStyle(DS.Colors.accent)
 
             Text("How should Centmond AI behave?")
@@ -56,7 +56,7 @@ struct AIModeSettingsView: View {
                 .foregroundStyle(DS.Colors.text)
 
             Text("Choose a mode that matches your comfort level. You can change this anytime.")
-                .font(.system(size: 13))
+                .font(CentmondTheme.Typography.body)
                 .foregroundStyle(DS.Colors.subtext)
                 .multilineTextAlignment(.center)
         }
@@ -80,16 +80,16 @@ struct AIModeSettingsView: View {
                         .foregroundStyle(isSelected ? .white : modeAccentColor(mode))
                         .frame(width: 36, height: 36)
                         .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous)
                                 .fill(isSelected ? modeAccentColor(mode) : modeAccentColor(mode).opacity(0.15))
                         )
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(mode.title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(CentmondTheme.Typography.subheading)
                             .foregroundStyle(DS.Colors.text)
                         Text(mode.tagline)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(CentmondTheme.Typography.captionMedium)
                             .foregroundStyle(DS.Colors.subtext)
                     }
 
@@ -110,7 +110,7 @@ struct AIModeSettingsView: View {
                                 .frame(width: 5, height: 5)
                                 .padding(.top, 5)
                             Text(bullet)
-                                .font(.system(size: 12))
+                                .font(CentmondTheme.Typography.caption)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                     }
@@ -124,13 +124,13 @@ struct AIModeSettingsView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .fill(isSelected
                           ? modeAccentColor(mode).opacity(colorScheme == .dark ? 0.12 : 0.06)
                           : DS.Colors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                     .strokeBorder(isSelected ? modeAccentColor(mode) : Color.clear, lineWidth: 2)
             )
         }
@@ -140,25 +140,25 @@ struct AIModeSettingsView: View {
     private func behaviorPill(_ label: String, value: String) -> some View {
         VStack(spacing: 2) {
             Text(label)
-                .font(.system(size: 9, weight: .medium))
+                .font(CentmondTheme.Typography.micro.weight(.medium))
                 .foregroundStyle(DS.Colors.subtext.opacity(0.6))
             Text(value)
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(DS.Colors.text)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
-        .background(DS.Colors.bg.opacity(0.5), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(DS.Colors.bg.opacity(0.5), in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
     }
 
     private var currentModeSummary: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Current: \(modeManager.currentMode.title)")
-                .font(.system(size: 14, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyLarge.weight(.semibold))
                 .foregroundStyle(DS.Colors.text)
 
             Text(modeManager.currentMode.description)
-                .font(.system(size: 12))
+                .font(CentmondTheme.Typography.caption)
                 .foregroundStyle(DS.Colors.subtext)
 
             Divider()
@@ -170,16 +170,16 @@ struct AIModeSettingsView: View {
             }
         }
         .padding(14)
-        .background(DS.Colors.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(DS.Colors.surface, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
     }
 
     private func summaryItem(_ label: String, check: Bool) -> some View {
         VStack(spacing: 4) {
             Image(systemName: check ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .font(.system(size: 16))
+                .font(CentmondTheme.Typography.subheading.weight(.regular))
                 .foregroundStyle(check ? DS.Colors.positive : DS.Colors.subtext.opacity(0.4))
             Text(label)
-                .font(.system(size: 9, weight: .medium))
+                .font(CentmondTheme.Typography.micro.weight(.medium))
                 .foregroundStyle(DS.Colors.subtext)
                 .multilineTextAlignment(.center)
         }
@@ -215,9 +215,9 @@ struct AIModeIndicator: View {
         Button(action: onTap) {
             HStack(spacing: 4) {
                 Image(systemName: modeManager.currentMode.icon)
-                    .font(.system(size: 10))
+                    .font(CentmondTheme.Typography.overlineRegular)
                 Text(modeManager.currentMode.title)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(CentmondTheme.Typography.overlineSemibold)
             }
             .foregroundStyle(modeColor)
             .padding(.horizontal, 10)

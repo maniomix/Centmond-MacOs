@@ -60,12 +60,20 @@ enum CentmondTheme {
         static let display = Font.system(size: 32, weight: .bold)
         static let heading1 = Font.system(size: 24, weight: .semibold)
         static let heading2 = Font.system(size: 18, weight: .semibold)
+        static let subheading = Font.system(size: 16, weight: .semibold)
         static let heading3 = Font.system(size: 15, weight: .medium)
+        static let bodyLarge = Font.system(size: 14, weight: .regular)
         static let body = Font.system(size: 13, weight: .regular)
         static let bodyMedium = Font.system(size: 13, weight: .medium)
         static let caption = Font.system(size: 12, weight: .regular)
         static let captionMedium = Font.system(size: 12, weight: .medium)
+        static let captionSmall = Font.system(size: 11, weight: .regular)
+        static let captionSmallSemibold = Font.system(size: 11, weight: .semibold)
         static let overline = Font.system(size: 10, weight: .medium)
+        static let overlineRegular = Font.system(size: 10, weight: .regular)
+        static let overlineSemibold = Font.system(size: 10, weight: .semibold)
+        static let micro = Font.system(size: 9, weight: .regular)
+        static let microBold = Font.system(size: 8, weight: .bold)
         static let mono = Font.system(size: 13, weight: .regular, design: .monospaced)
         static let monoLarge = Font.system(size: 20, weight: .semibold, design: .monospaced)
         static let monoDisplay = Font.system(size: 28, weight: .bold, design: .monospaced)
@@ -91,7 +99,9 @@ enum CentmondTheme {
         static let xs: CGFloat = 4
         static let sm: CGFloat = 6
         static let md: CGFloat = 8
+        static let mdLoose: CGFloat = 10
         static let lg: CGFloat = 12
+        static let xlTight: CGFloat = 14
         static let xl: CGFloat = 16
         static let full: CGFloat = 9999
     }

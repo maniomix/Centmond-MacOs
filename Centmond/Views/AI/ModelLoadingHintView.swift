@@ -23,7 +23,7 @@ struct ModelLoadingHintView: View {
         Group {
             if visible {
                 Text(Self.hints[hintIndex])
-                    .font(.system(size: 12, weight: .medium))
+                    .font(CentmondTheme.Typography.captionMedium)
                     .foregroundStyle(DS.Colors.subtext)
                     .multilineTextAlignment(.center)
                     .contentTransition(.numericText())

@@ -921,7 +921,7 @@ final class AIInsightEngine {
         } else {
             context.insert(DismissedInsight(dedupeKey: key, snoozeUntil: snoozeUntil))
         }
-        try? context.save()
+        context.persist()
 
         // recordTelemetry is false when called from `apply` — acting on an
         // insight is a positive signal, not a dismissal, and the
@@ -950,7 +950,7 @@ final class AIInsightEngine {
             }
             active.insert(row.dedupeKey)
         }
-        if reapedAny { try? context.save() }
+        if reapedAny { context.persist() }
         return active
     }
 

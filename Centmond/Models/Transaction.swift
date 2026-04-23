@@ -25,6 +25,12 @@ final class Transaction {
     /// `RecurringService.linkPendingMatches`.
     var recurringTemplateID: UUID?
 
+    /// Optional receipt image attached via the Quick Add popup (or any
+    /// future inspector affordance). Stored as downsampled PNG data so
+    /// the payload stays small enough for SwiftData without offloading
+    /// to disk. Optional — nil for all legacy rows.
+    var receiptImageData: Data?
+
     @Relationship var account: Account?
     @Relationship var category: BudgetCategory?
     @Relationship(inverse: \Tag.transactions) var tags: [Tag]

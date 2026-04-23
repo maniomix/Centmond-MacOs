@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import MarkdownUI
 import UniformTypeIdentifiers
+import AppKit
 import os
 
 // ============================================================
@@ -60,6 +61,13 @@ struct AIChatView: View {
     @State private var renamingSession: ChatSession? = nil
     @State private var renameText: String = ""
 
+    @Query(sort: \BudgetCategory.name) private var allCategories: [BudgetCategory]
+    @Query(sort: \Account.name) private var allAccounts: [Account]
+    @Query(sort: \HouseholdMember.name) private var allMembers: [HouseholdMember]
+    @Query(sort: \Goal.name) private var allGoals: [Goal]
+    @Query(sort: \Subscription.serviceName) private var allSubscriptions: [Subscription]
+    @Query(sort: \Tag.name) private var allTags: [Tag]
+
     private var isModelLoading: Bool {
         if case .loading = aiManager.status { return true }
         return false
@@ -89,13 +97,20 @@ struct AIChatView: View {
                             if !conversation.pendingActions.isEmpty {
                                 actionBar
                             }
-                            if isModelReady && !isStreaming && !conversation.messages.isEmpty {
+                            if !isStreaming {
                                 suggestionsStrip
+                            }
+                            if !isStreaming && !predictions.isEmpty {
+                                predictionStrip
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                                        removal: .opacity
+                                    ))
                             }
                             inputBar
                         }
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: predictions.count)
                     }
-                .background(DS.Colors.bg)
                 .toolbar {
                     if !isEmbedded {
                         ToolbarItem(placement: .cancellationAction) {
@@ -107,6 +122,10 @@ struct AIChatView: View {
                     }
                     ToolbarItem(placement: .principal) {
                         aiNavigationTitle
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        SectionHelpButton(screen: .aiChat)
+                            .padding(.horizontal, 8)
                     }
                     ToolbarItem(placement: .automatic) {
                         Button {
@@ -129,7 +148,7 @@ struct AIChatView: View {
                             startNewChat()
                         } label: {
                             Image(systemName: "square.and.pencil")
-                                .font(.system(size: 16))
+                                .font(CentmondTheme.Typography.subheading.weight(.regular))
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                         .help("New Chat")
@@ -140,7 +159,7 @@ struct AIChatView: View {
                             showAIMenu = true
                         } label: {
                             Image(systemName: "line.3.horizontal.circle.fill")
-                                .font(.system(size: 18))
+                                .font(CentmondTheme.Typography.heading2.weight(.regular))
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                         .padding(.trailing, 4)
@@ -230,6 +249,19 @@ struct AIChatView: View {
             }
         } // NavigationStack
         } // HStack
+        .background {
+            ZStack {
+                DS.Colors.bg
+                if isStreaming {
+                    GeneratingGradientBackdrop()
+                        .transition(.asymmetric(
+                            insertion: .opacity.animation(.easeIn(duration: 0.4)),
+                            removal:   .opacity.animation(.easeOut(duration: 1.6))
+                        ))
+                }
+            }
+            .ignoresSafeArea()
+        }
         .animation(.easeInOut(duration: 0.25), value: isChatSidebarVisible)
         } // VStack (contains BetaBanner + HStack)
     }
@@ -249,7 +281,7 @@ struct AIChatView: View {
                     refreshSessions()
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
+                        .font(CentmondTheme.Typography.subheading.weight(.regular))
                         .foregroundStyle(isStreaming ? DS.Colors.subtext : DS.Colors.accent)
                 }
                 .buttonStyle(.plain)
@@ -269,7 +301,7 @@ struct AIChatView: View {
                         .font(.system(size: 28))
                         .foregroundStyle(DS.Colors.subtext.opacity(0.4))
                     Text("No conversations yet")
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(DS.Colors.subtext.opacity(0.5))
                     Spacer()
                 }
@@ -285,7 +317,12 @@ struct AIChatView: View {
                 }
             }
         }
-        .background(DS.Colors.bg.opacity(0.6))
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(width: 0.5)
+        }
     }
 
     private func chatSessionRow(_ session: ChatSession) -> some View {
@@ -302,7 +339,7 @@ struct AIChatView: View {
                 if isRenaming {
                     HStack(spacing: 4) {
                         TextField("Chat name", text: $renameText)
-                            .font(.system(size: 12))
+                            .font(CentmondTheme.Typography.caption)
                             .textFieldStyle(.plain)
                             .onSubmit {
                                 commitRename(session)
@@ -312,7 +349,7 @@ struct AIChatView: View {
                             commitRename(session)
                         } label: {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 14))
+                                .font(CentmondTheme.Typography.bodyLarge)
                                 .foregroundStyle(DS.Colors.accent)
                         }
                         .buttonStyle(.plain)
@@ -321,7 +358,7 @@ struct AIChatView: View {
                             renamingSession = nil
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 14))
+                                .font(CentmondTheme.Typography.bodyLarge)
                                 .foregroundStyle(DS.Colors.subtext)
                         }
                         .buttonStyle(.plain)
@@ -335,11 +372,11 @@ struct AIChatView: View {
 
                 HStack(spacing: 4) {
                     Text(relativeDate(session.updatedAt))
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(DS.Colors.subtext.opacity(0.6))
 
                     Text("\(session.messages.count) messages")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                         .foregroundStyle(DS.Colors.subtext.opacity(0.4))
                 }
             }
@@ -347,13 +384,13 @@ struct AIChatView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
                     .fill(isSelected ? DS.Colors.accent.opacity(0.12) : Color.clear)
             )
             .overlay {
                 if isSessionStreaming {
                     ShimmerOverlay()
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
                 }
             }
             .contentShape(Rectangle())
@@ -381,7 +418,7 @@ struct AIChatView: View {
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             session.title = trimmed
-            try? context.save()
+            context.persist()
         }
         renamingSession = nil
         refreshSessions()
@@ -497,7 +534,7 @@ struct AIChatView: View {
                 }
                 .padding(28)
                 .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                         .fill(DS.Colors.surfaceElevated.opacity(0.5))
                 )
             }
@@ -524,7 +561,7 @@ struct AIChatView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 18))
+                        .font(CentmondTheme.Typography.heading2.weight(.regular))
                     Text("Download Model")
                         .font(DS.Typography.body)
                         .fontWeight(.semibold)
@@ -532,7 +569,7 @@ struct AIChatView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -541,7 +578,7 @@ struct AIChatView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "folder.fill")
-                        .font(.system(size: 16))
+                        .font(CentmondTheme.Typography.subheading.weight(.regular))
                     Text("Import from Finder")
                         .font(DS.Typography.body)
                         .fontWeight(.medium)
@@ -550,14 +587,14 @@ struct AIChatView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .stroke(DS.Colors.accent.opacity(0.3), lineWidth: 1.5)
                 )
             }
             .buttonStyle(.plain)
 
             Text("One-time download\nOr drag the .gguf file and tap Import")
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(DS.Colors.subtext)
                 .multilineTextAlignment(.center)
         }
@@ -603,7 +640,7 @@ struct AIChatView: View {
                     .foregroundStyle(DS.Colors.danger)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 8)
-                    .background(DS.Colors.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(DS.Colors.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.mdLoose, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -639,7 +676,7 @@ struct AIChatView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(DS.Colors.accent, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -658,7 +695,7 @@ struct AIChatView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                             .stroke(DS.Colors.accent, lineWidth: 1.5)
                     )
                 }
@@ -706,15 +743,11 @@ struct AIChatView: View {
             if streamingText.isEmpty {
                 TypingDotsView(streamingPhase: streamingPhase)
                     .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
             } else {
                 // Header strip (matches ChatBubbleView)
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                         .foregroundStyle(DS.Colors.accent)
                         .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.3))
                     Text("Generating…")
@@ -739,6 +772,14 @@ struct AIChatView: View {
                     .padding(.horizontal, 12)
 
                 // Markdown with inline capsules — sanitizer closes dangling markers
+                // NOTE: deliberately NOT chaining AssistantTextSanitizer here.
+                // `cleanStreamingText` (called on the producer side every
+                // ~250ms) already cuts at `---INSIGHT`/`---ACTION` partial
+                // delimiters and strips JSON, so the defensive sanitizer
+                // would be doing the same regex work a second time on every
+                // SwiftUI render. The defensive sanitizer stays wired into
+                // the FINAL bubble (ChatBubbleView), where the raw message
+                // bypasses cleanStreamingText.
                 CapsuleMarkdownView(text: StreamingMarkdownSanitizer.sanitize(streamingText), insights: streamingInsights)
                     .textSelection(.disabled)
                     .padding(.horizontal, 16)
@@ -753,7 +794,7 @@ struct AIChatView: View {
 
                     HStack(spacing: 8) {
                         Image(systemName: streamingPhase.icon)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CentmondTheme.Typography.captionSmallSemibold)
                             .foregroundStyle(DS.Colors.accent)
                             .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.5))
 
@@ -788,12 +829,12 @@ struct AIChatView: View {
         }
         .frame(maxWidth: 560, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+                .centmondShadow(2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -858,15 +899,17 @@ struct AIChatView: View {
                     Button {
                         sendMessage(suggestion.text)
                     } label: {
+                        let dimmed = !isModelReady
                         HStack(spacing: 4) {
                             Image(systemName: suggestion.icon)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(CentmondTheme.Typography.overline)
                                 .foregroundStyle(DS.Colors.accent)
                             Text(suggestion.text)
-                                .font(.system(size: 11, weight: .medium))
+                                .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                                 .foregroundStyle(DS.Colors.text)
                                 .lineLimit(1)
                         }
+                        .opacity(dimmed ? 0.5 : 1.0)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
@@ -879,11 +922,169 @@ struct AIChatView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(!isModelReady)
                 }
             }
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 6)
+    }
+
+    // MARK: - Word Prediction
+
+    private struct Prediction: Identifiable, Hashable {
+        let id = UUID()
+        let icon: String
+        let label: String
+        let insert: String
+    }
+
+    private static let monthNames: [String] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    private static let monthPhrases: [String] = ["this month", "last month", "next month"] + monthNames
+    private static let datePhrases: [String] = [
+        "today", "yesterday", "tomorrow",
+        "this week", "last week", "this month", "last month", "this year", "last year",
+        "last 7 days", "last 30 days", "last 90 days"
+    ]
+
+    private var predictions: [Prediction] {
+        let trimmed = input
+        guard !trimmed.isEmpty else { return [] }
+        let parts = trimmed.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        guard !parts.isEmpty else { return [] }
+        let fragment = parts.last ?? ""
+        let prevWord = parts.count >= 2 ? parts[parts.count - 2].lowercased() : ""
+        let prev2Word = parts.count >= 3 ? parts[parts.count - 3].lowercased() : ""
+
+        if fragment.hasPrefix("@") {
+            let q = fragment.dropFirst().lowercased()
+            return allMembers
+                .filter { q.isEmpty || $0.name.lowercased().hasPrefix(q) }
+                .prefix(5)
+                .map { Prediction(icon: "person.crop.circle", label: $0.name, insert: "@\($0.name)") }
+        }
+        if fragment.hasPrefix("#") {
+            let q = fragment.dropFirst().lowercased()
+            return allTags
+                .filter { q.isEmpty || $0.name.lowercased().hasPrefix(q) }
+                .prefix(5)
+                .map { Prediction(icon: "number", label: $0.name, insert: "#\($0.name)") }
+        }
+
+        let categoryTriggers: Set<String> = ["category", "categories", "for"]
+        let accountTriggers: Set<String> = ["from", "to", "account"]
+        let memberTriggers: Set<String> = ["with", "split", "share", "shared"]
+        let monthTriggers: Set<String> = ["in", "during", "month"]
+        let dateTriggers: Set<String> = ["on", "since", "before", "after", "until", "date"]
+        let goalTriggers: Set<String> = ["goal", "toward", "save", "saving", "savings"]
+        let subTriggers: Set<String> = ["subscription", "cancel", "renew"]
+        let tagTriggers: Set<String> = ["tag", "tagged", "label"]
+
+        let q = fragment.lowercased()
+        let triggered = prevWord
+        let triggered2 = prev2Word
+
+        func matchList<S: Sequence>(_ source: S, name: (S.Element) -> String, icon: String) -> [Prediction] {
+            let hits = source.filter { q.isEmpty || name($0).lowercased().hasPrefix(q) }
+            return hits.prefix(5).map { Prediction(icon: icon, label: name($0), insert: name($0)) }
+        }
+        func matchPhrases(_ phrases: [String], icon: String) -> [Prediction] {
+            let hits = phrases.filter { q.isEmpty || $0.lowercased().hasPrefix(q) }
+            return hits.prefix(5).map { Prediction(icon: icon, label: $0, insert: $0) }
+        }
+
+        if categoryTriggers.contains(triggered) || categoryTriggers.contains(triggered2) {
+            let hits = matchList(allCategories, name: { $0.name }, icon: "tag")
+            if !hits.isEmpty { return hits }
+        }
+        if accountTriggers.contains(triggered) || accountTriggers.contains(triggered2) {
+            let hits = matchList(allAccounts, name: { $0.name }, icon: "creditcard")
+            if !hits.isEmpty { return hits }
+        }
+        if memberTriggers.contains(triggered) || memberTriggers.contains(triggered2) {
+            let hits = matchList(allMembers, name: { $0.name }, icon: "person.crop.circle")
+            if !hits.isEmpty { return hits }
+        }
+        if monthTriggers.contains(triggered) || monthTriggers.contains(triggered2) {
+            let hits = matchPhrases(Self.monthPhrases, icon: "calendar")
+            if !hits.isEmpty { return hits }
+        }
+        if dateTriggers.contains(triggered) || dateTriggers.contains(triggered2) {
+            let hits = matchPhrases(Self.datePhrases, icon: "calendar.badge.clock")
+            if !hits.isEmpty { return hits }
+        }
+        if goalTriggers.contains(triggered) || goalTriggers.contains(triggered2) {
+            let hits = matchList(allGoals, name: { $0.name }, icon: "target")
+            if !hits.isEmpty { return hits }
+        }
+        if subTriggers.contains(triggered) || subTriggers.contains(triggered2) {
+            let hits = matchList(allSubscriptions, name: { $0.serviceName }, icon: "repeat.circle")
+            if !hits.isEmpty { return hits }
+        }
+        if tagTriggers.contains(triggered) || tagTriggers.contains(triggered2) {
+            let hits = matchList(allTags, name: { $0.name }, icon: "number")
+            if !hits.isEmpty { return hits }
+        }
+
+        if q.count >= 2 {
+            var bag: [Prediction] = []
+            bag += allCategories.filter { $0.name.lowercased().hasPrefix(q) }.prefix(2)
+                .map { Prediction(icon: "tag", label: $0.name, insert: $0.name) }
+            bag += allAccounts.filter { $0.name.lowercased().hasPrefix(q) }.prefix(1)
+                .map { Prediction(icon: "creditcard", label: $0.name, insert: $0.name) }
+            bag += Self.monthPhrases.filter { $0.lowercased().hasPrefix(q) }.prefix(1)
+                .map { Prediction(icon: "calendar", label: $0, insert: $0) }
+            bag += allSubscriptions.filter { $0.serviceName.lowercased().hasPrefix(q) }.prefix(1)
+                .map { Prediction(icon: "repeat.circle", label: $0.serviceName, insert: $0.serviceName) }
+            if !bag.isEmpty { return Array(bag.prefix(5)) }
+        }
+        return []
+    }
+
+    private var predictionStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(predictions) { p in
+                    Button {
+                        applyPrediction(p)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: p.icon)
+                                .font(CentmondTheme.Typography.overlineSemibold)
+                                .foregroundStyle(DS.Colors.accent)
+                            Text(p.label)
+                                .font(CentmondTheme.Typography.captionSmallSemibold)
+                                .foregroundStyle(DS.Colors.text)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(DS.Colors.accent.opacity(0.12))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(DS.Colors.accent.opacity(0.35), lineWidth: 0.5)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func applyPrediction(_ p: Prediction) {
+        var parts = input.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        if parts.isEmpty { parts = [""] }
+        let lastIdx = parts.count - 1
+        parts[lastIdx] = p.insert
+        input = parts.joined(separator: " ") + " "
     }
 
     // MARK: - Input Bar
@@ -894,7 +1095,7 @@ struct AIChatView: View {
                 showReceiptScanner = true
             } label: {
                 Image(systemName: "doc.text.viewfinder")
-                    .font(.system(size: 18))
+                    .font(CentmondTheme.Typography.heading2.weight(.regular))
                     .foregroundStyle(DS.Colors.accent)
             }
             .buttonStyle(.plain)
@@ -907,11 +1108,11 @@ struct AIChatView: View {
                 .focused($isInputFocused)
                 .padding(10)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .fill(colorScheme == .dark ? DS.Colors.surfaceElevated : DS.Colors.surface)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xlTight, style: .continuous)
                         .strokeBorder(
                             isStreaming
                                 ? DS.Colors.accent.opacity(glowPhase ? 0.7 : 0.2)
@@ -940,7 +1141,7 @@ struct AIChatView: View {
                 sendMessage(input)
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
+                    .font(CentmondTheme.Typography.display.weight(.regular))
                     .foregroundStyle(!isModelReady || input.trimmingCharacters(in: .whitespaces).isEmpty || isStreaming
                                     ? DS.Colors.subtext.opacity(0.3)
                                     : DS.Colors.accent)
@@ -960,12 +1161,12 @@ struct AIChatView: View {
             Color.black.opacity(0.4).ignoresSafeArea()
             VStack(spacing: 16) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 32))
+                    .font(CentmondTheme.Typography.display.weight(.regular))
                     .foregroundStyle(DS.Colors.accent)
                     .symbolEffect(.pulse.wholeSymbol, options: .repeating.speed(0.5))
 
                 Text("Loading AI Model…")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(CentmondTheme.Typography.heading3.weight(.semibold))
                     .foregroundStyle(.white)
 
                 ModelLoadingHintView()
@@ -979,7 +1180,7 @@ struct AIChatView: View {
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 28)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xl))
         }
         .transition(.opacity.animation(.easeInOut(duration: 0.25)))
     }
@@ -992,11 +1193,11 @@ struct AIChatView: View {
             let offset = CGFloat((t.truncatingRemainder(dividingBy: 1.5)) / 1.5)
             let shimmerX = -width + (width * 2.5 * offset)
 
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                 .fill(Color.white.opacity(0.15))
                 .frame(width: width, height: 10)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [.clear, Color.white.opacity(0.2), .clear],
@@ -1007,7 +1208,7 @@ struct AIChatView: View {
                         .frame(width: width * 0.5)
                         .offset(x: shimmerX)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous))
         }
     }
 
@@ -1018,7 +1219,7 @@ struct AIChatView: View {
     private var aiNavigationTitle: some View {
         HStack(spacing: 10) {
             Text("Centmond AI")
-                .font(.system(size: 13, weight: .semibold))
+                .font(CentmondTheme.Typography.bodyMedium.weight(.semibold))
                 .foregroundStyle(DS.Colors.text)
 
             if let active = aiManager.availableModels.first(where: { $0.filename == (aiManager.loadedModelFilename.isEmpty ? AIManager.modelFilename : aiManager.loadedModelFilename) }) {
@@ -1039,7 +1240,7 @@ struct AIChatView: View {
                     .padding(.vertical, 2)
                     .background(
                         DS.Colors.accent.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                     )
                 }
                 .buttonStyle(.plain)
@@ -1059,7 +1260,7 @@ struct AIChatView: View {
                     .animation(.easeInOut(duration: 0.5), value: navStatusColor)
 
                 Text(navStatusText)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(CentmondTheme.Typography.captionSmall.weight(.medium))
                     .foregroundStyle(DS.Colors.subtext)
                     .contentTransition(.numericText())
             }
@@ -1078,21 +1279,21 @@ struct AIChatView: View {
 
                 if let rec = model.recommendation {
                     Text(rec.rawValue)
-                        .font(.system(size: 8, weight: .bold))
+                        .font(CentmondTheme.Typography.microBold)
                         .foregroundStyle(rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1.5)
                         .background(
                             (rec == .bestBalance ? DS.Colors.positive : (rec == .fastest ? DS.Colors.warning : DS.Colors.accent))
                                 .opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)
                         )
                 }
             }
 
             // Description
             Text(model.description)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1108,7 +1309,7 @@ struct AIChatView: View {
             Divider()
 
             Text("You can change the model from Settings → AI Assistant")
-                .font(.system(size: 10))
+                .font(CentmondTheme.Typography.overlineRegular)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
@@ -1120,10 +1321,10 @@ struct AIChatView: View {
     private func popoverStat(icon: String, label: String, value: String, color: Color) -> some View {
         VStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 11))
+                .font(CentmondTheme.Typography.captionSmall)
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 10, weight: .semibold))
+                .font(CentmondTheme.Typography.overlineSemibold)
                 .foregroundStyle(.primary)
             Text(label)
                 .font(.system(size: 8, weight: .medium))
@@ -1174,7 +1375,7 @@ struct AIChatView: View {
                                 Text("Proactive Feed")
                                 if AIProactiveEngine.shared.activeCount > 0 {
                                     Text("\(AIProactiveEngine.shared.activeCount)")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
@@ -1213,7 +1414,7 @@ struct AIChatView: View {
                                 Text("AI Memory")
                                 if AIMemoryStore.shared.totalCount > 0 {
                                     Text("\(AIMemoryStore.shared.totalCount)")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
@@ -1231,7 +1432,7 @@ struct AIChatView: View {
                             HStack {
                                 Text("AI Mode")
                                 Text(AIAssistantModeManager.shared.currentMode.title)
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(CentmondTheme.Typography.captionSmallSemibold.weight(.bold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -1333,7 +1534,7 @@ struct AIChatView: View {
                 session.messages.removeAll { record in
                     toDelete.contains(where: { $0.id == record.id })
                 }
-                try? context.save()
+                context.persist()
             }
         }
         refreshSessions()
@@ -1504,7 +1705,10 @@ struct AIChatView: View {
                 Task.detached(priority: .background) {
                     var accumulated = ""
                     var lastYield = ContinuousClock.now
-                    let interval: Duration = .milliseconds(200)
+                    // 250 ms (~4 snapshots/sec) — measurably less SwiftUI
+                    // diffing/Markdown re-render work than 200 ms without
+                    // making streaming visibly choppier.
+                    let interval: Duration = .milliseconds(250)
 
                     for await token in tokenStream {
                         accumulated += token
@@ -1520,8 +1724,13 @@ struct AIChatView: View {
                 }
             }
 
-            // MainActor loop — runs only ~10 times/sec instead of 100+
+            // MainActor loop — runs ~4×/sec instead of 100+
             var rawResponse = ""
+            // Throttle the partial-insight JSON parse to 1×/sec — it does a
+            // full JSON decode on the (growing) insights payload and was
+            // previously running on every snapshot, dominating CPU during
+            // the JSON tail of a response.
+            var lastInsightParse = ContinuousClock.now - .seconds(1)
             for await snapshot in batchedSnapshots {
                 rawResponse = snapshot
                 let cleaned = Self.cleanStreamingText(snapshot)
@@ -1534,11 +1743,19 @@ struct AIChatView: View {
                     streamingPhase = .buildingActions
                 } else if snapshot.contains("---INSIGHT") {
                     streamingPhase = .buildingInsights
-                    // Try to parse partial insights from raw snapshot for live capsules
-                    streamingInsights = Self.parsePartialInsights(from: snapshot)
+                    let now = ContinuousClock.now
+                    if now - lastInsightParse >= .seconds(1) {
+                        streamingInsights = Self.parsePartialInsights(from: snapshot)
+                        lastInsightParse = now
+                    }
                 } else if cleaned.count > 20 {
                     streamingPhase = .composing
                 }
+            }
+            // Final pass: ensure the last partial-insights snapshot is parsed
+            // even when we throttled the previous tick.
+            if rawResponse.contains("---INSIGHT") {
+                streamingInsights = Self.parsePartialInsights(from: rawResponse)
             }
 
             // Brief review phase before finalizing
@@ -1723,7 +1940,7 @@ struct AIChatView: View {
                                 }
                             }
                         }
-                        try? context.save()
+                        context.persist()
                         AIAuditLog.shared.recordExecution(entryId: auditId, results: execResults)
                     }
                 } else {
@@ -1744,7 +1961,7 @@ struct AIChatView: View {
         let result = AIActionExecutor.execute(action, context: context)
 
         if result.success {
-            try? context.save()
+            context.persist()
             conversation.markExecuted(id)
 
             let ctx = pendingTrustContext
@@ -1788,7 +2005,7 @@ struct AIChatView: View {
 
         let ctx = pendingTrustContext
         let results = AIActionExecutor.executeAll(pending, context: context)
-        try? context.save()
+        context.persist()
 
         var summaries: [String] = []
         for result in results where result.success {
@@ -2344,5 +2561,82 @@ private struct ShimmerOverlay: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Generating Gradient Backdrop
+
+private struct GeneratingGradientBackdrop: View {
+    // Two Apple-Intelligence-style 3x3 mesh palettes that crossfade in place.
+    // Colors are deep + saturated so the dark-glass overlay reads richly.
+    private static let paletteA: [Color] = [
+        Color(red: 0.04, green: 0.07, blue: 0.20),
+        Color(red: 0.13, green: 0.07, blue: 0.24),
+        Color(red: 0.24, green: 0.08, blue: 0.22),
+        Color(red: 0.04, green: 0.12, blue: 0.24),
+        Color(red: 0.16, green: 0.12, blue: 0.28),
+        Color(red: 0.28, green: 0.10, blue: 0.20),
+        Color(red: 0.08, green: 0.16, blue: 0.24),
+        Color(red: 0.18, green: 0.12, blue: 0.24),
+        Color(red: 0.30, green: 0.14, blue: 0.18)
+    ]
+    private static let paletteB: [Color] = [
+        Color(red: 0.02, green: 0.10, blue: 0.22),
+        Color(red: 0.18, green: 0.08, blue: 0.20),
+        Color(red: 0.30, green: 0.12, blue: 0.16),
+        Color(red: 0.04, green: 0.16, blue: 0.22),
+        Color(red: 0.14, green: 0.10, blue: 0.24),
+        Color(red: 0.26, green: 0.08, blue: 0.24),
+        Color(red: 0.08, green: 0.18, blue: 0.20),
+        Color(red: 0.20, green: 0.10, blue: 0.22),
+        Color(red: 0.28, green: 0.12, blue: 0.24)
+    ]
+
+    var body: some View {
+        TimelineView(.animation) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            // Palette crossfade
+            let mix = 0.5 + 0.5 * sin(t * 0.45)
+            // Inner mesh control points wander on independent axes
+            // (corners pinned so the gradient never tears off the edges)
+            let a1 = Float(0.18 * sin(t * 0.55))
+            let a2 = Float(0.18 * cos(t * 0.42))
+            let a3 = Float(0.16 * sin(t * 0.63 + 1.2))
+            let a4 = Float(0.16 * cos(t * 0.48 + 0.7))
+            let cx = Float(0.20 * sin(t * 0.37))
+            let cy = Float(0.20 * cos(t * 0.51))
+            // Edge-midpoint stops also drift along their edge
+            let topX    = Float(0.5 + 0.20 * sin(t * 0.40))
+            let bottomX = Float(0.5 + 0.20 * cos(t * 0.46 + 1.5))
+            let leftY   = Float(0.5 + 0.20 * cos(t * 0.43))
+            let rightY  = Float(0.5 + 0.20 * sin(t * 0.39 + 0.9))
+
+            let points: [SIMD2<Float>] = [
+                SIMD2(0.0, 0.0),                SIMD2(topX, 0.0),                SIMD2(1.0, 0.0),
+                SIMD2(0.0, leftY),              SIMD2(0.5 + cx, 0.5 + cy),       SIMD2(1.0, rightY),
+                SIMD2(0.0, 1.0),                SIMD2(bottomX, 1.0),             SIMD2(1.0, 1.0)
+            ]
+            // Slight per-stop opacity swell so colors visibly pulse too
+            let _ = (a1, a2, a3, a4) // reserved for future per-stop tweaks
+
+            let blended: [Color] = zip(Self.paletteA, Self.paletteB).map { a, b in
+                Self.blend(a, b, t: mix)
+            }
+
+            MeshGradient(width: 3, height: 3, points: points, colors: blended)
+                .overlay(Color.black.opacity(0.35))
+        }
+        .allowsHitTesting(false)
+    }
+
+    private static func blend(_ a: Color, _ b: Color, t: Double) -> Color {
+        let na = NSColor(a).usingColorSpace(.sRGB) ?? NSColor(a)
+        let nb = NSColor(b).usingColorSpace(.sRGB) ?? NSColor(b)
+        let f = CGFloat(t)
+        return Color(
+            red:   Double(na.redComponent   * (1 - f) + nb.redComponent   * f),
+            green: Double(na.greenComponent * (1 - f) + nb.greenComponent * f),
+            blue:  Double(na.blueComponent  * (1 - f) + nb.blueComponent  * f)
+        )
     }
 }

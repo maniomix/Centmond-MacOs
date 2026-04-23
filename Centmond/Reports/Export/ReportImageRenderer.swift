@@ -66,19 +66,19 @@ private struct ReportCoverImageView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("CENTMOND")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(CentmondTheme.Typography.overlineSemibold.weight(.bold))
                     .tracking(2)
                     .foregroundStyle(Color(white: 0.55))
                 Spacer()
                 Text(result.generatedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(Color(white: 0.55))
             }
 
             Spacer().frame(height: 40)
 
             Text(result.summary.title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
+                .font(CentmondTheme.Typography.captionSmallSemibold)
                 .tracking(2)
                 .foregroundStyle(Color(red: 0.20, green: 0.45, blue: 0.95))
 
@@ -91,7 +91,7 @@ private struct ReportCoverImageView: View {
             Text(result.summary.rangeStart.formatted(.dateTime.month(.abbreviated).day().year())
                  + " — "
                  + result.summary.rangeEnd.formatted(.dateTime.month(.abbreviated).day().year()))
-                .font(.system(size: 14))
+                .font(CentmondTheme.Typography.bodyLarge)
                 .foregroundStyle(Color(white: 0.30))
                 .padding(.top, 10)
 
@@ -104,7 +104,7 @@ private struct ReportCoverImageView: View {
             HStack {
                 Spacer()
                 Text("\(result.summary.transactionCount) transactions · \(result.summary.currencyCode)")
-                    .font(.system(size: 9))
+                    .font(CentmondTheme.Typography.micro)
                     .foregroundStyle(Color(white: 0.55))
             }
         }
@@ -117,15 +117,15 @@ private struct ReportCoverImageView: View {
             ForEach(result.summary.kpis) { kpi in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(kpi.label.uppercased())
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(CentmondTheme.Typography.micro.weight(.semibold))
                         .tracking(1)
                         .foregroundStyle(Color(white: 0.55))
                     Text(format(kpi))
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(CentmondTheme.Typography.heading1)
                         .foregroundStyle(tone(kpi.tone))
                     if let d = kpi.deltaVsBaseline {
                         Text((d >= 0 ? "▲ " : "▼ ") + formatDelta(abs(d)))
-                            .font(.system(size: 10, weight: .medium))
+                            .font(CentmondTheme.Typography.overline)
                             .foregroundStyle(d >= 0 ? Color(red: 0.10, green: 0.55, blue: 0.30) : Color(red: 0.75, green: 0.20, blue: 0.20))
                     }
                 }

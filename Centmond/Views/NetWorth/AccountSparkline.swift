@@ -75,7 +75,7 @@ struct AccountChangeChip: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: arrow)
-                .font(.system(size: 8, weight: .semibold))
+                .font(CentmondTheme.Typography.microBold.weight(.semibold))
             Text(CurrencyFormat.compact(abs(delta)))
                 .font(CentmondTheme.Typography.caption)
                 .monospacedDigit()
@@ -112,7 +112,7 @@ struct UtilizationRing: View {
                 .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(Int(min(utilization, 1.0) * 100))")
-                .font(.system(size: 8, weight: .bold))
+                .font(CentmondTheme.Typography.microBold)
                 .foregroundStyle(color)
                 .monospacedDigit()
         }

@@ -65,7 +65,7 @@ struct EditGoalSheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(CentmondTheme.Typography.captionSmallSemibold)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .frame(width: 22, height: 22)
                         .background(CentmondTheme.Colors.bgQuaternary)
@@ -104,7 +104,7 @@ struct EditGoalSheet: View {
                             }
                         } label: {
                             Image(systemName: opt)
-                                .font(.system(size: 14))
+                                .font(CentmondTheme.Typography.bodyLarge)
                                 .frame(width: 32, height: 32)
                                 .foregroundStyle(icon == opt ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
                                 .background(icon == opt ? CentmondTheme.Colors.accent.opacity(0.12) : CentmondTheme.Colors.bgQuaternary)
@@ -216,7 +216,7 @@ struct EditGoalSheet: View {
             if !members.isEmpty {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: "person.crop.circle")
-                        .font(.system(size: 12))
+                        .font(CentmondTheme.Typography.caption)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     Text("Owner")
                         .font(CentmondTheme.Typography.caption)
@@ -239,7 +239,7 @@ struct EditGoalSheet: View {
             if let pct = progressPercent {
                 HStack(spacing: CentmondTheme.Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 11))
+                        .font(CentmondTheme.Typography.captionSmall)
                         .foregroundStyle(CentmondTheme.Colors.accent)
 
                     Text("Progress: \(Int(pct * 100))%")
@@ -267,7 +267,7 @@ struct EditGoalSheet: View {
             if hasAttemptedSave, let error = nameError ?? amountError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(CentmondTheme.Typography.overlineRegular)
                     Text(error)
                 }
                 .font(CentmondTheme.Typography.caption)
@@ -286,6 +286,7 @@ struct EditGoalSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
             .disabled(!isValid && hasAttemptedSave)
             .opacity(isValid || !hasAttemptedSave ? 1 : 0.4)
             .padding(.horizontal, CentmondTheme.Spacing.lg)
@@ -306,7 +307,7 @@ struct EditGoalSheet: View {
 
     private func fieldIcon(_ name: String, error: Bool = false) -> some View {
         Image(systemName: name)
-            .font(.system(size: 12))
+            .font(CentmondTheme.Typography.caption)
             .foregroundStyle(error ? CentmondTheme.Colors.negative : CentmondTheme.Colors.textQuaternary)
             .frame(width: 18)
     }

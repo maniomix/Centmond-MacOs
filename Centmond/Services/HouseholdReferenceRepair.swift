@@ -57,7 +57,7 @@ enum HouseholdReferenceRepair {
         // state, not an error.
 
         if removed > 0 {
-            try? context.save()
+            context.persist()
         }
         return removed
     }

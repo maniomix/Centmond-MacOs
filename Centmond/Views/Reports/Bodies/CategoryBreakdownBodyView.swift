@@ -89,7 +89,7 @@ struct CategoryBreakdownBodyView: View {
         }
         .padding(.vertical, 4).padding(.horizontal, 4)
         .background(highlighted ? CentmondTheme.Colors.accentMuted.opacity(0.5) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
         .animation(CentmondTheme.Motion.micro, value: highlighted)
     }
 
@@ -110,7 +110,7 @@ struct CategoryBreakdownBodyView: View {
         let d = Double(truncating: delta as NSDecimalNumber)
         return HStack(spacing: 2) {
             Image(systemName: d >= 0 ? "arrow.up" : "arrow.down")
-                .font(.system(size: 9, weight: .semibold))
+                .font(CentmondTheme.Typography.micro.weight(.semibold))
             Text(CurrencyFormat.compact(Decimal(abs(d))))
                 .font(CentmondTheme.Typography.caption)
                 .monospacedDigit()

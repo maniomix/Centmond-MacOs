@@ -63,7 +63,7 @@ struct BudgetHeatmapBodyView: View {
 
     private func legendSwatch(color: Color, label: String) -> some View {
         HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.6)).frame(width: 12, height: 12)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs).fill(color.opacity(0.6)).frame(width: 12, height: 12)
             Text(label).font(CentmondTheme.Typography.caption).foregroundStyle(CentmondTheme.Colors.textTertiary)
         }
     }
@@ -81,7 +81,7 @@ struct BudgetHeatmapBodyView: View {
         let base = cell.overBudget ? CentmondTheme.Colors.negative : CentmondTheme.Colors.accent
         let fill = base.opacity(0.10 + 0.65 * intensity)
         return ZStack {
-            RoundedRectangle(cornerRadius: 4).fill(fill)
+            RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs).fill(fill)
             if v > 0 {
                 Text(CurrencyFormat.abbreviated(v))
                     .font(.system(size: 9, weight: .medium, design: .monospaced))

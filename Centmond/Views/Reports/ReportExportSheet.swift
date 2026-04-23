@@ -76,11 +76,11 @@ struct ReportExportSheet: View {
         } label: {
             HStack(alignment: .top, spacing: CentmondTheme.Spacing.md) {
                 Image(systemName: f.symbol)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(CentmondTheme.Typography.subheading)
                     .foregroundStyle(format == f ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textSecondary)
                     .frame(width: 28, height: 28)
                     .background(format == f ? CentmondTheme.Colors.accentMuted : CentmondTheme.Colors.bgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -103,7 +103,7 @@ struct ReportExportSheet: View {
                 }
 
                 Image(systemName: format == f ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 14))
+                    .font(CentmondTheme.Typography.bodyLarge)
                     .foregroundStyle(format == f ? CentmondTheme.Colors.accent : CentmondTheme.Colors.textTertiary)
             }
             .padding(CentmondTheme.Spacing.md)
