@@ -21,6 +21,8 @@ struct TransactionsView: View {
     @State private var dateRange: DateRange = .thisMonth
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: .now)!
     @State private var customEnd: Date = .now
+    @State private var showFromPopover = false
+    @State private var showToPopover = false
 
     enum TypeFilter: String, CaseIterable {
         case all = "All"
@@ -362,6 +364,13 @@ struct TransactionsView: View {
             }
             .padding(.horizontal, CentmondTheme.Spacing.xxl)
             .padding(.bottom, CentmondTheme.Spacing.md)
+
+            if dateRange == .custom {
+                customRangeRow
+                    .padding(.horizontal, CentmondTheme.Spacing.xxl)
+                    .padding(.bottom, CentmondTheme.Spacing.md)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .background(CentmondTheme.Colors.bgSecondary)
     }
@@ -424,6 +433,102 @@ struct TransactionsView: View {
                         .stroke(dateRange == range ? .clear : CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
                 )
                 .animation(CentmondTheme.Motion.micro, value: dateRange)
+        }
+        .buttonStyle(.plainHover)
+    }
+
+    private var customRangeRow: some View {
+        HStack(spacing: CentmondTheme.Spacing.sm) {
+            datePopoverChip(
+                label: "From",
+                date: $customStart,
+                isPresented: $showFromPopover
+            )
+
+            Image(systemName: "arrow.right")
+                .font(CentmondTheme.Typography.captionSmall)
+                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+
+            datePopoverChip(
+                label: "To",
+                date: $customEnd,
+                isPresented: $showToPopover
+            )
+
+            if customEnd > customStart {
+                Text(rangeSpanLabel)
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .padding(.leading, CentmondTheme.Spacing.xs)
+            }
+
+            Spacer()
+
+            quickRangeButton("7 days", days: 7)
+            quickRangeButton("30 days", days: 30)
+            quickRangeButton("90 days", days: 90)
+        }
+    }
+
+    private var rangeSpanLabel: String {
+        let days = max(1, Calendar.current.dateComponents([.day], from: customStart, to: customEnd).day ?? 0)
+        return "\(days) day\(days == 1 ? "" : "s")"
+    }
+
+    private func datePopoverChip(
+        label: String,
+        date: Binding<Date>,
+        isPresented: Binding<Bool>
+    ) -> some View {
+        Button {
+            isPresented.wrappedValue.toggle()
+        } label: {
+            HStack(spacing: CentmondTheme.Spacing.xs) {
+                Text(label)
+                    .font(CentmondTheme.Typography.overlineSemibold)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                Text(date.wrappedValue.formatted(.dateTime.day().month(.abbreviated).year()))
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                Image(systemName: "calendar")
+                    .font(CentmondTheme.Typography.captionSmall)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+            }
+            .padding(.horizontal, CentmondTheme.Spacing.sm)
+            .frame(height: 30)
+            .background(CentmondTheme.Colors.bgInput)
+            .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous)
+                    .stroke(CentmondTheme.Colors.strokeDefault, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plainHover)
+        .popover(isPresented: isPresented, arrowEdge: .top) {
+            ModernCalendarPicker(date: date)
+                .padding(CentmondTheme.Spacing.md)
+                .frame(width: 320)
+                .background(CentmondTheme.Colors.bgSecondary)
+        }
+    }
+
+    private func quickRangeButton(_ label: String, days: Int) -> some View {
+        Button {
+            let end = Date.now
+            let start = Calendar.current.date(byAdding: .day, value: -days, to: end) ?? end
+            customStart = start
+            customEnd = end
+        } label: {
+            Text(label)
+                .font(CentmondTheme.Typography.caption)
+                .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                .padding(.horizontal, CentmondTheme.Spacing.sm)
+                .frame(height: 26)
+                .background(CentmondTheme.Colors.bgTertiary)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(CentmondTheme.Colors.strokeSubtle, lineWidth: 1)
+                )
         }
         .buttonStyle(.plainHover)
     }

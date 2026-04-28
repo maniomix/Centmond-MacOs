@@ -25,6 +25,14 @@ struct AppShell: View {
     /// re-appears.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
+    /// Drives `.themedColorScheme()` and the `.id(...)` rebuild below. When
+    /// the user picks a new theme in Workspace settings this AppStorage
+    /// flips, the shell's NavigationSplitView re-identifies, and every
+    /// descendant re-reads `CentmondTheme.Colors.*` against the new
+    /// palette. The shell-level `@State` (router, columnVisibility) lives
+    /// on AppShell itself, not the split view, so it survives the rebuild.
+    @AppStorage(ThemeStorage.key) private var themeModeRaw: String = ThemeMode.dark.rawValue
+
     /// Runs the scheduled-services pipeline (Recurring + NetWorth history +
     /// AI insights + Report schedules). `force=true` skips the debounce
     /// (used for launch + midnight ticks). `force=false` respects the
@@ -81,7 +89,8 @@ struct AppShell: View {
             minHeight: CentmondTheme.Sizing.minWindowHeight
         )
         .background(CentmondTheme.Colors.bgPrimary)
-        .preferredColorScheme(.dark)
+        .id(themeModeRaw)
+        .themedColorScheme()
         .sheet(item: $router.activeSheet) { sheet in
             SheetRouter(sheet: sheet)
                 .environment(router)

@@ -22,7 +22,7 @@ struct LockScreenView: View {
             lockContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CentmondTheme.Colors.bgPrimary)
-                .preferredColorScheme(.dark)
+                .themedColorScheme()
                 .onAppear { checkBiometrics() }
         }
     }

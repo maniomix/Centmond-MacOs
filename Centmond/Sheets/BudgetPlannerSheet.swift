@@ -242,7 +242,7 @@ struct BudgetPlannerSheet: View {
             NewBudgetCategorySheet()
                 .frame(width: CentmondTheme.Sizing.sheetWidth)
                 .background(CentmondTheme.Colors.bgTertiary)
-                .preferredColorScheme(.dark)
+                .themedColorScheme()
         }
     }
 

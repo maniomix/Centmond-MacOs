@@ -59,7 +59,7 @@ struct SheetRouter: View {
                 .contentShape(Rectangle())
                 .onTapGesture { dismiss() }
         }
-        .preferredColorScheme(.dark)
+        .themedColorScheme()
         .dismissOnEscape()
     }
 }

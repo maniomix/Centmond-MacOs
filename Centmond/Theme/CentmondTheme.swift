@@ -3,55 +3,53 @@ import SwiftUI
 enum CentmondTheme {
 
     // MARK: - Colors
+    //
+    // Each token forwards into the active `ThemePalette` (see ThemePalette.swift).
+    // Callers keep the same `CentmondTheme.Colors.bgPrimary` API — they no
+    // longer hold a fixed hex value, they re-resolve against the current
+    // mode (Light / Dark / Black). When the user toggles theme, the
+    // AppShell-level `.id(themeMode)` (see AppShell.swift) rebuilds the
+    // visible content tree so every static-color read picks up the new
+    // palette.
 
     enum Colors {
-        // Background hierarchy (darkest to lightest)
-        static let bgPrimary = Color(hex: "09090B")
-        static let bgSecondary = Color(hex: "111114")
-        static let bgTertiary = Color(hex: "18181B")
-        static let bgQuaternary = Color(hex: "1C1C1F")
-        static let bgInput = Color(hex: "0D0D0F")
+        // Backgrounds
+        static var bgPrimary: Color    { AppTheme.palette.bgPrimary }
+        static var bgSecondary: Color  { AppTheme.palette.bgSecondary }
+        static var bgTertiary: Color   { AppTheme.palette.bgTertiary }
+        static var bgQuaternary: Color { AppTheme.palette.bgQuaternary }
+        static var bgInput: Color      { AppTheme.palette.bgInput }
 
-        // Text hierarchy
-        static let textPrimary = Color(hex: "F5F5F7")
-        static let textSecondary = Color(hex: "A1A1AA")
-        static let textTertiary = Color(hex: "71717A")
-        static let textQuaternary = Color(hex: "52525B")
+        // Text
+        static var textPrimary: Color    { AppTheme.palette.textPrimary }
+        static var textSecondary: Color  { AppTheme.palette.textSecondary }
+        static var textTertiary: Color   { AppTheme.palette.textTertiary }
+        static var textQuaternary: Color { AppTheme.palette.textQuaternary }
 
-        // Accent (brand blue)
-        static let accent = Color(hex: "3B82F6")
-        static let accentHover = Color(hex: "60A5FA")
-        static let accentMuted = Color(hex: "1E3A5F")
-        static let accentSubtle = Color(hex: "172554")
+        // Accent
+        static var accent: Color       { AppTheme.palette.accent }
+        static var accentHover: Color  { AppTheme.palette.accentHover }
+        static var accentMuted: Color  { AppTheme.palette.accentMuted }
+        static var accentSubtle: Color { AppTheme.palette.accentSubtle }
 
         // Semantic
-        static let positive = Color(hex: "22C55E")
-        static let positiveMuted = Color(hex: "14532D")
-        static let negative = Color(hex: "EF4444")
-        static let negativeMuted = Color(hex: "450A0A")
-        static let warning = Color(hex: "F59E0B")
-        static let warningMuted = Color(hex: "451A03")
-        static let info = Color(hex: "3B82F6")
-        // Forecast / projection hue — violet, distinct from accent/warning/negative
-        static let projected = Color(hex: "8B5CF6")
-        static let projectedMuted = Color(hex: "2E1065")
+        static var positive: Color       { AppTheme.palette.positive }
+        static var positiveMuted: Color  { AppTheme.palette.positiveMuted }
+        static var negative: Color       { AppTheme.palette.negative }
+        static var negativeMuted: Color  { AppTheme.palette.negativeMuted }
+        static var warning: Color        { AppTheme.palette.warning }
+        static var warningMuted: Color   { AppTheme.palette.warningMuted }
+        static var info: Color           { AppTheme.palette.info }
+        static var projected: Color      { AppTheme.palette.projected }
+        static var projectedMuted: Color { AppTheme.palette.projectedMuted }
 
-        // Strokes and borders
-        static let strokeSubtle = Color(hex: "1C1C1F")
-        static let strokeDefault = Color(hex: "27272A")
-        static let strokeStrong = Color(hex: "3F3F46")
+        // Strokes
+        static var strokeSubtle: Color  { AppTheme.palette.strokeSubtle }
+        static var strokeDefault: Color { AppTheme.palette.strokeDefault }
+        static var strokeStrong: Color  { AppTheme.palette.strokeStrong }
 
-        // Chart palette (8 distinct, accessible on dark backgrounds)
-        static let chartPalette: [Color] = [
-            Color(hex: "3B82F6"), // Blue
-            Color(hex: "8B5CF6"), // Purple
-            Color(hex: "EC4899"), // Pink
-            Color(hex: "F97316"), // Orange
-            Color(hex: "22C55E"), // Green
-            Color(hex: "06B6D4"), // Cyan
-            Color(hex: "EAB308"), // Yellow
-            Color(hex: "64748B"), // Slate
-        ]
+        // Charts
+        static var chartPalette: [Color] { AppTheme.palette.chartPalette }
     }
 
     // MARK: - Typography
@@ -109,14 +107,23 @@ enum CentmondTheme {
     // MARK: - Elevation / Shadow
 
     enum Elevation {
+        /// Palette-aware shadow for the four canonical elevation levels.
+        /// In Light mode the shadow is a soft slate tint at low opacity so
+        /// cards lift without printing a black smudge; in Dark/Black it's
+        /// pure black, deeper for OLED.
         static func shadow(level: Int) -> (color: Color, radius: CGFloat, y: CGFloat) {
+            let palette = AppTheme.palette
+            let geometry: (radius: CGFloat, y: CGFloat)
             switch level {
-            case 1: return (Color.black.opacity(0.2), 2, 1)
-            case 2: return (Color.black.opacity(0.3), 12, 4)
-            case 3: return (Color.black.opacity(0.4), 24, 8)
-            case 4: return (Color.black.opacity(0.5), 48, 16)
+            case 1: geometry = (2, 1)
+            case 2: geometry = (12, 4)
+            case 3: geometry = (24, 8)
+            case 4: geometry = (48, 16)
             default: return (.clear, 0, 0)
             }
+            let opacities = palette.shadowOpacities
+            let idx = max(0, min(opacities.count - 1, level - 1))
+            return (palette.shadowColor.opacity(opacities[idx]), geometry.radius, geometry.y)
         }
     }
 

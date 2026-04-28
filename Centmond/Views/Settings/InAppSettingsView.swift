@@ -12,6 +12,7 @@ struct InAppSettingsView: View {
     @AppStorage("autoOpenInspector") private var autoOpenInspector = true
     @AppStorage("tableDensity") private var tableDensity = "default"
     @AppStorage("sidebarIconOnly") private var sidebarIconOnly = false
+    @AppStorage(ThemeStorage.key) private var appearanceTheme: String = ThemeMode.dark.rawValue
 
     @Environment(AppRouter.self) private var router
 
@@ -992,7 +993,7 @@ struct InAppSettingsView: View {
         .padding(CentmondTheme.Spacing.xxxl)
         .frame(width: 380, height: 280)
         .background(CentmondTheme.Colors.bgSecondary)
-        .preferredColorScheme(.dark)
+        .themedColorScheme()
     }
 
     private func savePasscode() {
@@ -1495,11 +1496,13 @@ struct InAppSettingsView: View {
                 help: "Show only icons to reclaim horizontal space.",
                 isOn: $sidebarIconOnly
             )
-            SettingsRow.status(
-                "Color scheme",
-                systemImage: "moon.fill",
-                help: "Centmond is dark-only today. Light mode is planned for a later release.",
-                value: "Dark"
+            SettingsRow.picker(
+                "Appearance",
+                systemImage: "circle.lefthalf.filled",
+                help: "Light is a soft warm canvas; Dark is the signature off-black; Black is pure #000 for OLED panels.",
+                selection: $appearanceTheme,
+                options: ThemeMode.allCases.map { ($0.rawValue, $0.label) },
+                width: 150
             )
         }
     }
