@@ -130,7 +130,8 @@ struct ForecastingView: View {
             }
             .padding(CentmondTheme.Spacing.xxl)
         }
-        .onAppear { rebuildSnapshot() }
+        // .task (not .onAppear) so tab-switch paints first, then work runs
+        .task { rebuildSnapshot() }
         // Collapsed from 7 modifiers. Same fix as DashboardView/BudgetView:
         // each `.map(\.amount)` allocated a [Decimal] of every row on every
         // body render. Single Equatable struct + per-query reduces drops the

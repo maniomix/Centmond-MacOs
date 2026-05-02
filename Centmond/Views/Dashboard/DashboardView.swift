@@ -133,7 +133,12 @@ struct DashboardView: View {
             .padding(CentmondTheme.Spacing.lg)
         }
         .background(CentmondTheme.Colors.bgPrimary)
-        .onAppear {
+        // `.task` instead of `.onAppear` so the tab-switch animation can
+        // complete BEFORE rebuildSnapshot runs. The work is still on the
+        // main actor (View is MainActor), but the task body fires after
+        // the view first appears — main thread paints the new tab, then
+        // does the work. Tab activation feels instant; content fills in.
+        .task {
             rebuildSnapshot()
             AIInsightEngine.shared.refresh(context: modelContext)
         }

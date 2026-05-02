@@ -221,7 +221,8 @@ struct BudgetView: View {
                 Text("This will delete this category.")
             }
         }
-        .onAppear { rebuildSnapshot() }
+        // .task (not .onAppear) so tab-switch paints first, then work runs
+        .task { rebuildSnapshot() }
         // Collapsed from 5 modifiers. Same fix as DashboardView: each
         // `.map(\.amount)` allocated a fresh [Decimal] of all rows on every
         // body render and SwiftUI ran array equality. The struct below is

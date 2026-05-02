@@ -689,6 +689,8 @@ struct TransactionsView: View {
                                 // without having to hover each one first.
                                 hasAnySelection: !selectedTransactions.isEmpty,
                                 categories: categories,
+                                rowAccounts: accounts,
+                                rowMembers: members,
                                 onSelect: {
                                     // Click-to-inspect switches to click-to-toggle
                                     // while selection mode is active. Mirrors Finder /
@@ -1006,8 +1008,6 @@ enum TransactionSortOrder {
 
 struct TransactionRowView: View {
     @Environment(AppRouter.self) private var router
-    @Query(sort: \Account.sortOrder) private var rowAccounts: [Account]
-    @Query(sort: \HouseholdMember.joinedAt) private var rowMembers: [HouseholdMember]
 
     let transaction: Transaction
     let isSelected: Bool
@@ -1016,6 +1016,14 @@ struct TransactionRowView: View {
     /// row's checkbox stays visible so adding more is a single click away.
     var hasAnySelection: Bool = false
     let categories: [BudgetCategory]
+    /// Hoisted from per-row `@Query` observers. With 100+ rows the previous
+    /// form created 100 separate SwiftData query subscriptions per list —
+    /// every account/member mutation fired all of them, and instantiating
+    /// new row views (scroll / tab activation) opened fresh observers each
+    /// time. The parent view already holds the same queries; we pass them
+    /// down so a single observer covers the whole list.
+    let rowAccounts: [Account]
+    let rowMembers: [HouseholdMember]
     var onSelect: () -> Void
     var onToggleSelect: (Bool) -> Void
     var onDelete: () -> Void

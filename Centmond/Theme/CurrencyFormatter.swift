@@ -15,15 +15,47 @@ enum CurrencyFormat {
         UserDefaults.standard.string(forKey: "defaultCurrency") ?? "USD"
     }
 
-    /// Matching currency symbol for the abbreviated K/M formatter.
-    /// NumberFormatter resolves this per locale; we build one on
-    /// demand rather than caching so a live currency change takes
-    /// effect immediately.
-    static var currentCurrencySymbol: String {
+    // MARK: - Formatter cache
+    //
+    // Was: every call allocated a fresh NumberFormatter (~kB allocation +
+    // ICU machinery). Transactions list with 100+ rows + every chart axis
+    // tick + dashboard cards calling these per render = thousands of
+    // formatter allocations per scroll tick. We now cache one formatter
+    // per (style, currencyCode, localeIdentifier) tuple. Main-thread only.
+    private struct CacheKey: Hashable {
+        let style: Style
+        let code: String
+        let localeID: String
+        enum Style { case standard, compact, symbolOnly }
+    }
+    private static var formatterCache: [CacheKey: NumberFormatter] = [:]
+
+    private static func cachedFormatter(_ style: CacheKey.Style, code: String) -> NumberFormatter {
+        let locale = Locale.current
+        let key = CacheKey(style: style, code: code, localeID: locale.identifier)
+        if let f = formatterCache[key] { return f }
         let f = NumberFormatter()
         f.numberStyle = .currency
-        f.currencyCode = currentCurrencyCode
-        return f.currencySymbol ?? "$"
+        f.currencyCode = code
+        f.locale = locale
+        switch style {
+        case .standard:
+            f.maximumFractionDigits = 2
+            f.minimumFractionDigits = 2
+        case .compact:
+            f.maximumFractionDigits = 0
+        case .symbolOnly:
+            break
+        }
+        formatterCache[key] = f
+        return f
+    }
+
+    /// Matching currency symbol for the abbreviated K/M formatter. Cached —
+    /// previously allocated a fresh NumberFormatter on every call (and was
+    /// called from `.abbreviated`, hit per chart axis label).
+    static var currentCurrencySymbol: String {
+        cachedFormatter(.symbolOnly, code: currentCurrencyCode).currencySymbol ?? "$"
     }
 
     // MARK: - Standard (with cents): $1,234.56
@@ -31,9 +63,7 @@ enum CurrencyFormat {
     /// Format a Decimal amount with cents. Used for individual transaction amounts,
     /// account balances, and anywhere precision matters.
     static func standard(_ value: Decimal, currencyCode: String? = nil) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currencyCode ?? currentCurrencyCode
+        let code = currencyCode ?? currentCurrencyCode
         // Locale.current so number grouping/decimal separators follow the
         // user's system (e.g. "1.234,56 €" in de_DE, "1,234.56" in en_US).
         // The currency CODE still comes from the app's defaultCurrency
@@ -41,9 +71,7 @@ enum CurrencyFormat {
         // Phase 7 polish (2026-04-24): pre-release formatter was hardcoded
         // en_US which gave non-US users a hybrid (their currency code but
         // US separators). Fix opts into real locale-aware formatting.
-        formatter.locale = Locale.current
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 2
+        let formatter = cachedFormatter(.standard, code: code)
         return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0.00"
     }
 
@@ -52,11 +80,7 @@ enum CurrencyFormat {
     /// Format a Decimal amount without cents. Used for summaries, totals,
     /// chart labels, and aggregated values where cents are noise.
     static func compact(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currentCurrencyCode
-        formatter.locale = Locale.current  // see note on `standard` above
-        formatter.maximumFractionDigits = 0
+        let formatter = cachedFormatter(.compact, code: currentCurrencyCode)
         return formatter.string(from: value as NSDecimalNumber) ?? "\(currentCurrencySymbol)0"
     }
 

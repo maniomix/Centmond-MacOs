@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Grid card for a single Subscription. Designed to stay equal-height across
 /// a row by pinning the structure: icon row (fixed), name/cadence row (fixed),
@@ -19,23 +20,38 @@ struct SubscriptionCard: View {
     var onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-                headerRow
-                nameRow
-                sparklineRow
-                badgeRow
-                Spacer(minLength: 0)
-                amountRow
-            }
-            .padding(CentmondTheme.Spacing.lg)
-            .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
-            .background(cardBackground)
-            .overlay(cardBorder)
-            .contentShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
-            .opacity(cardOpacity)
+        // Guard against tombstoned SwiftData models. When a
+        // Subscription is deleted (e.g. by the cloud-prune step
+        // running after iOS deletes a sub on the other device),
+        // there's a frame where the @Query parent view's body
+        // still holds a reference to the now-detached instance.
+        // Reading any persisted attribute on it (.status, .amount,
+        // .serviceName, …) faults with "This backing data was
+        // detached from a context without resolving attribute
+        // faults." Render nothing for that frame; @Query will
+        // republish on the next runloop and the row drops out.
+        if subscription.modelContext == nil || subscription.isDeleted {
+            return AnyView(EmptyView())
         }
-        .buttonStyle(.plain)
+        return AnyView(
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+                    headerRow
+                    nameRow
+                    sparklineRow
+                    badgeRow
+                    Spacer(minLength: 0)
+                    amountRow
+                }
+                .padding(CentmondTheme.Spacing.lg)
+                .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+                .background(cardBackground)
+                .overlay(cardBorder)
+                .contentShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.lg, style: .continuous))
+                .opacity(cardOpacity)
+            }
+            .buttonStyle(.plain)
+        )
     }
 
     // MARK: - Rows
@@ -87,12 +103,19 @@ struct SubscriptionCard: View {
     }
 
     private var badgeRow: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(visibleBadges.enumerated()), id: \.offset) { _, badge in
+        // `allBadges` traverses the SwiftData `charges` and `priceHistory`
+        // relationships (each access can fault). Was computed three times
+        // per body render via `visibleBadges` (prefix) + `overflowBadgeCount`
+        // (count) + the original `allBadges`. Compute once, slice locally.
+        let badges = allBadges
+        let visible = Array(badges.prefix(3))
+        let overflow = max(0, badges.count - 3)
+        return HStack(spacing: 6) {
+            ForEach(Array(visible.enumerated()), id: \.offset) { _, badge in
                 badgeChip(badge)
             }
-            if overflowBadgeCount > 0 {
-                Text("+\(overflowBadgeCount)")
+            if overflow > 0 {
+                Text("+\(overflow)")
                     .font(CentmondTheme.Typography.micro.weight(.semibold).monospacedDigit())
                     .foregroundStyle(CentmondTheme.Colors.textTertiary)
                     .padding(.horizontal, 5)
