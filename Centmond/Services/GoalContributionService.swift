@@ -68,6 +68,11 @@ enum GoalContributionService {
         return matches.reduce(Decimal.zero) { $0 + $1.amount }
     }
 
+    /// 1-entry cache for the dashboard cash-flow tooltip, which calls this
+    /// function on every hover frame (~60 Hz). Without the cache each hover
+    /// frame triggered TWO unbounded SwiftData fetches.
+    private static var lastIncomeAllocation: (day: Date, value: Decimal, stamp: Date)?
+
     /// Sum of contributions whose source transaction is an income transaction
     /// dated on the given calendar day. Used by the dashboard tooltip.
     static func totalAllocatedFromIncome(on day: Date, context: ModelContext) -> Decimal {
@@ -76,19 +81,43 @@ enum GoalContributionService {
               let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else {
             return 0
         }
+
+        // Hover cache — keyed by dayStart with a 1s TTL. Sits inside a single
+        // hover session (chart hover stays on one day, fires onContinuousHover
+        // at ~60 Hz). Pan to a different day → miss + refetch. Mutate goals
+        // mid-hover → tooltip stays stale up to 1s, an acceptable tradeoff
+        // versus paying two SwiftData fetches per frame.
+        if let last = lastIncomeAllocation,
+           last.day == dayStart,
+           Date().timeIntervalSince(last.stamp) < 1.0 {
+            return last.value
+        }
+
         let txDescriptor = FetchDescriptor<Transaction>(
             predicate: #Predicate {
                 $0.isIncome && !$0.isTransfer && $0.date >= dayStart && $0.date < dayEnd
             }
         )
-        guard let txs = try? context.fetch(txDescriptor), !txs.isEmpty else { return 0 }
+        guard let txs = try? context.fetch(txDescriptor), !txs.isEmpty else {
+            lastIncomeAllocation = (dayStart, 0, Date())
+            return 0
+        }
         let txIDs = Set(txs.map { $0.id })
+        // SwiftData `#Predicate` only allows a single expression, so a
+        // proper `txIDs.contains(c.sourceTransactionID!)` scope isn't
+        // expressible here. Fetch all and filter in-memory — the hover
+        // cache above means this only runs on day-change, not per frame.
         let allDescriptor = FetchDescriptor<GoalContribution>()
-        guard let all = try? context.fetch(allDescriptor) else { return 0 }
-        return all.reduce(Decimal.zero) { acc, c in
+        guard let all = try? context.fetch(allDescriptor) else {
+            lastIncomeAllocation = (dayStart, 0, Date())
+            return 0
+        }
+        let result = all.reduce(Decimal.zero) { acc, c in
             guard let src = c.sourceTransactionID, txIDs.contains(src) else { return acc }
             return acc + c.amount
         }
+        lastIncomeAllocation = (dayStart, result, Date())
+        return result
     }
 
     // MARK: - Integrity

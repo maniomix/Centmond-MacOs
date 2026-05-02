@@ -76,7 +76,10 @@ struct TransactionsView: View {
     private var groupedTransactions: [(date: Date, transactions: [Transaction])] { snapshot.grouped }
 
     private func rebuildSnapshot() {
-        let query = searchText.lowercased()
+        // Trimmed search; passed to `range(of:options:.caseInsensitive)` so
+        // we don't allocate two new lowercased Strings per field per row.
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasQuery = !query.isEmpty
         let acctID = selectedAccountFilter?.id
         let catID = selectedCategoryFilter?.id
         let tagID = selectedTagFilter?.id
@@ -93,6 +96,11 @@ struct TransactionsView: View {
         }()
 
         var result: [Transaction] = []
+        // Tab counts must reflect the SAME scope as the visible list
+        // (search + account + category + tag + member + date range), only
+        // omitting the income/expense tab filter itself. Otherwise the user
+        // sees "All 1082" alongside "0 transactions" — the counts double as
+        // a sanity check on what's filtered out, so they have to match.
         var incomeCountAll = 0
         var expenseCountAll = 0
         var totIn: Decimal = 0
@@ -101,21 +109,15 @@ struct TransactionsView: View {
 
         for tx in transactions {
             if tx.isDeleted || tx.modelContext == nil { continue }
-            if tx.isIncome { incomeCountAll += 1 } else { expenseCountAll += 1 }
 
-            if !query.isEmpty {
-                let payee = tx.payee.lowercased().contains(query)
-                let cat = tx.category?.name.lowercased().contains(query) ?? false
-                let notes = tx.notes?.lowercased().contains(query) ?? false
-                let acct = tx.account?.name.lowercased().contains(query) ?? false
-                let tagMatch = tx.tags.contains { $0.name.lowercased().contains(query) }
-                if !(payee || cat || notes || acct || tagMatch) { continue }
-            }
-
-            switch typeFilter {
-            case .all: break
-            case .income: if !tx.isIncome { continue }
-            case .expense: if tx.isIncome { continue }
+            if hasQuery {
+                let opts: String.CompareOptions = .caseInsensitive
+                let payee = tx.payee.range(of: query, options: opts) != nil
+                let cat = tx.category?.name.range(of: query, options: opts) != nil
+                let notes = tx.notes?.range(of: query, options: opts) != nil
+                let acct = tx.account?.name.range(of: query, options: opts) != nil
+                let tagMatch = tx.tags.contains { $0.name.range(of: query, options: opts) != nil }
+                if !(payee || (cat ?? false) || (notes ?? false) || (acct ?? false) || tagMatch) { continue }
             }
 
             if let acctID, tx.account?.id != acctID { continue }
@@ -125,6 +127,16 @@ struct TransactionsView: View {
 
             if let s = rangeStart, tx.date < s { continue }
             if let e = rangeEnd, tx.date >= e { continue }
+
+            // tx now passes every filter except possibly the type tab —
+            // count it for the tab badges before applying that final gate.
+            if tx.isIncome { incomeCountAll += 1 } else { expenseCountAll += 1 }
+
+            switch typeFilter {
+            case .all: break
+            case .income: if !tx.isIncome { continue }
+            case .expense: if tx.isIncome { continue }
+            }
 
             result.append(tx)
             if tx.isIncome { totIn += tx.amount } else { totEx += tx.amount }
@@ -196,10 +208,14 @@ struct TransactionsView: View {
     /// Bundled so the body's modifier chain stays short (12 individual
     /// .onChange blew the SwiftUI type-checker).
     private var snapshotKey: String {
-        // Hash amount array (not just count) so in-place amount edits
-        // also trigger a rebuild. [Decimal] is Hashable.
-        let txHash = transactions.map(\.amount).hashValue
-        return "\(transactions.count):\(txHash)|\(searchText)|\(typeFilter.rawValue)|\(selectedAccountFilter?.id.uuidString ?? "-")|\(selectedCategoryFilter?.id.uuidString ?? "-")|\(selectedTagFilter?.id.uuidString ?? "-")|\(dateRange.rawValue)|\(customStart.timeIntervalSince1970)|\(customEnd.timeIntervalSince1970)|\(router.selectedMemberID?.uuidString ?? "-")|\(router.selectedMonthStart.timeIntervalSince1970)"
+        // Sum amounts (Decimal scalar) instead of `map(\.amount).hashValue`
+        // — the old form allocated a fresh [Decimal] of every transaction
+        // on every body re-eval (SwiftUI reads this key on every render to
+        // decide whether `.task(id:)` should re-run). Sum still detects
+        // in-place amount edits because changing any row's amount changes
+        // the total, just without the per-render allocation.
+        let txSum = transactions.reduce(Decimal.zero) { $0 + $1.amount }
+        return "\(transactions.count):\(txSum)|\(searchText)|\(typeFilter.rawValue)|\(selectedAccountFilter?.id.uuidString ?? "-")|\(selectedCategoryFilter?.id.uuidString ?? "-")|\(selectedTagFilter?.id.uuidString ?? "-")|\(dateRange.rawValue)|\(customStart.timeIntervalSince1970)|\(customEnd.timeIntervalSince1970)|\(router.selectedMemberID?.uuidString ?? "-")|\(router.selectedMonthStart.timeIntervalSince1970)"
     }
 
     // MARK: - Filter Bar
@@ -351,7 +367,9 @@ struct TransactionsView: View {
 
                 Spacer()
 
-                let activeMembers = members.filter(\.isActive)
+                let activeMembers = members
+                    .filter { $0.modelContext != nil && !$0.isDeleted }
+                    .filter(\.isActive)
                 if !activeMembers.isEmpty {
                     Divider()
                         .frame(height: 18)
@@ -1193,7 +1211,9 @@ struct TransactionRowView: View {
                           systemImage: "rectangle.split.3x1")
                 }
 
-                if !rowMembers.filter(\.isActive).isEmpty {
+                if !rowMembers
+                    .filter({ $0.modelContext != nil && !$0.isDeleted })
+                    .filter(\.isActive).isEmpty {
                     Button {
                         router.showSheet(.shareTransaction(transaction))
                     } label: {
@@ -1233,7 +1253,9 @@ struct TransactionRowView: View {
                 }
             }
 
-            let activeMembers = rowMembers.filter(\.isActive)
+            let activeMembers = rowMembers
+                .filter { $0.modelContext != nil && !$0.isDeleted }
+                .filter(\.isActive)
             if !activeMembers.isEmpty {
                 Menu("Assign To") {
                     Button("Unassigned") {

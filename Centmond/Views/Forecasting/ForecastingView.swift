@@ -131,13 +131,43 @@ struct ForecastingView: View {
             .padding(CentmondTheme.Spacing.xxl)
         }
         .onAppear { rebuildSnapshot() }
-        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: subscriptions.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: recurringItems.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: accounts.map(\.currentBalance)) { _, _ in rebuildSnapshot() }
-        .onChange(of: goals.count) { _, _ in rebuildSnapshot() }
-        .onChange(of: forecastDays) { _, _ in rebuildSnapshot() }
-        .onChange(of: scenario) { _, _ in rebuildSnapshot() }
+        // Collapsed from 7 modifiers. Same fix as DashboardView/BudgetView:
+        // each `.map(\.amount)` allocated a [Decimal] of every row on every
+        // body render. Single Equatable struct + per-query reduces drops the
+        // allocations and replaces array equality with O(1) struct equality.
+        // ForecastEngine.build is unchanged — gating happens here so it only
+        // re-runs when its inputs would actually produce a different result.
+        .onChange(of: forecastChangeKey) { _, _ in rebuildSnapshot() }
+    }
+
+    private struct ForecastChangeKey: Equatable {
+        var txCount: Int
+        var txAmountSum: Decimal
+        var subCount: Int
+        var subAmountSum: Decimal
+        var recurringCount: Int
+        var recurringAmountSum: Decimal
+        var accountCount: Int
+        var accountBalanceSum: Decimal
+        var goalCount: Int
+        var forecastDays: Int
+        var scenario: ForecastEngine.Scenario
+    }
+
+    private var forecastChangeKey: ForecastChangeKey {
+        ForecastChangeKey(
+            txCount: transactions.count,
+            txAmountSum: transactions.reduce(Decimal.zero) { $0 + $1.amount },
+            subCount: subscriptions.count,
+            subAmountSum: subscriptions.reduce(Decimal.zero) { $0 + $1.amount },
+            recurringCount: recurringItems.count,
+            recurringAmountSum: recurringItems.reduce(Decimal.zero) { $0 + $1.amount },
+            accountCount: accounts.count,
+            accountBalanceSum: accounts.reduce(Decimal.zero) { $0 + $1.currentBalance },
+            goalCount: goals.count,
+            forecastDays: forecastDays,
+            scenario: scenario
+        )
     }
 
     // MARK: - Monthly Breakdown Cards

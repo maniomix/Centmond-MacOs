@@ -61,20 +61,53 @@ struct DashboardView: View {
 
     // MARK: - Computed Data
 
+    private var liveAccounts: [Account] {
+        accounts.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveAllGoals: [Goal] {
+        allGoals.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
     private var goals: [Goal] {
-        allGoals.filter { $0.status == .active }
+        liveAllGoals.filter { $0.status == .active }
     }
 
     private var totalBalance: Decimal {
-        accounts.reduce(0) { $0 + $1.currentBalance }
+        liveAccounts.reduce(0) { $0 + $1.currentBalance }
     }
 
     // Snapshot-backed accessors. All heavy filtering is done once per
     // data change in `rebuildSnapshot()`; body reads stay O(1).
     private var monthlySpending: Decimal { snapshot.monthlySpending }
     private var monthlyIncome: Decimal { snapshot.monthlyIncome }
-    private var safeToSpend: Decimal { snapshot.monthlyIncome - snapshot.monthlySpending }
+    /// Discretionary money left after this month's committed obligations
+    /// (upcoming subscriptions due in the selected month). Differs from
+    /// `Remaining` (= budget − spent) by the amount already earmarked for
+    /// recurring bills the user hasn't been charged for yet.
+    private var safeToSpend: Decimal {
+        max(0, snapshot.totalBudgeted - snapshot.monthlySpending - snapshot.subscriptionsCost)
+    }
     private var recentTransactions: [Transaction] { snapshot.recentTransactions }
+
+    /// Tombstone-safe @Query views for body-scope reads (.onChange,
+    /// .isEmpty, etc.). Mapping a persisted attribute over a
+    /// detached SwiftData @Model faults; cloud-prune deletes leave
+    /// such tombstones in the @Query array for one frame.
+    private var liveTransactions: [Transaction] {
+        transactions.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveCategoriesQuery: [BudgetCategory] {
+        categories.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveSubscriptionsQuery: [Subscription] {
+        subscriptions.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveMonthlyBudgetsQuery: [MonthlyBudget] {
+        monthlyBudgets.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveTotalBudgetsQuery: [MonthlyTotalBudget] {
+        totalBudgets.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
     private var subscriptionsDueInSelectedMonth: [Subscription] { snapshot.subscriptionsDue }
     private var subscriptionsCostForMonth: Decimal { snapshot.subscriptionsCost }
     private var totalBudgeted: Decimal { snapshot.totalBudgeted }
@@ -104,17 +137,51 @@ struct DashboardView: View {
             rebuildSnapshot()
             AIInsightEngine.shared.refresh(context: modelContext)
         }
-        // NOTE: we map(\.amount) instead of just .count so that IN-PLACE
-        // edits to a transaction's amount (same count) still trigger a
-        // rebuild. Mapping a UUID or count misses this. [Decimal] is
-        // Equatable so .onChange works natively.
-        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: subscriptions.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: categories.map(\.budgetAmount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: monthlyBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: totalBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: allGoals.count) { _, _ in rebuildSnapshot() }
-        .onChange(of: router.selectedMonthStart) { _, _ in rebuildSnapshot() }
+        // Collapsed from 7 modifiers. The previous form did `liveX.map(\.amount)`
+        // for five queries on every body render — each map allocated a fresh
+        // [Decimal] of all rows and SwiftUI then ran array equality, so
+        // typing/scrolling triggered ~5×O(n) work + allocations. The struct
+        // below is Equatable in O(1) (six Ints + five Decimals); the per-query
+        // reduce is the same O(n) the old map already paid, minus the array
+        // allocation. In-place amount edits still trip the sum, same as before.
+        .onChange(of: snapshotChangeKey) { _, _ in rebuildSnapshot() }
+    }
+
+    private struct DashboardChangeKey: Equatable {
+        var txCount: Int
+        var txAmountSum: Decimal
+        var subCount: Int
+        var subAmountSum: Decimal
+        var catCount: Int
+        var catBudgetSum: Decimal
+        var monthlyBudgetCount: Int
+        var monthlyBudgetSum: Decimal
+        var totalBudgetCount: Int
+        var totalBudgetSum: Decimal
+        var goalCount: Int
+        var monthStart: Date
+    }
+
+    private var snapshotChangeKey: DashboardChangeKey {
+        let tx = liveTransactions
+        let subs = liveSubscriptionsQuery
+        let cats = liveCategoriesQuery
+        let mb = liveMonthlyBudgetsQuery
+        let tb = liveTotalBudgetsQuery
+        return DashboardChangeKey(
+            txCount: tx.count,
+            txAmountSum: tx.reduce(Decimal.zero) { $0 + $1.amount },
+            subCount: subs.count,
+            subAmountSum: subs.reduce(Decimal.zero) { $0 + $1.amount },
+            catCount: cats.count,
+            catBudgetSum: cats.reduce(Decimal.zero) { $0 + $1.budgetAmount },
+            monthlyBudgetCount: mb.count,
+            monthlyBudgetSum: mb.reduce(Decimal.zero) { $0 + $1.amount },
+            totalBudgetCount: tb.count,
+            totalBudgetSum: tb.reduce(Decimal.zero) { $0 + $1.amount },
+            goalCount: allGoals.count,
+            monthStart: router.selectedMonthStart
+        )
     }
 
     // MARK: - AI Quick Access
@@ -276,7 +343,7 @@ struct DashboardView: View {
 
                 if snapshot.transactionsIsEmpty {
                     emptyChartPlaceholder("Add transactions to see cash flow")
-                        .frame(minHeight: 200)
+                        .frame(height: 340)
                         .transition(.opacity)
                 } else {
                     // Hover state is OWNED by this sub-view — parent dashboard
@@ -285,7 +352,7 @@ struct DashboardView: View {
                         chartStyle: chartStyle,
                         dailyData: snapshot.dailyData
                     )
-                    .frame(minHeight: 200)
+                    .frame(height: 340)
                     .transition(.opacity)
                     .animation(CentmondTheme.Motion.layout, value: chartStyle)
                 }
@@ -499,7 +566,7 @@ struct DashboardView: View {
                 }
 
 
-                if categories.isEmpty && snapshot.totalBudgeted == 0 {
+                if liveCategoriesQuery.isEmpty && snapshot.totalBudgeted == 0 {
                     VStack(spacing: CentmondTheme.Spacing.md) {
                         Image(systemName: "chart.pie")
                             .font(.system(size: 28, weight: .light))
@@ -754,7 +821,7 @@ struct DashboardView: View {
                     .help("View all accounts")
                 }
 
-                if accounts.isEmpty {
+                if liveAccounts.isEmpty {
                     VStack(spacing: CentmondTheme.Spacing.sm) {
                         Image(systemName: "building.columns")
                             .font(.system(size: 24, weight: .light))
@@ -778,7 +845,7 @@ struct DashboardView: View {
                     .padding(.vertical, CentmondTheme.Spacing.md)
                 } else {
                     VStack(spacing: CentmondTheme.Spacing.sm) {
-                        ForEach(accounts.prefix(4)) { account in
+                        ForEach(Array(liveAccounts.prefix(4))) { account in
                             HStack(spacing: CentmondTheme.Spacing.md) {
                                 Image(systemName: account.type.iconName)
                                     .font(CentmondTheme.Typography.body)
@@ -823,7 +890,7 @@ struct DashboardView: View {
                         }
                     }
 
-                    if accounts.count > 1 {
+                    if liveAccounts.count > 1 {
                         Divider().background(CentmondTheme.Colors.strokeSubtle)
 
                         HStack {
@@ -979,7 +1046,7 @@ struct DashboardView: View {
             func body(content: Content) -> some View {
                 content
                     .chartPlotStyle { plot in
-                        plot.frame(minHeight: 160).padding(.horizontal, 4).clipped()
+                        plot.frame(minHeight: 280).padding(.horizontal, 4).clipped()
                     }
                     .chartYAxis {
                         AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
@@ -1232,9 +1299,16 @@ struct DashboardView: View {
         let calendar = Calendar.current
         let palette = CentmondTheme.Colors.chartPalette
 
-        // Single safe-transaction pass — kill detached/deleted objects once.
+        // Tombstone-safe @Query views. Any persisted attribute read
+        // on a deleted SwiftData @Model faults; cloud-prune deletes
+        // (when iOS removes a row) leave detached instances in
+        // @Query arrays for one frame before SwiftUI re-publishes.
         let live = transactions.filter { !$0.isDeleted && $0.modelContext != nil }
         let liveEmpty = live.isEmpty
+        let liveSubs = subscriptions.filter { !$0.isDeleted && $0.modelContext != nil }
+        let liveCats = categories.filter { !$0.isDeleted && $0.modelContext != nil }
+        let liveMonthlyBudgets = monthlyBudgets.filter { !$0.isDeleted && $0.modelContext != nil }
+        let liveTotalBudgets = totalBudgets.filter { !$0.isDeleted && $0.modelContext != nil }
 
         // Walk the array ONCE, bucketing into all the slices we need.
         var monthExpenses: [Transaction] = []
@@ -1276,7 +1350,7 @@ struct DashboardView: View {
         var subsDue: [Subscription] = []
         var subsCost: Decimal = 0
         var activeSubsCost: Decimal = 0
-        for sub in subscriptions where sub.status == .active {
+        for sub in liveSubs where sub.status == .active {
             activeSubsCost += sub.monthlyCost
             if sub.billingCycle.occursInMonth(anchorDate: sub.nextPaymentDate, monthStart: start, monthEnd: end) {
                 subsDue.append(sub)
@@ -1287,18 +1361,18 @@ struct DashboardView: View {
         // Budgets
         let year = calendar.component(.year, from: router.selectedMonth)
         let monthNum = calendar.component(.month, from: router.selectedMonth)
-        let totalBudgetAmt = totalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
+        let totalBudgetAmt = liveTotalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
         func budget(for cat: BudgetCategory) -> Decimal {
-            monthlyBudgets.first(where: {
+            liveMonthlyBudgets.first(where: {
                 $0.categoryID == cat.id && $0.year == year && $0.month == monthNum
             })?.amount ?? cat.budgetAmount
         }
         let totalBudgeted: Decimal = {
             if totalBudgetAmt > 0 { return totalBudgetAmt }
-            return categories.reduce(0) { $0 + budget(for: $1) }
+            return liveCats.reduce(0) { $0 + budget(for: $1) }
         }()
 
-        let rows: [BudgetRow] = categories
+        let rows: [BudgetRow] = liveCats
             .map { BudgetRow(category: $0, spent: spentByCatID[$0.id] ?? 0, budget: budget(for: $0)) }
             .filter { $0.budget > 0 }
             .sorted { $0.spent > $1.spent }
@@ -1357,7 +1431,8 @@ struct DashboardView: View {
         let calendar = Calendar.current
         let endOfMonth = calendar.date(byAdding: DateComponents(month: 1, day: -1),
                                        to: router.selectedMonthStart)!
-        return max(0, calendar.dateComponents([.day], from: Date.now, to: endOfMonth).day ?? 0)
+        let raw = calendar.dateComponents([.day], from: Date.now, to: endOfMonth).day ?? 0
+        return max(0, raw + 1)
     }
 
     // MARK: - SpendingBreakdownCard (nested)

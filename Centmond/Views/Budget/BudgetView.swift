@@ -12,6 +12,23 @@ struct BudgetView: View {
     @State private var showDeleteConfirmation = false
     @State private var categoryToDelete: BudgetCategory?
 
+    /// Tombstone-safe views of the @Query arrays. Cloud-prune deletes
+    /// (when iOS removes a category / budget) leave detached SwiftData
+    /// instances in the @Query results for one frame; reading any
+    /// persisted attribute on them faults. Use these everywhere.
+    private var liveCategories: [BudgetCategory] {
+        categories.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveTransactions: [Transaction] {
+        transactions.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveMonthlyBudgets: [MonthlyBudget] {
+        monthlyBudgets.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveTotalBudgets: [MonthlyTotalBudget] {
+        totalBudgets.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
     // MARK: - Snapshot cache
     //
     // Pattern mirrors DashboardSnapshot: body was re-filtering monthly
@@ -70,7 +87,7 @@ struct BudgetView: View {
         var uncatSpent: Decimal = 0
         var uncatCount = 0
         var txsEmpty = true
-        for tx in transactions {
+        for tx in liveTransactions {
             guard !tx.isIncome, tx.date >= monthStart, tx.date < monthEnd else { continue }
             txsEmpty = false
             totalSpent += tx.amount
@@ -85,19 +102,23 @@ struct BudgetView: View {
             }
         }
 
-        // Budget lookups — build a dict once
+        // Budget lookups — build a dict once.
+        // Was O(N²): inner `.first(where:)` walked all monthly budgets for each
+        // category. Pre-bucket the (year, month) overrides into a dict so the
+        // inner lookup drops to O(1).
+        var overrideByCatID: [UUID: Decimal] = [:]
+        for mb in liveMonthlyBudgets where mb.year == year && mb.month == monthNum {
+            overrideByCatID[mb.categoryID] = mb.amount
+        }
         var budgetByCat: [UUID: Decimal] = [:]
         var totalAllocated: Decimal = 0
-        for cat in categories {
-            let override = monthlyBudgets.first(where: {
-                $0.categoryID == cat.id && $0.year == year && $0.month == monthNum
-            })?.amount
-            let amt = override ?? cat.budgetAmount
+        for cat in liveCategories {
+            let amt = overrideByCatID[cat.id] ?? cat.budgetAmount
             budgetByCat[cat.id] = amt
             totalAllocated += amt
         }
 
-        let totalAmt = totalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
+        let totalAmt = liveTotalBudgets.first(where: { $0.year == year && $0.month == monthNum })?.amount ?? 0
 
         var next = BudgetSnapshot()
         next.totalBudgetAmount = totalAmt
@@ -123,7 +144,7 @@ struct BudgetView: View {
 
             Divider().background(CentmondTheme.Colors.strokeSubtle)
 
-            if categories.isEmpty && totalBudgetAmount == 0 {
+            if liveCategories.isEmpty && totalBudgetAmount == 0 {
                 EmptyStateView(
                     icon: "chart.pie",
                     heading: "No budget set up",
@@ -139,7 +160,7 @@ struct BudgetView: View {
                         mainBudgetCard
 
                         // Category allocations
-                        if !categories.isEmpty {
+                        if !liveCategories.isEmpty {
                             categorySection
                         }
 
@@ -156,6 +177,14 @@ struct BudgetView: View {
             Button("Cancel", role: .cancel) { categoryToDelete = nil }
             Button("Delete", role: .destructive) {
                 if let category = categoryToDelete {
+                    // Built-in categories (Groceries, Rent, Bills, …) are
+                    // seeded on launch and protected from delete to keep
+                    // the starter list consistent across reinstalls.
+                    guard !category.isBuiltIn else {
+                        SecureLogger.info("Refused to delete built-in category: \(category.name)")
+                        categoryToDelete = nil
+                        return
+                    }
                     if case .budgetCategory(let id) = router.inspectorContext, id == category.id {
                         router.inspectorContext = .none
                     }
@@ -193,11 +222,42 @@ struct BudgetView: View {
             }
         }
         .onAppear { rebuildSnapshot() }
-        .onChange(of: transactions.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: categories.map(\.budgetAmount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: monthlyBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: totalBudgets.map(\.amount)) { _, _ in rebuildSnapshot() }
-        .onChange(of: router.selectedMonthStart) { _, _ in rebuildSnapshot() }
+        // Collapsed from 5 modifiers. Same fix as DashboardView: each
+        // `.map(\.amount)` allocated a fresh [Decimal] of all rows on every
+        // body render and SwiftUI ran array equality. The struct below is
+        // Equatable in O(1); per-query reduces are O(n) like the old map but
+        // skip the allocation. In-place edits still trigger via the sums.
+        .onChange(of: budgetChangeKey) { _, _ in rebuildSnapshot() }
+    }
+
+    private struct BudgetChangeKey: Equatable {
+        var txCount: Int
+        var txAmountSum: Decimal
+        var catCount: Int
+        var catBudgetSum: Decimal
+        var monthlyBudgetCount: Int
+        var monthlyBudgetSum: Decimal
+        var totalBudgetCount: Int
+        var totalBudgetSum: Decimal
+        var monthStart: Date
+    }
+
+    private var budgetChangeKey: BudgetChangeKey {
+        let tx = liveTransactions
+        let cats = liveCategories
+        let mb = liveMonthlyBudgets
+        let tb = liveTotalBudgets
+        return BudgetChangeKey(
+            txCount: tx.count,
+            txAmountSum: tx.reduce(Decimal.zero) { $0 + $1.amount },
+            catCount: cats.count,
+            catBudgetSum: cats.reduce(Decimal.zero) { $0 + $1.budgetAmount },
+            monthlyBudgetCount: mb.count,
+            monthlyBudgetSum: mb.reduce(Decimal.zero) { $0 + $1.amount },
+            totalBudgetCount: tb.count,
+            totalBudgetSum: tb.reduce(Decimal.zero) { $0 + $1.amount },
+            monthStart: router.selectedMonthStart
+        )
     }
 
     // MARK: - Header Bar
@@ -503,7 +563,7 @@ struct BudgetView: View {
                 ],
                 spacing: CentmondTheme.Spacing.lg
             ) {
-                ForEach(categories) { category in
+                ForEach(liveCategories) { category in
                     let budget = effectiveBudget(for: category)
                     let share: Double = totalBudgetAmount > 0
                         ? Double(truncating: (budget / totalBudgetAmount) as NSDecimalNumber) : 0
