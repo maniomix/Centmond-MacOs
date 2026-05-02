@@ -20,12 +20,23 @@ enum ExpenseShareMethod: String, CaseIterable {
 @Model
 final class ExpenseShare {
     var id: UUID
+    /// Legacy. Pre-rebuild storage. New code reads `amountCents`. Kept so
+    /// existing call sites compile through the transition; a one-time launch
+    /// migration in P4.6 syncs `amountCents` from this when the cents field is
+    /// zero on existing rows.
     var amount: Decimal
+    /// Cents. Source of truth going forward (Household Rebuild spec §3.4).
+    /// Default 0 keeps the SwiftData migration additive; the launch migration
+    /// fills it for legacy rows.
+    var amountCents: Int = 0
     var percent: Double?
     private var statusRaw: String?
     private var methodRaw: String?
     var createdAt: Date
     var settledAt: Date?
+    /// Spec §3.4 — points to the `Settlement` (modeled here as
+    /// `HouseholdSettlement`) that closed this share.
+    var settlementId: UUID?
 
     @Relationship var parentTransaction: Transaction?
     @Relationship var member: HouseholdMember?
@@ -53,13 +64,25 @@ final class ExpenseShare {
     ) {
         self.id = UUID()
         self.amount = amount
+        // Derive cents at construction so new rows are correct without
+        // waiting for the launch migration.
+        self.amountCents = ExpenseShare.cents(from: amount)
         self.percent = percent
         self.statusRaw = status.rawValue
         self.methodRaw = method.rawValue
         self.createdAt = .now
         self.settledAt = nil
+        self.settlementId = nil
         self.parentTransaction = parentTransaction
         self.member = member
         self.settlementTransaction = nil
+    }
+
+    /// Half-even rounding to cents (spec §7.2 macOS migration rule).
+    static func cents(from decimal: Decimal) -> Int {
+        var d = decimal * 100
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &d, 0, .bankers)
+        return NSDecimalNumber(decimal: rounded).intValue
     }
 }

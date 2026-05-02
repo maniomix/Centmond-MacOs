@@ -48,6 +48,14 @@ struct CentmondApp: App {
             HouseholdGroup.self,
             HouseholdSettlement.self,
             ExpenseShare.self,
+            // Household Rebuild P4.2–P4.4 — new aggregate + invites +
+            // shared budget/goal. Schema additions are back-compat: every
+            // new attribute has a default, so SwiftData applies them as a
+            // lightweight migration on first launch of this build.
+            Household.self,
+            HouseholdInvite.self,
+            SharedBudget.self,
+            SharedGoal.self,
             Tag.self,
             SmartFolder.self,
             ChatSession.self,
@@ -73,6 +81,14 @@ struct CentmondApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environmentObject(AuthManager.shared)
+                .environmentObject(CloudClient.shared)
+                .onOpenURL { url in
+                    // OAuth (Google / Apple) redirects land here as
+                    // `centmond://auth-callback?...`. Hand off to the
+                    // AuthManager which finalizes the Supabase session.
+                    AuthManager.shared.handleOpenURL(url)
+                }
         }
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 1280, height: 800)
