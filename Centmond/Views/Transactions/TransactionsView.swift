@@ -208,14 +208,13 @@ struct TransactionsView: View {
     /// Bundled so the body's modifier chain stays short (12 individual
     /// .onChange blew the SwiftUI type-checker).
     private var snapshotKey: String {
-        // Sum amounts (Decimal scalar) instead of `map(\.amount).hashValue`
-        // — the old form allocated a fresh [Decimal] of every transaction
-        // on every body re-eval (SwiftUI reads this key on every render to
-        // decide whether `.task(id:)` should re-run). Sum still detects
-        // in-place amount edits because changing any row's amount changes
-        // the total, just without the per-render allocation.
-        let txSum = transactions.reduce(Decimal.zero) { $0 + $1.amount }
-        return "\(transactions.count):\(txSum)|\(searchText)|\(typeFilter.rawValue)|\(selectedAccountFilter?.id.uuidString ?? "-")|\(selectedCategoryFilter?.id.uuidString ?? "-")|\(selectedTagFilter?.id.uuidString ?? "-")|\(dateRange.rawValue)|\(customStart.timeIntervalSince1970)|\(customEnd.timeIntervalSince1970)|\(router.selectedMemberID?.uuidString ?? "-")|\(router.selectedMonthStart.timeIntervalSince1970)"
+        // max(updatedAt) — Date `>` is much cheaper than Decimal `+`. Same
+        // change-detection power: any in-place edit bumps updatedAt. SwiftUI
+        // reads this key on every body re-eval to decide whether .task(id:)
+        // should refire.
+        var txMax: Date = .distantPast
+        for t in transactions where t.updatedAt > txMax { txMax = t.updatedAt }
+        return "\(transactions.count):\(txMax.timeIntervalSince1970)|\(searchText)|\(typeFilter.rawValue)|\(selectedAccountFilter?.id.uuidString ?? "-")|\(selectedCategoryFilter?.id.uuidString ?? "-")|\(selectedTagFilter?.id.uuidString ?? "-")|\(dateRange.rawValue)|\(customStart.timeIntervalSince1970)|\(customEnd.timeIntervalSince1970)|\(router.selectedMemberID?.uuidString ?? "-")|\(router.selectedMonthStart.timeIntervalSince1970)"
     }
 
     // MARK: - Filter Bar

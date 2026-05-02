@@ -233,9 +233,9 @@ struct BudgetView: View {
 
     private struct BudgetChangeKey: Equatable {
         var txCount: Int
-        var txAmountSum: Decimal
+        var txMaxUpdated: Date
         var catCount: Int
-        var catBudgetSum: Decimal
+        var catMaxUpdated: Date
         var monthlyBudgetCount: Int
         var monthlyBudgetSum: Decimal
         var totalBudgetCount: Int
@@ -243,16 +243,23 @@ struct BudgetView: View {
         var monthStart: Date
     }
 
+    /// Date(updatedAt) max instead of Decimal sum — Date comparison is much
+    /// cheaper than Decimal `+` and SwiftUI re-evaluates this key on every
+    /// body render. Same in-place-edit detection power.
     private var budgetChangeKey: BudgetChangeKey {
         let tx = liveTransactions
         let cats = liveCategories
         let mb = liveMonthlyBudgets
         let tb = liveTotalBudgets
+        var txMax: Date = .distantPast
+        for t in tx where t.updatedAt > txMax { txMax = t.updatedAt }
+        var catMax: Date = .distantPast
+        for c in cats where c.updatedAt > catMax { catMax = c.updatedAt }
         return BudgetChangeKey(
             txCount: tx.count,
-            txAmountSum: tx.reduce(Decimal.zero) { $0 + $1.amount },
+            txMaxUpdated: txMax,
             catCount: cats.count,
-            catBudgetSum: cats.reduce(Decimal.zero) { $0 + $1.budgetAmount },
+            catMaxUpdated: catMax,
             monthlyBudgetCount: mb.count,
             monthlyBudgetSum: mb.reduce(Decimal.zero) { $0 + $1.amount },
             totalBudgetCount: tb.count,

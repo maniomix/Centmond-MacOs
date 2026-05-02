@@ -117,7 +117,11 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: CentmondTheme.Spacing.lg) {
+            // LazyVStack — was VStack, which eagerly rendered all 7 dashboard
+            // cards on every body re-eval even when cards were offscreen.
+            // LazyVStack defers offscreen cards entirely; only the visible
+            // ones run their bodies on each invalidation.
+            LazyVStack(spacing: CentmondTheme.Spacing.lg) {
                 SectionTutorialStrip(screen: .dashboard)
                 metricsRow
                 // Review Queue is temporarily hidden. Re-enable by
@@ -154,11 +158,11 @@ struct DashboardView: View {
 
     private struct DashboardChangeKey: Equatable {
         var txCount: Int
-        var txAmountSum: Decimal
+        var txMaxUpdated: Date
         var subCount: Int
-        var subAmountSum: Decimal
+        var subMaxUpdated: Date
         var catCount: Int
-        var catBudgetSum: Decimal
+        var catMaxUpdated: Date
         var monthlyBudgetCount: Int
         var monthlyBudgetSum: Decimal
         var totalBudgetCount: Int
@@ -167,19 +171,32 @@ struct DashboardView: View {
         var monthStart: Date
     }
 
+    /// Cheaper-than-before fingerprint of the data the dashboard depends on.
+    /// Was summing all amounts (5× O(n) Decimal addition per body re-eval —
+    /// SwiftUI evaluates `.onChange` keys on every render). Date comparison
+    /// over `updatedAt` is an order of magnitude faster than Decimal `+`,
+    /// catches the same in-place-edit case, and avoids allocations.
+    /// MonthlyBudget / MonthlyTotalBudget have no `updatedAt` field, so the
+    /// sum-based fallback stays for those (they're tiny arrays anyway).
     private var snapshotChangeKey: DashboardChangeKey {
         let tx = liveTransactions
         let subs = liveSubscriptionsQuery
         let cats = liveCategoriesQuery
         let mb = liveMonthlyBudgetsQuery
         let tb = liveTotalBudgetsQuery
+        var txMax: Date = .distantPast
+        for t in tx where t.updatedAt > txMax { txMax = t.updatedAt }
+        var subMax: Date = .distantPast
+        for s in subs where s.updatedAt > subMax { subMax = s.updatedAt }
+        var catMax: Date = .distantPast
+        for c in cats where c.updatedAt > catMax { catMax = c.updatedAt }
         return DashboardChangeKey(
             txCount: tx.count,
-            txAmountSum: tx.reduce(Decimal.zero) { $0 + $1.amount },
+            txMaxUpdated: txMax,
             subCount: subs.count,
-            subAmountSum: subs.reduce(Decimal.zero) { $0 + $1.amount },
+            subMaxUpdated: subMax,
             catCount: cats.count,
-            catBudgetSum: cats.reduce(Decimal.zero) { $0 + $1.budgetAmount },
+            catMaxUpdated: catMax,
             monthlyBudgetCount: mb.count,
             monthlyBudgetSum: mb.reduce(Decimal.zero) { $0 + $1.amount },
             totalBudgetCount: tb.count,
