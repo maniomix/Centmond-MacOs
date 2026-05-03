@@ -528,15 +528,18 @@ struct DashboardView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(transaction.payee)
                     .font(CentmondTheme.Typography.bodyMedium)
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
                     .lineLimit(1)
 
-                Text(transaction.date.formatted(.dateTime.month(.abbreviated).day()))
-                    .font(CentmondTheme.Typography.caption)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                HStack(spacing: 6) {
+                    Text(transaction.date.formatted(.dateTime.month(.abbreviated).day()))
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    OptionalCategoryPill(category: transaction.category, size: .compact, showsIcon: false)
+                }
             }
 
             Spacer()

@@ -312,10 +312,7 @@ struct TransactionInspectorView: View {
                 valueView: AnyView(
                     HStack(spacing: CentmondTheme.Spacing.xs) {
                         if let cat = tx.category {
-                            Circle().fill(Color(hex: cat.colorHex)).frame(width: 8, height: 8)
-                            Text(cat.name)
-                                .font(CentmondTheme.Typography.body)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            CategoryPill(category: cat, size: .regular, showsIcon: true)
                         } else {
                             Text("Uncategorized")
                                 .font(CentmondTheme.Typography.body)
@@ -707,17 +704,7 @@ struct TransactionInspectorView: View {
                 VStack(spacing: CentmondTheme.Spacing.xs) {
                     ForEach(tx.splits.sorted(by: { $0.sortOrder < $1.sortOrder })) { split in
                         HStack(spacing: CentmondTheme.Spacing.sm) {
-                            if let cat = split.category {
-                                Circle().fill(Color(hex: cat.colorHex)).frame(width: 8, height: 8)
-                                Text(cat.name)
-                                    .font(CentmondTheme.Typography.caption)
-                                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            } else {
-                                Circle().fill(CentmondTheme.Colors.textQuaternary).frame(width: 8, height: 8)
-                                Text("Uncategorized")
-                                    .font(CentmondTheme.Typography.caption)
-                                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                            }
+                            OptionalCategoryPill(category: split.category, size: .compact, showsIcon: true)
                             if let memo = split.memo, !memo.isEmpty {
                                 Text("· \(memo)")
                                     .font(CentmondTheme.Typography.caption)

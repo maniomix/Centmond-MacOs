@@ -197,13 +197,16 @@ struct IOSDashboardView: View {
                         Image(systemName: tx.category?.icon ?? "circle.dashed")
                             .foregroundStyle(Color(hex: tx.category?.colorHex ?? "") ?? .secondary)
                             .frame(width: 22)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(tx.payee.isEmpty ? (tx.category?.name ?? "Untitled") : tx.payee)
                                 .font(.subheadline.weight(.medium))
                                 .lineLimit(1)
-                            Text(tx.date, format: .dateTime.month(.abbreviated).day())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                Text(tx.date, format: .dateTime.month(.abbreviated).day())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                OptionalCategoryPill(category: tx.category, size: .compact, showsIcon: false)
+                            }
                         }
                         Spacer()
                         Text(currency(tx.amount))

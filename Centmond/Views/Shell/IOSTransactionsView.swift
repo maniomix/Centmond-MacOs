@@ -122,16 +122,14 @@ struct IOSTransactionsView: View {
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    if let cat = tx.category {
-                        Text(cat.name)
-                    }
+                    OptionalCategoryPill(category: tx.category, size: .compact, showsIcon: false)
                     if let acc = tx.account {
                         Text("·")
                         Text(acc.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
             Spacer()

@@ -1087,9 +1087,7 @@ struct TransactionRowView: View {
                 }
 
                 HStack(spacing: CentmondTheme.Spacing.xs) {
-                    Text(transaction.category?.name ?? "Uncategorized")
-                        .font(CentmondTheme.Typography.caption)
-                        .foregroundStyle(transaction.category != nil ? CentmondTheme.Colors.textSecondary : CentmondTheme.Colors.warning)
+                    OptionalCategoryPill(category: transaction.category, size: .compact, showsIcon: false)
 
                     if let notes = transaction.notes, !notes.isEmpty {
                         Text("·")
