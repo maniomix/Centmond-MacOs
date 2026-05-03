@@ -25,6 +25,11 @@ final class IOSAppLockController {
 
     func unlock() {
         guard !isAuthenticating else { return }
+        // Clear the previous attempt's error before we start a fresh one;
+        // otherwise a stale "Cancel" from earlier would linger as red text
+        // on the lock screen the next time the user taps Unlock.
+        lastError = nil
+
         let context = LAContext()
         // Use deviceOwnerAuthentication (not biometrics-only) so the user
         // can fall back to passcode if biometrics aren't enrolled or fail.
@@ -43,7 +48,15 @@ final class IOSAppLockController {
                     self.isUnlocked = true
                     self.lastError = nil
                 } else {
-                    self.lastError = evalError?.localizedDescription ?? "Could not authenticate"
+                    // Distinguish "user canceled" (LAError.userCancel,
+                    // LAError.appCancel, LAError.systemCancel) from real
+                    // failures — a quiet cancel shouldn't shout in red.
+                    if let la = evalError as? LAError,
+                       la.code == .userCancel || la.code == .appCancel || la.code == .systemCancel {
+                        self.lastError = nil
+                    } else {
+                        self.lastError = evalError?.localizedDescription ?? "Could not authenticate"
+                    }
                 }
             }
         }

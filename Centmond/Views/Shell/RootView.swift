@@ -20,6 +20,12 @@ struct RootView: View {
     #else
     @State private var iosLockController = IOSAppLockController()
     @Environment(\.scenePhase) private var scenePhase
+    /// Pending grace-period re-lock. We keep a handle so it can be cancelled
+    /// when the app returns to .active before the grace expires — otherwise
+    /// a Face ID prompt (which briefly backgrounds the app) schedules a lock
+    /// that fires AFTER the user successfully authenticates, flipping
+    /// isUnlocked back to false and re-prompting forever.
+    @State private var pendingLockTask: Task<Void, Never>?
     #endif
 
     /// Shown once per process launch. The animation lasts ~2.7s and then
@@ -73,17 +79,32 @@ struct RootView: View {
         .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
         #else
         .onChange(of: scenePhase) { _, phase in
-            // Re-lock when the app backgrounds. A 2-second grace skips
-            // the most common case (Face ID/passcode prompt itself
-            // briefly backgrounding the app), so the user isn't asked
-            // to authenticate twice.
-            if phase == .background && appLockEnabled {
-                Task { @MainActor in
+            // Re-lock when the app stays backgrounded. A 2-second grace
+            // skips the common Face ID / passcode prompt path — the prompt
+            // itself briefly backgrounds the app, and we cancel the pending
+            // lock as soon as the app comes back to .active (typical Face ID
+            // success completes in well under 2s). Without the cancellation
+            // the queued lock would fire AFTER unlock succeeded, flipping
+            // isUnlocked=false and re-prompting in an infinite loop.
+            guard appLockEnabled else { return }
+            switch phase {
+            case .background:
+                pendingLockTask?.cancel()
+                pendingLockTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    if scenePhase == .background {
-                        iosLockController.lock()
-                    }
+                    guard !Task.isCancelled else { return }
+                    iosLockController.lock()
                 }
+            case .active:
+                pendingLockTask?.cancel()
+                pendingLockTask = nil
+            case .inactive:
+                // Transitional — don't schedule (avoids double-scheduling
+                // when iOS goes .active → .inactive → .background) and
+                // don't cancel (we'd cancel a legitimate pending lock).
+                break
+            @unknown default:
+                break
             }
         }
         #endif
