@@ -22,15 +22,8 @@ import AppKit
 
 private let log = Logger(subsystem: "com.centmond.ai", category: "AIManager")
 
-/// Status of the AI model lifecycle.
-enum AIModelStatus: Equatable {
-    case notLoaded
-    case loading
-    case ready
-    case error(String)
-    case generating
-    case downloading(progress: Double, downloadedBytes: Int64)
-}
+// AIModelStatus moved to Centmond/AI/Core/AIModelStatus.swift so cross-platform
+// callers can reference the enum without dragging in the macOS-only AIManager.
 
 @MainActor @Observable
 final class AIManager {

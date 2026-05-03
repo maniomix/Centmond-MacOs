@@ -13,9 +13,11 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var authManager: AuthManager
 
+    #if os(macOS)
     /// Lives at the root so the same instance can be re-locked from sleep
     /// notifications and the inactivity timer inside `AppLockController`.
     @State private var lockController = AppLockController()
+    #endif
 
     /// Shown once per process launch. The animation lasts ~2.7s and then
     /// fades out to reveal the real shell.
@@ -36,13 +38,19 @@ struct RootView: View {
                     Color.clear
                 } else if !authManager.isAuthenticated {
                     AuthRouterView()
-                } else if appLockEnabled && !storedPasscode.isEmpty && !lockController.isUnlocked {
-                    LockScreenView {
-                        lockController.unlock()
-                    }
                 } else {
-                    AppShell()
-                        .onAppear { lockController.notifyUserActivity() }
+                    #if os(macOS)
+                    if appLockEnabled && !storedPasscode.isEmpty && !lockController.isUnlocked {
+                        LockScreenView {
+                            lockController.unlock()
+                        }
+                    } else {
+                        AppShell()
+                            .onAppear { lockController.notifyUserActivity() }
+                    }
+                    #else
+                    IOSAppShell()
+                    #endif
                 }
             }
 
@@ -53,8 +61,10 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: splashFinished)
+        #if os(macOS)
         .environment(lockController)
         .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
+        #endif
         // Cloud sync lifecycle. Starts when the user is authenticated +
         // local app-lock (if any) is unlocked. Stops on sign-out.
         .task(id: authManager.isAuthenticated) {

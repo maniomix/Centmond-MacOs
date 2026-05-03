@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
 extension View {
     func cardStyle() -> some View {
@@ -63,15 +65,22 @@ extension CentmondTheme {
 
     /// Read the user's Reduce Motion system preference. Non-views can't
     /// read `@Environment(\.accessibilityReduceMotion)`, so views should
-    /// prefer that. This fallback is for callers outside the SwiftUI
-    /// env — `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
+    /// prefer that. This fallback is for callers outside the SwiftUI env.
     static var prefersReducedMotion: Bool {
+        #if os(macOS)
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        #else
+        UIAccessibility.isReduceMotionEnabled
+        #endif
     }
 
     /// Read Reduce Transparency system preference from outside a view.
     static var prefersReducedTransparency: Bool {
+        #if os(macOS)
         NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+        #else
+        UIAccessibility.isReduceTransparencyEnabled
+        #endif
     }
 }
 

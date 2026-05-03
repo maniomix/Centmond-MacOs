@@ -26,13 +26,21 @@ struct SheetRouter: View {
             case .newRecurring:
                 NewRecurringSheet()
             case .importCSV:
+                #if os(macOS)
                 ImportCSVSheet()
+                #else
+                Text("CSV import coming to iOS").padding()
+                #endif
             case .splitTransaction(let transaction):
                 SplitTransactionSheet(transaction: transaction)
             case .proUpgrade:
                 ProUpgradeSheet()
             case .export:
+                #if os(macOS)
                 ExportSheet()
+                #else
+                Text("Export coming to iOS").padding()
+                #endif
             case .editAccount(let account):
                 EditAccountSheet(account: account)
             case .editGoal(let goal):

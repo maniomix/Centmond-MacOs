@@ -1,7 +1,11 @@
 import Foundation
 import Combine
 import SwiftUI
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import Supabase
 
 // ============================================================
@@ -130,7 +134,11 @@ final class AuthManager: ObservableObject {
             redirectTo: URL(string: "centmond://auth-callback")
         )
         await MainActor.run {
+            #if os(macOS)
             NSWorkspace.shared.open(url)
+            #else
+            UIApplication.shared.open(url)
+            #endif
         }
         SecureLogger.info("Started Google OAuth flow")
     }
@@ -144,7 +152,11 @@ final class AuthManager: ObservableObject {
             redirectTo: URL(string: "centmond://auth-callback")
         )
         await MainActor.run {
+            #if os(macOS)
             NSWorkspace.shared.open(url)
+            #else
+            UIApplication.shared.open(url)
+            #endif
         }
         SecureLogger.info("Started Apple OAuth flow")
     }

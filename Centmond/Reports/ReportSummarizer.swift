@@ -7,6 +7,7 @@ import Foundation
 @MainActor
 enum ReportSummarizer {
 
+    #if os(macOS)
     static func summarize(_ result: ReportResult) async throws -> String {
         let manager = AIManager.shared
 
@@ -39,6 +40,7 @@ enum ReportSummarizer {
         }
         return cleaned
     }
+    #endif
 
     // MARK: - Brief
 

@@ -448,7 +448,11 @@ struct TransactionInspectorView: View {
             // manually-edited transactions, matching the CSV import path.
             editField("Date") {
                 DatePicker("", selection: $editDate, displayedComponents: [.date, .hourAndMinute])
+                    #if os(macOS)
                     .datePickerStyle(.field)
+                    #else
+                    .datePickerStyle(.compact)
+                    #endif
                     .labelsHidden()
             }
 

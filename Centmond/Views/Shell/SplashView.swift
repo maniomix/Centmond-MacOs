@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// Launch animation: dark cosmic backdrop, orbital glow rings, and
 /// letter-by-letter reveal of the "CENTMOND" wordmark with a
@@ -33,10 +38,19 @@ struct SplashView: View {
     // MARK: - Logo
 
     private var logoImage: Image {
-        if let url = Bundle.main.url(forResource: "Logo@1440p", withExtension: "png"),
-           let ns = NSImage(contentsOf: url) {
+        guard let url = Bundle.main.url(forResource: "Logo@1440p", withExtension: "png") else {
+            return Image(systemName: "sparkles")
+        }
+        #if os(macOS)
+        if let ns = NSImage(contentsOf: url) {
             return Image(nsImage: ns)
         }
+        #else
+        if let data = try? Data(contentsOf: url),
+           let ui = UIImage(data: data) {
+            return Image(uiImage: ui)
+        }
+        #endif
         return Image(systemName: "sparkles")
     }
 

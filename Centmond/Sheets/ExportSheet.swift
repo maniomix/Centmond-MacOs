@@ -163,35 +163,5 @@ struct ExportSheet: View {
 }
 
 // MARK: - Export Types
-
-enum ExportFormat: String, CaseIterable, Identifiable {
-    case csv
-    case json
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .csv: "CSV (.csv)"
-        case .json: "JSON (.json)"
-        }
-    }
-}
-
-enum ExportDateRange: String, CaseIterable, Identifiable {
-    case thisMonth
-    case lastThreeMonths
-    case thisYear
-    case allTime
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .thisMonth: "This Month"
-        case .lastThreeMonths: "Last 3 Months"
-        case .thisYear: "This Year"
-        case .allTime: "All Time"
-        }
-    }
-}
+// Moved to Centmond/Models/ExportTypes.swift so the iOS target — which
+// excludes this whole file (NSSavePanel-heavy) — can still see the enums.

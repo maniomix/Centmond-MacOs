@@ -169,6 +169,7 @@ final class AIInsightEngine {
         // detectors' heuristic advice is already visible; this pass just
         // upgrades it. Captures a snapshot of `insights` to avoid racing
         // with a subsequent refresh.
+        #if os(macOS)
         if isInsightEnrichmentEnabled {
             let snapshot = insights
             Task { @MainActor [weak self] in
@@ -183,6 +184,7 @@ final class AIInsightEngine {
                 self.insights = enriched
             }
         }
+        #endif
     }
 
     // MARK: - Event-driven critical push (P6)

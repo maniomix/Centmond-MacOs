@@ -3,7 +3,9 @@ import SwiftData
 
 @main
 struct CentmondApp: App {
+    #if os(macOS)
     @NSApplicationDelegateAdaptor(CentmondAppDelegate.self) private var appDelegate
+    #endif
 
     /// Single shared container so the main window and the Settings scene
     /// read and write to the same SwiftData store. Previously each scene
@@ -73,9 +75,11 @@ struct CentmondApp: App {
     }()
 
     init() {
+        #if os(macOS)
         // Phase 3 — hand the shared container to the Quick Add panel
         // so its floating flow writes into the same SwiftData store.
         QuickAddContainer.shared = sharedModelContainer
+        #endif
     }
 
     var body: some Scene {
@@ -117,6 +121,7 @@ struct CentmondApp: App {
     }
 }
 
+#if os(macOS)
 /// Phase 1 — owns the menu bar status item for the app's lifetime.
 final class CentmondAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -125,4 +130,5 @@ final class CentmondAppDelegate: NSObject, NSApplicationDelegate {
         QuickAddCoordinator.shared.start()
     }
 }
+#endif
 
