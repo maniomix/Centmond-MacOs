@@ -44,11 +44,20 @@ struct SubscriptionsView: View {
         var annualTotal: Decimal = 0
     }
 
+    /// Subset of `subscriptions` that are still attached to a
+    /// SwiftData context. Cloud-prune deletes (when iOS removes a
+    /// subscription) leave tombstoned instances in the @Query array
+    /// for one frame; reading `.status` / `.amount` / etc. on them
+    /// faults. Filter once here and use this everywhere downstream.
+    private var liveSubscriptions: [Subscription] {
+        subscriptions.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
     /// Recompute `buckets` from current `subscriptions`. Called from .onChange
     /// modifiers so body renders only ever read the cached struct — no rescans.
     private func recomputeBuckets() {
         var b = Buckets()
-        for sub in subscriptions {
+        for sub in liveSubscriptions {
             switch sub.status {
             case .active:
                 b.active.append(sub)
@@ -85,18 +94,18 @@ struct SubscriptionsView: View {
     }
 
     private var gridSubscriptions: [Subscription] {
-        subscriptions
+        liveSubscriptions
             .filter { $0.status == selectedTab.statusFilter }
             .sorted { $0.nextPaymentDate < $1.nextPaymentDate }
     }
 
     private var next7Total: Decimal {
-        SubscriptionForecast.projected(for: subscriptions, next: 7)
+        SubscriptionForecast.projected(for: liveSubscriptions, next: 7)
     }
 
     private var next30Charges: [SubscriptionForecast.UpcomingCharge] {
         let to = Calendar.current.date(byAdding: .day, value: 30, to: .now) ?? .now
-        return SubscriptionForecast.upcomingCharges(for: subscriptions, from: .now, to: to)
+        return SubscriptionForecast.upcomingCharges(for: liveSubscriptions, from: .now, to: to)
     }
 
     private var selectedSubID: UUID? {
@@ -106,7 +115,7 @@ struct SubscriptionsView: View {
 
     var body: some View {
         Group {
-            if subscriptions.isEmpty {
+            if liveSubscriptions.isEmpty {
                 EmptyStateView(
                     icon: "arrow.triangle.2.circlepath",
                     heading: "No subscriptions tracked",
@@ -123,7 +132,7 @@ struct SubscriptionsView: View {
                         .padding(.top, CentmondTheme.Spacing.sm)
                     heroSummary
 
-                    SubscriptionInsightsStrip(subscriptions: subscriptions)
+                    SubscriptionInsightsStrip(subscriptions: liveSubscriptions)
 
                     if !next30Charges.isEmpty {
                         Divider().background(CentmondTheme.Colors.strokeSubtle)
@@ -148,8 +157,13 @@ struct SubscriptionsView: View {
             recomputeBuckets()
         }
         .onChange(of: subscriptions.count) { _, _ in recomputeBuckets() }
-        .onChange(of: subscriptions.map(\.status)) { _, _ in recomputeBuckets() }
-        .onChange(of: subscriptions.map(\.monthlyCost)) { _, _ in recomputeBuckets() }
+        // Map over `liveSubscriptions` only — reading .status or
+        // .monthlyCost on a tombstoned instance during the prune-
+        // delete frame faults. The .count tracker above still
+        // catches the structural change first; these triggers are
+        // for in-place edits where count is stable.
+        .onChange(of: liveSubscriptions.map(\.status)) { _, _ in recomputeBuckets() }
+        .onChange(of: liveSubscriptions.map(\.monthlyCost)) { _, _ in recomputeBuckets() }
         .alert("Delete Subscription", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { subscriptionToDelete = nil }
             Button("Delete", role: .destructive) {

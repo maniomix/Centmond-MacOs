@@ -32,8 +32,16 @@ struct AccountsView: View {
         case recent = "Recent"
     }
 
+    /// Tombstone-safe view of the @Query array. Cloud-prune deletes
+    /// (when iOS removes an Account) leave a detached SwiftData
+    /// instance in `accounts` for one frame; reading any persisted
+    /// attribute on it (.name / .currentBalance / .type / …) faults.
+    private var liveAccounts: [Account] {
+        accounts.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
     private var filteredAccounts: [Account] {
-        var result = accounts
+        var result = liveAccounts
 
         // Status filter
         switch filterStatus {
@@ -82,11 +90,11 @@ struct AccountsView: View {
     }
 
     private var activeAccounts: [Account] {
-        accounts.filter { !$0.isArchived && !$0.isClosed }
+        liveAccounts.filter { !$0.isArchived && !$0.isClosed }
     }
 
     private var archivedAccounts: [Account] {
-        accounts.filter { $0.isArchived }
+        liveAccounts.filter { $0.isArchived }
     }
 
     private var groupedAccounts: [(AccountType, [Account])] {
@@ -116,7 +124,7 @@ struct AccountsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if accounts.isEmpty {
+            if liveAccounts.isEmpty {
                 EmptyStateView(
                     icon: "building.columns",
                     heading: "No accounts yet",
@@ -362,7 +370,7 @@ struct AccountsView: View {
 
                 Spacer()
 
-                let groupTotal = accounts.reduce(Decimal.zero) { $0 + $1.currentBalance }
+                let groupTotal = liveAccounts.reduce(Decimal.zero) { $0 + $1.currentBalance }
                 Text(CurrencyFormat.standard(groupTotal))
                     .font(CentmondTheme.Typography.mono)
                     .foregroundStyle(CentmondTheme.Colors.textSecondary)
@@ -522,6 +530,16 @@ private struct AccountCardView: View {
     }
 
     var body: some View {
+        // Tombstone guard: cloud-prune may delete this Account
+        // mid-frame; reading any persisted attribute would fault.
+        if account.modelContext == nil || account.isDeleted {
+            return AnyView(EmptyView())
+        }
+        return AnyView(_body)
+    }
+
+    @ViewBuilder
+    private var _body: some View {
         HStack(spacing: 0) {
             // Color indicator
             RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs, style: .continuous)

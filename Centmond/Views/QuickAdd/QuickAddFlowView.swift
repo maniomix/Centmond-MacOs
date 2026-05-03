@@ -679,7 +679,12 @@ struct QuickAddFlowView: View {
         categories.first(where: { $0.id == categoryID })
     }
 
-    private var activeMembers: [HouseholdMember] { members.filter(\.isActive) }
+    private var activeMembers: [HouseholdMember] {
+        // Tombstone guard before reading .isActive.
+        members
+            .filter { $0.modelContext != nil && !$0.isDeleted }
+            .filter(\.isActive)
+    }
 
     private var filteredCategories: [BudgetCategory] {
         categories.filter { $0.isExpenseCategory != isIncome }

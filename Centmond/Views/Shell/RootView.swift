@@ -11,6 +11,7 @@ struct RootView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @AppStorage("appPasscode") private var storedPasscode = ""
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var authManager: AuthManager
 
     /// Lives at the root so the same instance can be re-locked from sleep
     /// notifications and the inactivity timer inside `AppLockController`.
@@ -27,7 +28,15 @@ struct RootView: View {
             // splash animation. Without this, the splash's final frame
             // appeared to freeze until AppShell finished initializing.
             Group {
-                if appLockEnabled && !storedPasscode.isEmpty && !lockController.isUnlocked {
+                // Outermost gate: cloud auth. Until session is restored OR
+                // the user signs in, AppShell never renders.
+                if authManager.isCheckingSession {
+                    // Brief gap while supabase-swift restores a Keychain session.
+                    // The splash sits on top of this, so most users never see it.
+                    Color.clear
+                } else if !authManager.isAuthenticated {
+                    AuthRouterView()
+                } else if appLockEnabled && !storedPasscode.isEmpty && !lockController.isUnlocked {
                     LockScreenView {
                         lockController.unlock()
                     }
@@ -46,7 +55,19 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: splashFinished)
         .environment(lockController)
         .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
+        // Cloud sync lifecycle. Starts when the user is authenticated +
+        // local app-lock (if any) is unlocked. Stops on sign-out.
+        .task(id: authManager.isAuthenticated) {
+            if authManager.isAuthenticated {
+                CloudSyncCoordinator.shared.start(context: modelContext)
+            } else {
+                CloudSyncCoordinator.shared.stop()
+            }
+        }
         .task {
+            // Seed default budget categories before any repair sweep so
+            // category-reference repairs operate against a complete set.
+            DefaultCategoriesSeeder.seedIfNeeded(context: modelContext)
             GoalContributionService.migrateLegacyBalances(context: modelContext)
             // NOTE: `OrphanRecurringSweep.runOnce` was wired here but crashed
             // at launch — `context.save()` after mass-nulling a tombstoned

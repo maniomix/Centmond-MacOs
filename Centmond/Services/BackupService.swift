@@ -151,7 +151,18 @@ enum BackupService {
     /// Settings → Data → Delete All Data. The previous implementation only
     /// touched UserDefaults, leaving the database fully intact — that was a
     /// silent footgun for users trying to start over.
+    ///
+    /// **CLOUD POLICY (intentional, do not "fix"):** this wipe propagates
+    /// to cloud. CloudSyncCoordinator's willSave hook auto-queues every
+    /// deletion below; the next push (2 s debounce) drains the queue and
+    /// also pushes empty snapshots for `subscription_state` and
+    /// `household_state`. The cloud row set ends up empty across all
+    /// tables, then realtime fans out to every other signed-in device.
+    /// A user clicking "Delete All Data" expects a global reset — if we
+    /// only wiped local, the next sign-in would just re-pull everything
+    /// and undo the intent.
     static func wipeAllData(in context: ModelContext) {
+        SecureLogger.info("BackupService.wipeAllData starting — will propagate to cloud + all signed-in devices")
         deleteAll(Transaction.self, in: context)
         deleteAll(TransactionSplit.self, in: context)
         deleteAll(Account.self, in: context)

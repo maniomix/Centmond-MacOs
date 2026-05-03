@@ -20,6 +20,11 @@ struct HouseholdView: View {
     @State private var newMemberEmail = ""
     @State private var memberToDelete: HouseholdMember?
     @State private var showDeleteConfirmation = false
+    /// "Join with Code" alert — visible for parity with iOS empty state,
+    /// but the macOS app has no auth identity yet so the action explains
+    /// the gap instead of pretending it works. Wired up when the macOS
+    /// Cloud Port (project_macos_cloud_port) lands sign-in.
+    @State private var showJoinComingSoon = false
 
     // MARK: - Snapshot cache
     //
@@ -70,7 +75,7 @@ struct HouseholdView: View {
         }
 
         var nwByMember: [UUID: Decimal] = [:]
-        for m in allMembers where m.isActive {
+        for m in liveMembers where m.isActive {
             nwByMember[m.id] = HouseholdService.netWorth(for: m, in: modelContext)
         }
 
@@ -82,7 +87,7 @@ struct HouseholdView: View {
         next.splitTxns = splits
         next.currentMonthSpending = monthSpending
         next.totalUnsettled = unsettled
-        next.openSplitCount = shares.filter { $0.status == .owed }.count
+        next.openSplitCount = liveShares.filter { $0.status == .owed }.count
         next.pairBalances = HouseholdService.openPairBalances(in: modelContext)
         snapshot = next
     }
@@ -110,12 +115,27 @@ struct HouseholdView: View {
         }
     }
 
-    private var members: [HouseholdMember] { allMembers.filter(\.isActive) }
-    private var archivedMembers: [HouseholdMember] { allMembers.filter { !$0.isActive } }
+    /// Tombstone-safe view of the @Query arrays. Cloud-prune deletes
+    /// (when iOS removes a household entity) leave detached SwiftData
+    /// instances in the array for one frame; reading any persisted
+    /// attribute on them faults with "This backing data was detached
+    /// from a context …". Filter once, use everywhere.
+    private var liveMembers: [HouseholdMember] {
+        allMembers.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveSettlements: [HouseholdSettlement] {
+        settlements.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveShares: [ExpenseShare] {
+        shares.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
+    private var members: [HouseholdMember] { liveMembers.filter(\.isActive) }
+    private var archivedMembers: [HouseholdMember] { liveMembers.filter { !$0.isActive } }
 
     var body: some View {
         Group {
-            if allMembers.isEmpty {
+            if liveMembers.isEmpty {
                 emptySetup
             } else {
                 VStack(spacing: 0) {
@@ -193,29 +213,69 @@ struct HouseholdView: View {
         .padding(CentmondTheme.Spacing.xxl)
     }
 
-    /// Minimal name/email form. User asked to drop the icon + heading +
-    /// description + caption — just the two fields and a create button.
+    /// Native-mac iOS-feel empty state: icon + heading + description on top,
+    /// inline name/email form in a card below. The form stays inline (vs
+    /// iOS's separate sheet step) because keyboard-and-mouse desktop flows
+    /// punish extra clicks.
     private var emptySetupCard: some View {
-        CardContainer {
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-                setupField("NAME") {
-                    TextField("", text: $newMemberName, prompt: Text("Your name").foregroundStyle(CentmondTheme.Colors.textQuaternary))
-                        .textFieldStyle(.plain)
-                }
-                setupField("EMAIL") {
-                    TextField("", text: $newMemberEmail, prompt: Text("optional").foregroundStyle(CentmondTheme.Colors.textQuaternary))
-                        .textFieldStyle(.plain)
-                }
-                Button {
-                    createFirstMember()
-                } label: {
-                    Text("Create").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(newMemberName.trimmingCharacters(in: .whitespaces).isEmpty)
+        VStack(spacing: CentmondTheme.Spacing.lg) {
+            VStack(spacing: CentmondTheme.Spacing.sm) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(CentmondTheme.Colors.accent.opacity(0.7))
+                    .frame(width: 72, height: 72)
+                    .background(CentmondTheme.Colors.accent.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.md, style: .continuous))
+
+                Text("Shared Finance")
+                    .font(CentmondTheme.Typography.heading2)
+                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
+
+                Text("Manage money together with your partner.\nSplit expenses, share budgets, and settle up.")
+                    .font(CentmondTheme.Typography.body)
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(CentmondTheme.Spacing.lg)
-            .frame(maxWidth: .infinity)
+            .padding(.top, CentmondTheme.Spacing.md)
+
+            CardContainer {
+                VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+                    setupField("NAME") {
+                        TextField("", text: $newMemberName, prompt: Text("Your name").foregroundStyle(CentmondTheme.Colors.textQuaternary))
+                            .textFieldStyle(.plain)
+                    }
+                    setupField("EMAIL") {
+                        TextField("", text: $newMemberEmail, prompt: Text("optional").foregroundStyle(CentmondTheme.Colors.textQuaternary))
+                            .textFieldStyle(.plain)
+                    }
+                    Button {
+                        createFirstMember()
+                    } label: {
+                        Label("Create Household", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(newMemberName.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                    Button {
+                        showJoinComingSoon = true
+                    } label: {
+                        Text("Join with Code")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(CentmondTheme.Colors.accent)
+                    .padding(.top, 2)
+                }
+                .padding(CentmondTheme.Spacing.lg)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .alert("Sign-in required", isPresented: $showJoinComingSoon) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Joining a household via code needs cross-device sign-in, which isn't wired up on macOS yet. For now, you can create a household here and manage members locally.")
         }
     }
 
@@ -253,15 +313,28 @@ struct HouseholdView: View {
         showAddMember = false
     }
 
-    // MARK: - Header (hero strip)
+    // MARK: - Header (lean iOS-style)
+    //
+    // Replaces the legacy 4-card hero metric strip. iOS keeps its header
+    // light (name + member chips + avatars) and pushes balance/spending
+    // into a separate Balance Summary card below; this header now does
+    // the same. The 4 metric cards moved to the top of the Overview tab
+    // (`overviewTab` body) so the data isn't lost — just relocated.
 
     private var headerBar: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-            HStack {
+            HStack(alignment: .center, spacing: CentmondTheme.Spacing.md) {
                 Text("Household")
                     .font(CentmondTheme.Typography.heading2)
                     .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                Text("\(members.count) member\(members.count == 1 ? "" : "s")")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+
                 Spacer()
+
+                avatarRow
+
                 Button {
                     router.showSheet(.householdSettleUp)
                 } label: {
@@ -279,7 +352,6 @@ struct HouseholdView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }
-            heroStrip
         }
         .padding(.horizontal, CentmondTheme.Spacing.xxl)
         .padding(.vertical, CentmondTheme.Spacing.lg)
@@ -289,58 +361,140 @@ struct HouseholdView: View {
         }
     }
 
-    private var heroStrip: some View {
-        HStack(spacing: CentmondTheme.Spacing.lg) {
-            heroCard(
-                label: "MEMBERS",
-                value: "\(members.count)",
-                icon: "person.2.fill",
-                color: CentmondTheme.Colors.accent
-            )
-            heroCard(
-                label: "THIS MONTH",
-                value: CurrencyFormat.compact(currentMonthSpending()),
-                icon: "cart.fill",
-                color: CentmondTheme.Colors.negative
-            )
-            heroCard(
-                label: "UNSETTLED",
-                value: CurrencyFormat.compact(totalUnsettled()),
-                icon: "exclamationmark.arrow.triangle.2.circlepath",
-                color: totalUnsettled() > 0 ? CentmondTheme.Colors.warning : CentmondTheme.Colors.positive
-            )
-            heroCard(
-                label: "OPEN SPLITS",
-                value: "\(openSplitCount())",
-                icon: "rectangle.split.3x1",
-                color: CentmondTheme.Colors.textSecondary
-            )
+    /// Overlapping circle avatars, max 3 + "+N" pill. iOS dashboard card uses
+    /// the same pattern.
+    private var avatarRow: some View {
+        HStack(spacing: -8) {
+            ForEach(members.prefix(3)) { m in
+                Text(String(m.name.prefix(1)).uppercased())
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color(hex: m.avatarColor), in: Circle())
+                    .overlay(Circle().stroke(CentmondTheme.Colors.bgSecondary, lineWidth: 2))
+            }
+            if members.count > 3 {
+                Text("+\(members.count - 3)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(CentmondTheme.Colors.bgTertiary, in: Circle())
+                    .overlay(Circle().stroke(CentmondTheme.Colors.bgSecondary, lineWidth: 2))
+            }
         }
     }
 
-    private func heroCard(label: String, value: String, icon: String, color: Color) -> some View {
-        HStack(spacing: CentmondTheme.Spacing.sm) {
-            Image(systemName: icon)
-                .font(CentmondTheme.Typography.caption)
-                .foregroundStyle(color)
-                .frame(width: 24, height: 24)
-                .background(color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(CentmondTheme.Typography.overline)
-                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                    .tracking(0.5)
-                Text(value)
-                    .font(CentmondTheme.Typography.mono)
-                    .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                    .monospacedDigit()
+    /// iOS-style balance hero card. Replaces the legacy 4-card metric grid.
+    /// One big primary line (your net balance state), one secondary metric
+    /// (this month's shared spending), and small chips for the housekeeping
+    /// counts. "You" = the owner member on macOS (no auth-identity yet).
+    private var balanceHero: some View {
+        let owner = members.first(where: { $0.isOwner }) ?? members.first
+        let yourNet: Decimal = owner.flatMap { snapshot.balanceByMemberID[$0.id] } ?? 0
+        let unsettled = snapshot.totalUnsettled
+        let openSplits = snapshot.openSplitCount
+        let monthSpend = snapshot.currentMonthSpending
+        let isSolo = members.count <= 1
+
+        return CardContainer {
+            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.lg) {
+
+                // Primary line — the big iOS-style balance statement.
+                HStack(alignment: .firstTextBaseline, spacing: CentmondTheme.Spacing.md) {
+                    if isSolo {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Solo household")
+                                .font(CentmondTheme.Typography.heading2)
+                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                            Text("Invite someone to start splitting")
+                                .font(CentmondTheme.Typography.body)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                        }
+                    } else if yourNet > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Owed to you")
+                                .font(CentmondTheme.Typography.captionMedium)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                .tracking(0.3)
+                            Text(CurrencyFormat.standard(yourNet))
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundStyle(CentmondTheme.Colors.positive)
+                                .monospacedDigit()
+                        }
+                    } else if yourNet < 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("You owe")
+                                .font(CentmondTheme.Typography.captionMedium)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                .tracking(0.3)
+                            Text(CurrencyFormat.standard(abs(yourNet)))
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundStyle(CentmondTheme.Colors.warning)
+                                .monospacedDigit()
+                        }
+                    } else {
+                        HStack(spacing: CentmondTheme.Spacing.sm) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(CentmondTheme.Colors.positive)
+                            Text("All settled")
+                                .font(CentmondTheme.Typography.heading2)
+                                .foregroundStyle(CentmondTheme.Colors.positive)
+                        }
+                    }
+
+                    Spacer()
+
+                    if monthSpend > 0 {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("THIS MONTH")
+                                .font(CentmondTheme.Typography.overline)
+                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                                .tracking(0.5)
+                            Text(CurrencyFormat.standard(monthSpend))
+                                .font(CentmondTheme.Typography.mono)
+                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+
+                // Secondary chips row — only render when there's something to say.
+                if !isSolo && (unsettled > 0 || openSplits > 0) {
+                    HStack(spacing: CentmondTheme.Spacing.sm) {
+                        if unsettled > 0 {
+                            heroChip(
+                                icon: "exclamationmark.arrow.triangle.2.circlepath",
+                                text: "\(CurrencyFormat.compact(unsettled)) unsettled",
+                                tint: CentmondTheme.Colors.warning
+                            )
+                        }
+                        if openSplits > 0 {
+                            heroChip(
+                                icon: "rectangle.split.3x1",
+                                text: "\(openSplits) open split\(openSplits == 1 ? "" : "s")",
+                                tint: CentmondTheme.Colors.accent
+                            )
+                        }
+                        Spacer()
+                    }
+                }
             }
-            Spacer(minLength: 0)
+            .padding(CentmondTheme.Spacing.lg)
         }
-        .padding(CentmondTheme.Spacing.sm)
-        .background(CentmondTheme.Colors.bgTertiary)
-        .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.sm, style: .continuous))
+    }
+
+    private func heroChip(icon: String, text: String, tint: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(text)
+                .font(CentmondTheme.Typography.caption.weight(.semibold))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(tint.opacity(0.10), in: Capsule())
     }
 
     // MARK: - Tab bar
@@ -399,8 +553,9 @@ struct HouseholdView: View {
 
     private var overviewTab: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xxl) {
+            balanceHero
             whoOwesWhoPanel
-            memberCardsGrid
+            memberRowsList
             recentActivity
         }
     }
@@ -499,77 +654,94 @@ struct HouseholdView: View {
         Haptics.tap()
     }
 
-    private var memberCardsGrid: some View {
+    /// iOS-style member rows. One row per member: avatar + name + role
+    /// badge on the left, single primary spending number on the right, and
+    /// a muted "owes" / "owed" / "even" sub-line under the name. Replaces
+    /// the legacy 2-column grid of cards with stacked stat columns
+    /// ("THIS MONTH" + "NET WORTH" + "OWED") that read like a database
+    /// table.
+    private var memberRowsList: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-            Text("MEMBER BREAKDOWN")
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.5)
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg),
-                GridItem(.flexible(), spacing: CentmondTheme.Spacing.lg)
-            ], spacing: CentmondTheme.Spacing.lg) {
-                ForEach(members) { m in memberCard(m) }
+            HStack {
+                Text("MEMBERS")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .tracking(0.5)
+                Spacer()
+                Text("\(members.count)")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+            }
+            CardContainer {
+                VStack(spacing: 0) {
+                    ForEach(Array(members.enumerated()), id: \.element.id) { idx, m in
+                        memberRow(m)
+                        if idx != members.count - 1 {
+                            Divider().background(CentmondTheme.Colors.strokeSubtle)
+                        }
+                    }
+                }
+                .padding(.vertical, CentmondTheme.Spacing.xs)
             }
         }
     }
 
-    private func memberCard(_ member: HouseholdMember) -> some View {
+    private func memberRow(_ member: HouseholdMember) -> some View {
         let balance = memberBalance(member)
-        return CardContainer {
-            VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-                HStack(spacing: CentmondTheme.Spacing.md) {
-                    Circle()
-                        .fill(Color(hex: member.avatarColor))
-                        .frame(width: 44, height: 44)
-                        .overlay {
-                            Text(String(member.name.prefix(1)))
-                                .font(CentmondTheme.Typography.heading2)
-                                .foregroundStyle(.white)
-                        }
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(member.name)
-                                .font(CentmondTheme.Typography.heading3)
-                                .foregroundStyle(CentmondTheme.Colors.textPrimary)
-                            if member.isOwner {
-                                roleBadge("Owner", tint: CentmondTheme.Colors.accent)
-                            }
-                        }
-                        if let email = member.email {
-                            Text(email)
-                                .font(CentmondTheme.Typography.caption)
-                                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        }
-                        Text("Joined \(member.joinedAt.formatted(.dateTime.month().year()))")
-                            .font(CentmondTheme.Typography.caption)
-                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
-                    }
-                    Spacer()
+        let monthSpend = monthlySpending(for: member)
+        return HStack(spacing: CentmondTheme.Spacing.md) {
+            Circle()
+                .fill(Color(hex: member.avatarColor))
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Text(String(member.name.prefix(1)).uppercased())
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
                 }
 
-                HStack(spacing: CentmondTheme.Spacing.lg) {
-                    statPair(
-                        label: "THIS MONTH",
-                        value: CurrencyFormat.compact(monthlySpending(for: member)),
-                        tint: CentmondTheme.Colors.negative
-                    )
-                    statPair(
-                        label: "NET WORTH",
-                        value: CurrencyFormat.compact(memberNetWorth(member)),
-                        tint: CentmondTheme.Colors.accent
-                    )
-                    Spacer()
-                    if balance != 0 {
-                        statPair(
-                            label: balance > 0 ? "OWED" : "OWES",
-                            value: CurrencyFormat.compact(abs(balance)),
-                            tint: balance > 0 ? CentmondTheme.Colors.positive : CentmondTheme.Colors.warning
-                        )
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(member.name)
+                        .font(CentmondTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(CentmondTheme.Colors.textPrimary)
+                    if member.isOwner {
+                        roleBadge("Owner", tint: CentmondTheme.Colors.accent)
                     }
                 }
+                // Sub-line: net debt status in plain English. Mirrors iOS
+                // "you owe / owed to you / all settled" pattern at row level.
+                if balance > 0 {
+                    Text("Owed \(CurrencyFormat.compact(balance))")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.positive)
+                } else if balance < 0 {
+                    Text("Owes \(CurrencyFormat.compact(abs(balance)))")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.warning)
+                } else {
+                    Text("All settled")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                }
+            }
+
+            Spacer()
+
+            // Primary number: this month's spending, like iOS shows
+            // "Anna · €240" with the amount as the dominant right-side glyph.
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(CurrencyFormat.standard(monthSpend))
+                    .font(CentmondTheme.Typography.mono)
+                    .foregroundStyle(monthSpend > 0 ? CentmondTheme.Colors.textPrimary : CentmondTheme.Colors.textTertiary)
+                    .monospacedDigit()
+                Text("this month")
+                    .font(CentmondTheme.Typography.caption)
+                    .foregroundStyle(CentmondTheme.Colors.textQuaternary)
             }
         }
+        .padding(.horizontal, CentmondTheme.Spacing.md)
+        .padding(.vertical, CentmondTheme.Spacing.sm)
+        .contentShape(Rectangle())
         .contextMenu {
             Button(role: .destructive) {
                 memberToDelete = member
@@ -591,39 +763,48 @@ struct HouseholdView: View {
             .clipShape(RoundedRectangle(cornerRadius: CentmondTheme.Radius.xs))
     }
 
-    private func statPair(label: String, value: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(CentmondTheme.Typography.overline)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.5)
-            Text(value)
-                .font(CentmondTheme.Typography.mono)
-                .foregroundStyle(tint)
-                .monospacedDigit()
-        }
-    }
-
     private var recentActivity: some View {
-        VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-            Text("RECENT ACTIVITY")
-                .font(CentmondTheme.Typography.captionMedium)
-                .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                .tracking(0.5)
+        let recent = Array(transactions
+            .filter { $0.householdMember != nil }
+            .sorted(by: { $0.date > $1.date })
+            .prefix(15))
+        return VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
+            HStack {
+                Text("RECENT ACTIVITY")
+                    .font(CentmondTheme.Typography.captionMedium)
+                    .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                    .tracking(0.5)
+                Spacer()
+                if !recent.isEmpty {
+                    Text("\(recent.count)")
+                        .font(CentmondTheme.Typography.caption)
+                        .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                }
+            }
             CardContainer {
-                let recent = Array(transactions
-                    .filter { $0.householdMember != nil }
-                    .sorted(by: { $0.date > $1.date })
-                    .prefix(15))
                 if recent.isEmpty {
-                    Text("No attributed activity yet")
-                        .font(CentmondTheme.Typography.body)
-                        .foregroundStyle(CentmondTheme.Colors.textTertiary)
-                        .padding(.vertical, CentmondTheme.Spacing.lg)
+                    // iOS-style empty state — icon + title + subtitle inside
+                    // the card so the card has presence, not just a thin
+                    // strip of grey text.
+                    VStack(spacing: CentmondTheme.Spacing.sm) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundStyle(CentmondTheme.Colors.textQuaternary)
+                        Text("No shared activity yet")
+                            .font(CentmondTheme.Typography.body.weight(.semibold))
+                            .foregroundStyle(CentmondTheme.Colors.textSecondary)
+                        Text("Transactions you attribute to a member show up here.")
+                            .font(CentmondTheme.Typography.caption)
+                            .foregroundStyle(CentmondTheme.Colors.textTertiary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, CentmondTheme.Spacing.xl)
                 } else {
                     VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xs) {
                         ForEach(recent) { tx in activityRow(tx) }
                     }
+                    .padding(.vertical, CentmondTheme.Spacing.xs)
                 }
             }
         }
@@ -723,8 +904,14 @@ struct HouseholdView: View {
                     .lineLimit(1)
                 Spacer()
                 HStack(spacing: -6) {
-                    ForEach(tx.shares.prefix(4)) { s in
-                        if let m = s.member {
+                    // Filter tombstoned shares before reading .member —
+                    // cloud-prune may have detached one mid-frame.
+                    let liveTxShares = tx.shares
+                        .filter { $0.modelContext != nil && !$0.isDeleted }
+                        .prefix(4)
+                    ForEach(Array(liveTxShares)) { s in
+                        if let m = s.member,
+                           m.modelContext != nil, !m.isDeleted {
                             Circle()
                                 .fill(Color(hex: m.avatarColor))
                                 .frame(width: 16, height: 16)
@@ -804,19 +991,22 @@ struct HouseholdView: View {
 
     private var settlementHistoryPanel: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.md) {
-            Text("SETTLEMENT HISTORY (\(settlements.count))")
+            Text("SETTLEMENT HISTORY (\(liveSettlements.count))")
                 .font(CentmondTheme.Typography.captionMedium)
                 .foregroundStyle(CentmondTheme.Colors.textTertiary)
                 .tracking(0.5)
             CardContainer {
-                if settlements.isEmpty {
+                if liveSettlements.isEmpty {
                     Text("No settlements yet.")
                         .font(CentmondTheme.Typography.body)
                         .foregroundStyle(CentmondTheme.Colors.textTertiary)
                         .padding(.vertical, CentmondTheme.Spacing.md)
                 } else {
                     VStack(spacing: CentmondTheme.Spacing.xs) {
-                        ForEach(settlements) { s in settlementRow(s) }
+                        // Iterate live array — settlementRow reads
+                        // .amount/.date/.fromMember/.toMember which would
+                        // fault on a tombstoned HouseholdSettlement.
+                        ForEach(liveSettlements) { s in settlementRow(s) }
                     }
                 }
             }
@@ -863,7 +1053,7 @@ struct HouseholdView: View {
 
     private var membersTab: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.xl) {
-            memberCardsGrid
+            memberRowsList
         }
     }
 

@@ -22,6 +22,12 @@
 		3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC002F8B15DC002D5565 /* ExyteGrid */; };
 		3C75BC042F8B15ED002D5565 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC032F8B15ED002D5565 /* KeyboardShortcuts */; };
 		3C75BC072F8B1620002D5565 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 3C75BC062F8B1620002D5565 /* LaunchAtLogin */; };
+		3C8F0DC22FA38E8200CAD90A /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DC12FA38E8200CAD90A /* Auth */; };
+		3C8F0DC42FA38E8200CAD90A /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DC32FA38E8200CAD90A /* Functions */; };
+		3C8F0DC62FA38E8200CAD90A /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DC52FA38E8200CAD90A /* PostgREST */; };
+		3C8F0DC82FA38E8200CAD90A /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DC72FA38E8200CAD90A /* Realtime */; };
+		3C8F0DCA2FA38E8200CAD90A /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DC92FA38E8200CAD90A /* Storage */; };
+		3C8F0DCC2FA38E8200CAD90A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 3C8F0DCB2FA38E8200CAD90A /* Supabase */; };
 		3C9D0B372F8ADC9400797BB1 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3C9D0B362F8ADC9400797BB1 /* LlamaSwift */; };
 /* End PBXBuildFile section */
 
@@ -42,17 +48,23 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3C8F0DCC2FA38E8200CAD90A /* Supabase in Frameworks */,
+				3C8F0DC22FA38E8200CAD90A /* Auth in Frameworks */,
 				3C75BBFE2F8B15C4002D5565 /* Flow in Frameworks */,
+				3C8F0DC62FA38E8200CAD90A /* PostgREST in Frameworks */,
+				3C8F0DC82FA38E8200CAD90A /* Realtime in Frameworks */,
 				3C75BBD32F8B13C7002D5565 /* SplashTokenizer in Frameworks */,
 				3C75BBDF2F8B13FD002D5565 /* SkeletonUI in Frameworks */,
 				3C75BBFB2F8B15A1002D5565 /* SwiftUIIntrospect-Static in Frameworks */,
 				3C75BBED2F8B1456002D5565 /* RiveRuntime in Frameworks */,
 				3C9D0B372F8ADC9400797BB1 /* LlamaSwift in Frameworks */,
+				3C8F0DCA2FA38E8200CAD90A /* Storage in Frameworks */,
 				3C75BBC82F8B13B4002D5565 /* MarkdownUI in Frameworks */,
 				3C75BBF72F8B15A1002D5565 /* SwiftUIIntrospect in Frameworks */,
 				3C75BBCB2F8B13C7002D5565 /* Splash in Frameworks */,
 				3C75BC042F8B15ED002D5565 /* KeyboardShortcuts in Frameworks */,
 				3C75BBCD2F8B13C7002D5565 /* SplashHTMLGen in Frameworks */,
+				3C8F0DC42FA38E8200CAD90A /* Functions in Frameworks */,
 				3C75BBD12F8B13C7002D5565 /* SplashMarkdown in Frameworks */,
 				3C75BBE82F8B1420002D5565 /* Shiny in Frameworks */,
 				3C75BC012F8B15DC002D5565 /* ExyteGrid in Frameworks */,
@@ -116,6 +128,12 @@
 				3C75BC002F8B15DC002D5565 /* ExyteGrid */,
 				3C75BC032F8B15ED002D5565 /* KeyboardShortcuts */,
 				3C75BC062F8B1620002D5565 /* LaunchAtLogin */,
+				3C8F0DC12FA38E8200CAD90A /* Auth */,
+				3C8F0DC32FA38E8200CAD90A /* Functions */,
+				3C8F0DC52FA38E8200CAD90A /* PostgREST */,
+				3C8F0DC72FA38E8200CAD90A /* Realtime */,
+				3C8F0DC92FA38E8200CAD90A /* Storage */,
+				3C8F0DCB2FA38E8200CAD90A /* Supabase */,
 			);
 			productName = Centmond;
 			productReference = 3C1AA5D82F71F03600958A72 /* Centmond.app */;
@@ -159,6 +177,7 @@
 				3C75BC022F8B15ED002D5565 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				3CA6E8882F8B1C8E00088A28 /* XCLocalSwiftPackageReference "../Pow-local" */,
+				3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3C1AA5D92F71F03600958A72 /* Products */;
@@ -321,6 +340,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = Centmond/Centmond.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -328,6 +348,7 @@
 				DEVELOPMENT_TEAM = 2645K3Q527;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -355,6 +376,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = Centmond/Centmond.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -362,6 +384,7 @@
 				DEVELOPMENT_TEAM = 2645K3Q527;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -502,6 +525,14 @@
 				kind = branch;
 			};
 		};
+		3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
 		3C9D0B352F8ADC9400797BB1 /* XCRemoteSwiftPackageReference "llama" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mattt/llama.swift";
@@ -587,6 +618,36 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3C75BC052F8B1620002D5565 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
 			productName = LaunchAtLogin;
+		};
+		3C8F0DC12FA38E8200CAD90A /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		3C8F0DC32FA38E8200CAD90A /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		3C8F0DC52FA38E8200CAD90A /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		3C8F0DC72FA38E8200CAD90A /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		3C8F0DC92FA38E8200CAD90A /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		3C8F0DCB2FA38E8200CAD90A /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3C8F0DC02FA38E8200CAD90A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 		3C9D0B362F8ADC9400797BB1 /* LlamaSwift */ = {
 			isa = XCSwiftPackageProductDependency;

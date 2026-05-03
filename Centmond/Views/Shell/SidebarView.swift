@@ -255,7 +255,11 @@ struct SidebarView: View {
     // MARK: - Household scope strip (P6)
 
     private var activeHouseholdMembers: [HouseholdMember] {
-        householdMembers.filter(\.isActive)
+        // Tombstone-safe: cloud-prune may delete a member mid-frame;
+        // reading .isActive on the dead reference would fault.
+        householdMembers
+            .filter { $0.modelContext != nil && !$0.isDeleted }
+            .filter(\.isActive)
     }
 
     private var memberScopeStrip: some View {

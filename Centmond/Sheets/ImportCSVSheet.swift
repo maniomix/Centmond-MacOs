@@ -761,6 +761,7 @@ extension ImportCSVSheet {
         let dateString: String
         let displayDate: String
         let payee: String
+        let note: String?             // Captured from a dedicated note/memo column when distinct from the payee/description column
         let amount: Decimal
         let amountString: String
         let isIncome: Bool
@@ -856,6 +857,18 @@ extension ImportCSVSheet {
                 if !desc.isEmpty { payee = desc }
             }
 
+            // Note column — captured separately when it's distinct from the
+            // column we're already using for `payee`. Without this guard a CSV
+            // with only a Note column would put the merchant in `payee` AND
+            // duplicate the same string into `notes`.
+            var note: String? = nil
+            if let noteIdx = columnMap.noteIndex,
+               noteIdx != columnMap.payeeIndex,
+               noteIdx < fields.count {
+                let raw = fields[noteIdx].trimmingCharacters(in: .whitespaces)
+                if !raw.isEmpty { note = raw }
+            }
+
             var category: String?
             if let catIdx = columnMap.categoryIndex, catIdx < fields.count {
                 let cat = fields[catIdx].trimmingCharacters(in: .whitespaces)
@@ -925,6 +938,7 @@ extension ImportCSVSheet {
                 dateString: dateString,
                 displayDate: displayDate,
                 payee: payee,
+                note: note,
                 amount: absAmount,
                 amountString: formatted,
                 isIncome: isIncome,
@@ -1287,7 +1301,15 @@ extension ImportCSVSheet {
             categoryMap[name.lowercased()] = newCat
         }
 
-        // If Replace mode — clear relationships then delete (all in one transaction before save)
+        // If Replace mode — clear relationships then delete (all in one transaction before save).
+        //
+        // CLOUD POLICY (intentional): "Replace" propagates the wipe to cloud.
+        // CloudSyncCoordinator's willSave hook captures every deleted Transaction
+        // (via TransactionDeletionService) and queues a cloud DELETE; the cascade
+        // also drops linked ExpenseShares / HouseholdSettlements / GoalContributions,
+        // which ride out via household snapshot push and the deletion queue. The
+        // user's intent on "Replace" is "make the import the new source of truth"
+        // — preserving cloud copies that aren't in the CSV would defeat that.
         if importMode == .replace {
             do {
                 let descriptor = FetchDescriptor<Transaction>()
@@ -1310,6 +1332,7 @@ extension ImportCSVSheet {
                 date: date,
                 payee: row.payee,
                 amount: row.amount,
+                notes: row.note,
                 isIncome: row.isIncome,
                 status: .cleared,
                 isReviewed: false,

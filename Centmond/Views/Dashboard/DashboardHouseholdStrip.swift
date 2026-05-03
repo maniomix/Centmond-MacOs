@@ -12,7 +12,20 @@ struct DashboardHouseholdStrip: View {
     @Query private var transactions: [Transaction]
     @Query private var shares: [ExpenseShare]
 
-    private var members: [HouseholdMember] { allMembers.filter(\.isActive) }
+    /// Tombstone-safe @Query views. Cloud-prune deletes a member /
+    /// share / transaction → @Query republish lags one frame → reading
+    /// any persisted attribute on the dead reference faults.
+    private var liveMembers: [HouseholdMember] {
+        allMembers.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveTransactions: [Transaction] {
+        transactions.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    private var liveShares: [ExpenseShare] {
+        shares.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
+    private var members: [HouseholdMember] { liveMembers.filter(\.isActive) }
 
     var body: some View {
         if members.isEmpty {
@@ -24,7 +37,7 @@ struct DashboardHouseholdStrip: View {
 
     private var content: some View {
         let unsettled = totalUnsettled()
-        let openSplits = shares.filter { $0.status == .owed }.count
+        let openSplits = liveShares.filter { $0.status == .owed }.count
         let top = topSpenderThisMonth()
 
         return CardContainer {

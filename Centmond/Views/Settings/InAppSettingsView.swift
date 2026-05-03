@@ -651,7 +651,10 @@ struct InAppSettingsView: View {
     // MARK: - Phase 7 — Automation groups
 
     private var activeHouseholdMembers: [HouseholdMember] {
-        allHouseholdMembers.filter(\.isActive)
+        // Tombstone guard: filter detached SwiftData instances first.
+        allHouseholdMembers
+            .filter { $0.modelContext != nil && !$0.isDeleted }
+            .filter(\.isActive)
     }
 
     @ViewBuilder

@@ -10,9 +10,19 @@ struct GoalsView: View {
     @State private var showDeleteConfirmation = false
     @State private var goalToDelete: Goal?
 
-    private var activeGoals: [Goal] { allGoals.filter { $0.status == .active || $0.status == .paused } }
-    private var completedGoals: [Goal] { allGoals.filter { $0.status == .completed } }
-    private var archivedGoals: [Goal] { allGoals.filter { $0.status == .archived } }
+    /// Tombstone-safe view of the @Query array. Cloud-prune deletes
+    /// (when iOS removes a Goal) leave a detached SwiftData instance
+    /// in `allGoals` for one frame; reading any persisted attribute on
+    /// it (.status, .name, .currentAmount, …) faults with "This
+    /// backing data was detached from a context …". Filter once here
+    /// and use `liveGoals` everywhere downstream.
+    private var liveGoals: [Goal] {
+        allGoals.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+
+    private var activeGoals: [Goal] { liveGoals.filter { $0.status == .active || $0.status == .paused } }
+    private var completedGoals: [Goal] { liveGoals.filter { $0.status == .completed } }
+    private var archivedGoals: [Goal] { liveGoals.filter { $0.status == .archived } }
     private var doneGoals: [Goal] { completedGoals + archivedGoals }
 
     private var totalSaved: Decimal {
@@ -22,6 +32,11 @@ struct GoalsView: View {
     private var totalTarget: Decimal {
         activeGoals.reduce(Decimal.zero) { $0 + $1.targetAmount }
     }
+
+    /// True when there are no live goals at all. Replaces direct
+    /// `allGoals.isEmpty` reads so the empty-state view doesn't
+    /// flash when the only remaining row is a tombstoned one.
+    private var liveGoalsIsEmpty: Bool { liveGoals.isEmpty }
 
     private var overallProgress: Double {
         guard totalTarget > 0 else { return 0 }
@@ -35,7 +50,7 @@ struct GoalsView: View {
 
     var body: some View {
         Group {
-            if allGoals.isEmpty {
+            if liveGoalsIsEmpty {
                 EmptyStateView(
                     icon: "target",
                     heading: "No goals yet",
@@ -355,6 +370,20 @@ struct GoalCard: View {
     @State private var isHovered = false
 
     var body: some View {
+        // Guard against tombstoned SwiftData models. When iOS deletes
+        // a Goal, macOS's cloud-prune step `context.delete(goal)`s the
+        // local copy — but the parent @Query republish lags one frame,
+        // so this view body still has the dead reference. Reading any
+        // persisted attribute (.status / .name / .icon / …) faults
+        // with "This backing data was detached from a context …".
+        if goal.modelContext == nil || goal.isDeleted {
+            return AnyView(EmptyView())
+        }
+        return AnyView(_body)
+    }
+
+    @ViewBuilder
+    private var _body: some View {
         VStack(alignment: .leading, spacing: CentmondTheme.Spacing.sm) {
             // Header: icon + name + status
             HStack(spacing: CentmondTheme.Spacing.sm) {

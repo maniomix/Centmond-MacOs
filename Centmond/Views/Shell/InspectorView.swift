@@ -1800,6 +1800,12 @@ struct BudgetCategoryInspectorView: View {
             .alert("Delete Category", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
+                    // Built-in categories are seeded on launch and protected
+                    // from delete — same rule as BudgetView.swift.
+                    guard !category.isBuiltIn else {
+                        SecureLogger.info("Refused to delete built-in category: \(category.name)")
+                        return
+                    }
                     // Null every inverse pointer BEFORE the delete so SwiftUI's
                     // @Query can't render a RecurringTransaction / TransactionSplit /
                     // Transaction with a faulted `category` ref between our

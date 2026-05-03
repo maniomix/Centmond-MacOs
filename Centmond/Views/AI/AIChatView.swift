@@ -961,7 +961,9 @@ struct AIChatView: View {
 
         if fragment.hasPrefix("@") {
             let q = fragment.dropFirst().lowercased()
+            // Tombstone guard before any persisted-attr read.
             return allMembers
+                .filter { $0.modelContext != nil && !$0.isDeleted }
                 .filter { q.isEmpty || $0.name.lowercased().hasPrefix(q) }
                 .prefix(5)
                 .map { Prediction(icon: "person.crop.circle", label: $0.name, insert: "@\($0.name)") }
@@ -1005,7 +1007,8 @@ struct AIChatView: View {
             if !hits.isEmpty { return hits }
         }
         if memberTriggers.contains(triggered) || memberTriggers.contains(triggered2) {
-            let hits = matchList(allMembers, name: { $0.name }, icon: "person.crop.circle")
+            let live = allMembers.filter { $0.modelContext != nil && !$0.isDeleted }
+            let hits = matchList(live, name: { $0.name }, icon: "person.crop.circle")
             if !hits.isEmpty { return hits }
         }
         if monthTriggers.contains(triggered) || monthTriggers.contains(triggered2) {
