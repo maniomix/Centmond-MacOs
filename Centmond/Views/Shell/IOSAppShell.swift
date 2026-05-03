@@ -11,13 +11,13 @@ struct IOSAppShell: View {
 
     var body: some View {
         TabView {
-            placeholder("Dashboard", icon: "house.fill")
+            IOSDashboardView()
                 .tabItem { Label("Dashboard", systemImage: "house.fill") }
 
-            placeholder("Transactions", icon: "list.bullet.rectangle.fill")
+            IOSTransactionsView()
                 .tabItem { Label("Transactions", systemImage: "list.bullet.rectangle.fill") }
 
-            placeholder("Budgets", icon: "chart.pie.fill")
+            IOSBudgetsView()
                 .tabItem { Label("Budgets", systemImage: "chart.pie.fill") }
 
             placeholder("Reports", icon: "doc.richtext.fill")
