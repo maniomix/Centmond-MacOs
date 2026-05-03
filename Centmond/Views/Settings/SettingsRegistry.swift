@@ -20,6 +20,7 @@ import Foundation
 
 enum SettingsDomain: String, CaseIterable, Identifiable {
     case workspace      // locale, layout, behavior, haptics
+    case account        // signed-in user, sync status, sign out, delete account
     case ai             // model, mode, ai notifications, memory
     case alerts         // subs + recurring + household reminders + forecast
     case automation     // recurring pipeline, net-worth snapshot, household auto-split
@@ -33,6 +34,7 @@ enum SettingsDomain: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .workspace:  return "Workspace"
+        case .account:    return "Account"
         case .ai:         return "AI Assistant"
         case .alerts:     return "Alerts"
         case .automation: return "Automation"
@@ -46,6 +48,7 @@ enum SettingsDomain: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .workspace:  return "slider.horizontal.3"
+        case .account:    return "person.crop.circle.fill"
         case .ai:         return "brain.head.profile.fill"
         case .alerts:     return "bell.badge.fill"
         case .automation: return "gearshape.2.fill"

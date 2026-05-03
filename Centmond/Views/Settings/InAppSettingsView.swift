@@ -1260,6 +1260,14 @@ struct InAppSettingsView: View {
                     workspaceLayoutGroup
                     workspaceBehaviorGroup
                     workspaceQuickAddGroup
+                case .account:
+                    SettingsRowGroup("Cloud account", icon: "person.crop.circle.fill") {
+                        SettingsRowContainerShim(
+                            label: SettingsRowLabel("Signed in", systemImage: "checkmark.shield.fill")
+                        ) {
+                            AccountSettingsSection()
+                        }
+                    }
                 case .ai:
                     aiModelGroup
                     aiBehaviorGroup

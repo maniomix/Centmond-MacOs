@@ -82,6 +82,11 @@ struct AppShell: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar(removing: .title)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                SyncStatusToolbarItem()
+            }
+        }
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .environment(router)
         .frame(
@@ -112,6 +117,9 @@ struct AppShell: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: router.isOnboardingVisible)
+        .overlay(alignment: .top) {
+            SyncStatusPill()
+        }
         .onKeyPress(action: handleKeyPress)
         .onReceive(NotificationCenter.default.publisher(for: .replayOnboarding)) { _ in
             router.replayOnboarding()
