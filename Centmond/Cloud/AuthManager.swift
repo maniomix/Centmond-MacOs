@@ -38,42 +38,67 @@ final class AuthManager: ObservableObject {
     // MARK: - Init / restore
 
     init() {
-        // Single source of truth: the authStateChanges stream. With
-        // `emitLocalSessionAsInitialSession: true` set on SupabaseClient,
-        // the first event IS the persisted session — already refreshed if
-        // it was expired on disk. We deliberately do NOT probe `auth.session`
-        // up front because that probe throws on expired tokens, which
-        // briefly flipped `isCheckingSession=false` + `isAuthenticated=false`
-        // BEFORE the refresh emitted, causing AuthRouterView to flash for
-        // ~1s on launch when a stale token was present.
+        // Auth restore on launch is tricky. supabase-swift docs:
+        //   "emitLocalSessionAsInitialSession: When `true`, emits the
+        //    locally stored session immediately as the initial session.
+        //    Note: If you rely on the initial session to opt users in,
+        //    you need to add an additional check for `session.isExpired`
+        //    when this is set to `true`."
+        //
+        // So the .initialSession event arrives ALWAYS, even when the
+        // stored token is expired. If we treat expired-token as "no
+        // auth" and flip isCheckingSession=false on that event,
+        // RootView renders AuthRouterView for ~1 s — exactly the time
+        // it takes the auto-refresh to mint a new token and emit
+        // .tokenRefreshed. That's the launch flash.
+        //
+        // Fix: discriminate on event type. Hold isCheckingSession=true
+        // through .initialSession-with-expired-or-nil-session, waiting
+        // for the auto-refresh's .tokenRefreshed (success) or the 5 s
+        // safety timeout (genuinely no session) before letting RootView
+        // commit to AuthRouterView.
         Task {
-            var hasResolvedInitial = false
             for await state in await supabase.auth.authStateChanges {
                 await MainActor.run {
                     let valid = state.session.flatMap { $0.isExpired ? nil : $0 }
                     self.currentUser = valid?.user
                     self.isAuthenticated = valid != nil
-                    if !hasResolvedInitial {
-                        hasResolvedInitial = true
+
+                    switch state.event {
+                    case .signedIn, .tokenRefreshed, .userUpdated, .mfaChallengeVerified:
+                        // Definitive positive auth event.
                         self.isCheckingSession = false
-                        SecureLogger.info("Initial auth resolved: authenticated=\(self.isAuthenticated)")
-                    } else {
-                        SecureLogger.debug("Auth state: \(self.isAuthenticated)")
+                    case .signedOut, .userDeleted:
+                        // Definitive negative auth event.
+                        self.isCheckingSession = false
+                    case .initialSession:
+                        // Only resolve if the local session was actually
+                        // valid. If it was nil OR expired, the auto-refresh
+                        // is in flight — wait for .tokenRefreshed.
+                        if valid != nil {
+                            self.isCheckingSession = false
+                        }
+                    case .passwordRecovery:
+                        // No auth-state change; user is mid-recovery.
+                        break
+                    @unknown default:
+                        break
                     }
+                    SecureLogger.debug("Auth event: \(state.event.rawValue) authenticated=\(self.isAuthenticated) checking=\(self.isCheckingSession)")
                 }
             }
         }
 
-        // Safety net: if the stream never produces an initial event (network
-        // wedged, supabase-swift bug, etc.), don't pin the user on a blank
-        // splash forever. After 5s, give up and show the sign-in screen so
-        // they can at least try a manual sign-in.
+        // Safety net: if .tokenRefreshed never arrives (genuinely no
+        // session, refresh failed, network wedged), don't pin the user on
+        // a blank splash forever. After 5 s, accept the current state as
+        // final and let RootView commit.
         Task {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             await MainActor.run {
                 if self.isCheckingSession {
                     self.isCheckingSession = false
-                    SecureLogger.warning("Auth restore timed out after 5s; falling back to sign-in screen")
+                    SecureLogger.warning("Auth restore timed out after 5s; committing to current auth state (\(self.isAuthenticated))")
                 }
             }
         }
