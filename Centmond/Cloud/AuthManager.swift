@@ -38,29 +38,42 @@ final class AuthManager: ObservableObject {
     // MARK: - Init / restore
 
     init() {
+        // Single source of truth: the authStateChanges stream. With
+        // `emitLocalSessionAsInitialSession: true` set on SupabaseClient,
+        // the first event IS the persisted session — already refreshed if
+        // it was expired on disk. We deliberately do NOT probe `auth.session`
+        // up front because that probe throws on expired tokens, which
+        // briefly flipped `isCheckingSession=false` + `isAuthenticated=false`
+        // BEFORE the refresh emitted, causing AuthRouterView to flash for
+        // ~1s on launch when a stale token was present.
         Task {
-            do {
-                let session = try await supabase.auth.session
-                await MainActor.run {
-                    self.currentUser = session.user
-                    self.isAuthenticated = true
-                    self.isCheckingSession = false
-                    SecureLogger.info("Session restored")
-                }
-            } catch {
-                await MainActor.run {
-                    self.isAuthenticated = false
-                    self.isCheckingSession = false
-                    SecureLogger.debug("No existing session")
-                }
-            }
-
+            var hasResolvedInitial = false
             for await state in await supabase.auth.authStateChanges {
                 await MainActor.run {
                     let valid = state.session.flatMap { $0.isExpired ? nil : $0 }
                     self.currentUser = valid?.user
                     self.isAuthenticated = valid != nil
-                    SecureLogger.debug("Auth state: \(self.isAuthenticated)")
+                    if !hasResolvedInitial {
+                        hasResolvedInitial = true
+                        self.isCheckingSession = false
+                        SecureLogger.info("Initial auth resolved: authenticated=\(self.isAuthenticated)")
+                    } else {
+                        SecureLogger.debug("Auth state: \(self.isAuthenticated)")
+                    }
+                }
+            }
+        }
+
+        // Safety net: if the stream never produces an initial event (network
+        // wedged, supabase-swift bug, etc.), don't pin the user on a blank
+        // splash forever. After 5s, give up and show the sign-in screen so
+        // they can at least try a manual sign-in.
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                if self.isCheckingSession {
+                    self.isCheckingSession = false
+                    SecureLogger.warning("Auth restore timed out after 5s; falling back to sign-in screen")
                 }
             }
         }
