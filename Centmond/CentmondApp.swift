@@ -75,6 +75,11 @@ struct CentmondApp: App {
     }()
 
     init() {
+        // Surface missing Supabase config early. Logs to SecureLogger in
+        // release; without this a misconfigured release build silently boots
+        // with empty credentials and fails on every network call.
+        AppConfig.shared.validate()
+
         #if os(macOS)
         // Phase 3 — hand the shared container to the Quick Add panel
         // so its floating flow writes into the same SwiftData store.
