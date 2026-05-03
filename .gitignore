@@ -1,0 +1,24 @@
+# macOS / Finder
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+xcuserdata/
+*.xcuserdatad/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+
+# Secrets / environment-specific config
+# The plist holds Supabase URL/anon key + Google client ID. Anon keys are
+# safe to ship in clients (paired with RLS), but we keep environment config
+# out of the repo so Debug/Staging/Prod builds can swap it cleanly. Use
+# Centmond.plist.example as a template.
+Centmond/Centmond.plist
