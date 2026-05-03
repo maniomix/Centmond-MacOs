@@ -4,9 +4,13 @@ import LocalAuthentication
 
 /// Locked-state cover. Shows a single Face ID/Touch ID/passcode unlock
 /// button and the LAContext error from the previous attempt (if any).
-/// Auto-fires unlock on first appear so the prompt comes up immediately.
+/// Auto-fires unlock as soon as the scene is `.active` — NOT on
+/// onAppear, because onAppear can fire before the app's window/scene
+/// is fully presented at cold launch, in which case iOS suppresses the
+/// biometric UI silently and the screen looks frozen.
 struct IOSLockScreen: View {
     @Bindable var controller: IOSAppLockController
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -60,9 +64,20 @@ struct IOSLockScreen: View {
                 .padding(.bottom, 40)
             }
         }
-        .onAppear {
-            // Fire the prompt as soon as the screen appears so the user
-            // doesn't have to tap a button just to get to Face ID.
+        .task(id: scenePhase) {
+            // Auto-fire the unlock prompt when:
+            //   • the view first appears AND scene is .active (cold launch
+            //     after auth has resolved + lock screen mounts), or
+            //   • the scene transitions to .active (return from background
+            //     after the grace-period lock fired).
+            // The 100 ms sleep gives SwiftUI a chance to commit the view
+            // to the window before LAContext.evaluatePolicy runs — without
+            // it, iOS occasionally suppresses the system biometric UI on
+            // cold launch because the scene isn't fully presented yet,
+            // and the lock screen sits idle waiting for a tap.
+            guard scenePhase == .active else { return }
+            guard !controller.isUnlocked, !controller.isAuthenticating else { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
             controller.unlock()
         }
     }
