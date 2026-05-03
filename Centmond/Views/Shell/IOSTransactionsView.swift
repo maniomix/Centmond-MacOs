@@ -12,6 +12,7 @@ struct IOSTransactionsView: View {
 
     @State private var search: String = ""
     @State private var pendingDelete: Transaction?
+    @State private var showingAddSheet = false
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,16 @@ struct IOSTransactionsView: View {
             .searchable(text: $search, prompt: "Search payee or notes")
             .navigationTitle("Transactions")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showingAddSheet = true } label: {
+                        Label("Add", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddSheet) {
+                IOSAddTransactionSheet()
+            }
             .overlay {
                 if filtered.isEmpty {
                     emptyState
