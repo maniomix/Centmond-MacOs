@@ -17,6 +17,9 @@ struct RootView: View {
     /// Lives at the root so the same instance can be re-locked from sleep
     /// notifications and the inactivity timer inside `AppLockController`.
     @State private var lockController = AppLockController()
+    #else
+    @State private var iosLockController = IOSAppLockController()
+    @Environment(\.scenePhase) private var scenePhase
     #endif
 
     /// Shown once per process launch. The animation lasts ~2.7s and then
@@ -49,7 +52,11 @@ struct RootView: View {
                             .onAppear { lockController.notifyUserActivity() }
                     }
                     #else
-                    IOSAppShell()
+                    if appLockEnabled && !iosLockController.isUnlocked {
+                        IOSLockScreen(controller: iosLockController)
+                    } else {
+                        IOSAppShell()
+                    }
                     #endif
                 }
             }
@@ -64,6 +71,21 @@ struct RootView: View {
         #if os(macOS)
         .environment(lockController)
         .animation(CentmondTheme.Motion.default, value: lockController.isUnlocked)
+        #else
+        .onChange(of: scenePhase) { _, phase in
+            // Re-lock when the app backgrounds. A 2-second grace skips
+            // the most common case (Face ID/passcode prompt itself
+            // briefly backgrounding the app), so the user isn't asked
+            // to authenticate twice.
+            if phase == .background && appLockEnabled {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    if scenePhase == .background {
+                        iosLockController.lock()
+                    }
+                }
+            }
+        }
         #endif
         // Cloud sync lifecycle. Starts when the user is authenticated +
         // local app-lock (if any) is unlocked. Stops on sign-out.

@@ -2,16 +2,24 @@
 import SwiftUI
 import SwiftData
 
-/// iOS Add Transaction sheet (Track B3). Bare minimum to capture a tx
-/// so iOS isn't read-only. Saving inserts into modelContext; the
-/// CloudSyncCoordinator's willSave hook queues the upload, and the
-/// next debounce window (2 s) pushes it to Supabase.
+/// iOS Add/Edit Transaction sheet (Track B3). Same form drives both new
+/// rows and editing existing ones — pass `editing:` to load an existing
+/// Transaction for edit. Saving inserts/mutates and hands the change to
+/// CloudSyncCoordinator's willSave hook for the next debounce window.
 struct IOSAddTransactionSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \BudgetCategory.sortOrder) private var allCategories: [BudgetCategory]
     @Query(sort: \Account.name) private var allAccounts: [Account]
     @AppStorage("defaultCurrency") private var defaultCurrency = "USD"
+
+    /// Pass nil to add a new tx; pass an existing model to edit it. Held
+    /// as an @Bindable model below so writes go straight back to SwiftData.
+    let editing: Transaction?
+
+    init(editing: Transaction? = nil) {
+        self.editing = editing
+    }
 
     @State private var isIncome: Bool = false
     @State private var amount: Decimal = 0
@@ -20,6 +28,14 @@ struct IOSAddTransactionSheet: View {
     @State private var notes: String = ""
     @State private var selectedAccountID: UUID?
     @State private var selectedCategoryID: UUID?
+    @State private var didLoadExisting: Bool = false
+
+    /// Snapshot of the editing tx's pre-edit account + amount + isIncome
+    /// so we can reverse the running-balance adjustment before re-applying
+    /// the new one. Keeps account.currentBalance in sync across edits.
+    @State private var originalAccountID: UUID?
+    @State private var originalAmount: Decimal = 0
+    @State private var originalIsIncome: Bool = false
 
     @FocusState private var amountFocused: Bool
 
@@ -30,8 +46,9 @@ struct IOSAddTransactionSheet: View {
                 amountSection
                 detailsSection
                 notesSection
+                if editing != nil { deleteSection }
             }
-            .navigationTitle("New Transaction")
+            .navigationTitle(editing == nil ? "New Transaction" : "Edit Transaction")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -44,12 +61,26 @@ struct IOSAddTransactionSheet: View {
                 }
             }
             .onAppear {
-                amountFocused = true
-                if selectedAccountID == nil {
-                    selectedAccountID = activeAccounts.first?.id
-                }
-                if selectedCategoryID == nil {
-                    selectedCategoryID = relevantCategories.first?.id
+                if let tx = editing, !didLoadExisting {
+                    isIncome = tx.isIncome
+                    amount = tx.amount
+                    payee = tx.payee
+                    date = tx.date
+                    notes = tx.notes ?? ""
+                    selectedAccountID = tx.account?.id
+                    selectedCategoryID = tx.category?.id
+                    originalAccountID = tx.account?.id
+                    originalAmount = tx.amount
+                    originalIsIncome = tx.isIncome
+                    didLoadExisting = true
+                } else if editing == nil {
+                    amountFocused = true
+                    if selectedAccountID == nil {
+                        selectedAccountID = activeAccounts.first?.id
+                    }
+                    if selectedCategoryID == nil {
+                        selectedCategoryID = relevantCategories.first?.id
+                    }
                 }
             }
             .onChange(of: isIncome) { _, _ in
@@ -136,6 +167,30 @@ struct IOSAddTransactionSheet: View {
         }
     }
 
+    private var deleteSection: some View {
+        Section {
+            Button(role: .destructive) {
+                if let tx = editing {
+                    if let acc = tx.account {
+                        // reverse the running balance before delete
+                        if tx.isIncome { acc.currentBalance -= tx.amount }
+                        else            { acc.currentBalance += tx.amount }
+                    }
+                    modelContext.delete(tx)
+                    try? modelContext.save()
+                    Haptics.impact()
+                    dismiss()
+                }
+            } label: {
+                HStack {
+                    Spacer()
+                    Label("Delete Transaction", systemImage: "trash")
+                    Spacer()
+                }
+            }
+        }
+    }
+
     // MARK: - Derived
 
     private var activeAccounts: [Account] {
@@ -163,26 +218,46 @@ struct IOSAddTransactionSheet: View {
         let category = selectedCategoryID.flatMap { id in allCategories.first { $0.id == id } }
         let account = selectedAccountID.flatMap { id in allAccounts.first { $0.id == id } }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
+        let trimmedPayee = payee.trimmingCharacters(in: .whitespaces)
 
-        let tx = Transaction(
-            date: date,
-            payee: payee.trimmingCharacters(in: .whitespaces),
-            amount: amount,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-            isIncome: isIncome,
-            account: account,
-            category: category
-        )
-        modelContext.insert(tx)
+        if let tx = editing {
+            // Reverse the original account's running balance, mutate the
+            // tx, then apply the new running balance. This is what the Mac
+            // edit path does — keeps account.currentBalance correct even
+            // when the user moves a tx between accounts or flips its sign.
+            if let originalAccountID,
+               let originalAccount = allAccounts.first(where: { $0.id == originalAccountID }) {
+                if originalIsIncome { originalAccount.currentBalance -= originalAmount }
+                else                 { originalAccount.currentBalance += originalAmount }
+            }
 
-        // Mirror Mac semantics: a manual entry adjusts the linked account's
-        // running balance immediately so dashboards/account cards reflect it
-        // before the next aggregate refresh runs.
-        if let account {
-            if isIncome {
-                account.currentBalance += amount
-            } else {
-                account.currentBalance -= amount
+            tx.date = date
+            tx.payee = trimmedPayee
+            tx.amount = amount
+            tx.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
+            tx.isIncome = isIncome
+            tx.account = account
+            tx.category = category
+
+            if let account {
+                if isIncome { account.currentBalance += amount }
+                else         { account.currentBalance -= amount }
+            }
+        } else {
+            let tx = Transaction(
+                date: date,
+                payee: trimmedPayee,
+                amount: amount,
+                notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                isIncome: isIncome,
+                account: account,
+                category: category
+            )
+            modelContext.insert(tx)
+
+            if let account {
+                if isIncome { account.currentBalance += amount }
+                else         { account.currentBalance -= amount }
             }
         }
 

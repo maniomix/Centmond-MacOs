@@ -13,6 +13,7 @@ struct IOSTransactionsView: View {
     @State private var search: String = ""
     @State private var pendingDelete: Transaction?
     @State private var showingAddSheet = false
+    @State private var editingTransaction: Transaction?
 
     var body: some View {
         NavigationStack {
@@ -20,12 +21,15 @@ struct IOSTransactionsView: View {
                 ForEach(grouped, id: \.0) { (label, txs) in
                     Section(header: Text(label).textCase(nil)) {
                         ForEach(txs) { tx in
-                            row(for: tx)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        pendingDelete = tx
-                                    } label: { Label("Delete", systemImage: "trash") }
-                                }
+                            Button { editingTransaction = tx } label: {
+                                row(for: tx)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    pendingDelete = tx
+                                } label: { Label("Delete", systemImage: "trash") }
+                            }
                         }
                     }
                 }
@@ -43,6 +47,9 @@ struct IOSTransactionsView: View {
             }
             .sheet(isPresented: $showingAddSheet) {
                 IOSAddTransactionSheet()
+            }
+            .sheet(item: $editingTransaction) { tx in
+                IOSAddTransactionSheet(editing: tx)
             }
             .overlay {
                 if filtered.isEmpty {
